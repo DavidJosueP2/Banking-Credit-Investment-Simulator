@@ -52,9 +52,11 @@ public class InstitutionSettingsService {
 
         Map<String, String> assets = new LinkedHashMap<>();
         jdbc.query("SELECT asset_key, updated_at FROM app_assets ORDER BY asset_key",
-                row -> assets.put(row.getString("asset_key"),
-                        "/api/public/settings/assets/" + row.getString("asset_key") +
-                                "?v=" + row.getTimestamp("updated_at").toInstant().toEpochMilli()));
+                row -> {
+                    assets.put(row.getString("asset_key"),
+                            "/api/public/settings/assets/" + row.getString("asset_key") +
+                                    "?v=" + row.getTimestamp("updated_at").toInstant().toEpochMilli());
+                });
         return new SettingsView(sections, assets);
     }
 

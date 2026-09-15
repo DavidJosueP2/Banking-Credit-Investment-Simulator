@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
-import { ExternalLink, RotateCcw, Save, Upload } from 'lucide-react'
+import { ExternalLink, Info, RotateCcw, Save, Upload } from 'lucide-react'
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 
@@ -39,6 +39,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { api } from '@/lib/api'
 
 type SettingsTab = SettingsSection | 'media'
@@ -88,9 +89,22 @@ function ConfigField({ label, hint, onReset, children }: {
   return (
     <div className="space-y-2" role="group" aria-label={label}>
       <div className="flex items-start justify-between gap-4">
-        <div>
+        <div className="flex items-center gap-1.5">
           <p className="text-sm font-medium text-foreground">{label}</p>
-          {hint && <p className="mt-1 text-xs leading-5 text-muted-foreground">{hint}</p>}
+          {hint && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button type="button"
+                  className="rounded-full text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  aria-label={`Información sobre ${label}`}>
+                  <Info className="size-4" aria-hidden="true" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top" sideOffset={6} className="max-w-64 leading-5">
+                {hint}
+              </TooltipContent>
+            </Tooltip>
+          )}
         </div>
         <button type="button" onClick={onReset}
           className="shrink-0 rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -228,7 +242,6 @@ export function InstitutionSettingsPage() {
     try {
       const { data } = await api.put<SettingsResponse>(`/admin/settings/sections/${section}`, { values: draft[section] })
       applyResponse(data)
-      setMessage('Configuración guardada y aplicada al sitio público.')
     } catch (saveError) {
       setError(requestError(saveError))
     } finally {
@@ -321,11 +334,10 @@ export function InstitutionSettingsPage() {
     <div className="space-y-8">
       <PageHeader title="Configuración"
         description="Administra la identidad, apariencia, contenido público y disponibilidad de los módulos de Brunexa. Los campos restaurados se aplican al guardar."
-        actions={<Button asChild variant="gold-outline"><Link to="/" target="_blank" rel="noreferrer">Ver sitio público <ExternalLink aria-hidden="true" /></Link></Button>}
-        className="border-b pb-8" />
+        actions={<Button asChild variant="gold-outline"><Link to="/" target="_blank" rel="noreferrer">Ver sitio público <ExternalLink aria-hidden="true" /></Link></Button>} />
 
-      {message && <p role="status" className="border-t border-brand-teal pt-3 text-sm text-foreground">{message}</p>}
-      {error && <p role="alert" className="border-t border-destructive pt-3 text-sm text-destructive">{error}</p>}
+      {message && <p role="status" className="text-sm text-foreground">{message}</p>}
+      {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       {activeDirty && <p className="text-sm font-medium text-brand-gold">Hay cambios sin guardar en esta pestaña.</p>}
 
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as SettingsTab)} className="gap-8">
