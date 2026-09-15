@@ -1,16 +1,18 @@
 import {
-  Building2,
   ChartNoAxesCombined,
   Landmark,
   LayoutDashboard,
   Settings2,
+  UsersRound,
 } from 'lucide-react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
 
+import { hasPermission, type Permission } from '@/app/access/permissions'
+import { useDemoAccess } from '@/app/providers/demo-access-provider'
+import { BrandLogo } from '@/components/shared/brand-logo'
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -22,31 +24,39 @@ import {
 } from '@/components/ui/sidebar'
 
 const navigationItems = [
-  { title: 'Inicio', url: '/admin', icon: LayoutDashboard, exact: true },
-  { title: 'Créditos', url: '/admin/creditos', icon: Landmark },
-  { title: 'Inversiones', url: '/admin/inversiones', icon: ChartNoAxesCombined },
-  { title: 'Administración', url: '/admin/configuracion', icon: Settings2 },
-]
+  { title: 'Inicio', url: '/admin', icon: LayoutDashboard, exact: true, permission: 'admin.dashboard.view' },
+  { title: 'Créditos', url: '/admin/creditos', icon: Landmark, permission: 'credit.products.manage' },
+  { title: 'Inversiones', url: '/admin/inversiones', icon: ChartNoAxesCombined, permission: 'investment.products.manage' },
+  { title: 'Configuración', url: '/admin/configuracion', icon: Settings2, permission: 'institution.manage' },
+  { title: 'Roles y permisos', url: '/admin/roles', icon: UsersRound, permission: 'users.roles.manage' },
+] satisfies Array<{
+  title: string
+  url: string
+  icon: typeof LayoutDashboard
+  exact?: boolean
+  permission: Permission
+}>
 
 export function AdminSidebar() {
   const location = useLocation()
+  const { role } = useDemoAccess()
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader>
+      <SidebarHeader className="items-center pt-4">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild size="lg" tooltip="Sistema financiero">
-              <Link to="/admin">
-                <span className="flex size-8 items-center justify-center rounded-md bg-sidebar-primary text-sidebar-primary-foreground">
-                  <Building2 className="size-4" />
-                </span>
-                <span className="grid flex-1 text-left leading-tight">
-                  <span className="truncate font-medium">Sistema financiero</span>
-                  <span className="truncate text-xs text-sidebar-foreground/65">
-                    Administración
-                  </span>
-                </span>
+            <SidebarMenuButton asChild size="lg" tooltip="Brunexa Bank" className="justify-center">
+              <Link to="/admin" aria-label="Brunexa Bank, panel administrativo">
+                <BrandLogo
+                  variant="mark"
+                  className="hidden size-8 group-data-[collapsible=icon]:block"
+                  decorative
+                />
+                <BrandLogo
+                  className="h-11 w-40 group-data-[collapsible=icon]:hidden"
+                  decorative
+                />
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -58,7 +68,7 @@ export function AdminSidebar() {
           <SidebarGroupLabel>Navegación</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navigationItems.map((item) => {
+              {navigationItems.filter((item) => hasPermission(role, item.permission)).map((item) => {
                 const isActive = item.exact
                   ? location.pathname === item.url
                   : location.pathname.startsWith(item.url)
@@ -83,11 +93,6 @@ export function AdminSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter>
-        <p className="px-2 text-xs text-sidebar-foreground/60 group-data-[collapsible=icon]:hidden">
-          Base frontend
-        </p>
-      </SidebarFooter>
       <SidebarRail />
     </Sidebar>
   )

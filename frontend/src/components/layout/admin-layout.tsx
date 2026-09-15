@@ -1,6 +1,8 @@
 import { Outlet } from 'react-router-dom'
 
 import { AdminSidebar } from '@/components/layout/admin-sidebar'
+import { RolePreviewSelect } from '@/components/shared/role-preview-select'
+import { ThemeToggle } from '@/components/shared/theme-toggle'
 import { Separator } from '@/components/ui/separator'
 import {
   SidebarInset,
@@ -16,7 +18,12 @@ export function AdminLayout() {
         <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-2 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
           <SidebarTrigger aria-label="Alternar navegación" />
           <Separator orientation="vertical" className="mr-2 h-4" />
-          <span className="text-sm font-medium">Panel administrativo</span>
+          <span className="hidden text-sm font-medium sm:inline">Panel administrativo</span>
+          <div className="ml-auto flex items-center gap-2">
+            <span className="hidden text-xs text-muted-foreground lg:inline">Vista de demostración</span>
+            <RolePreviewSelect />
+            <ThemeToggle />
+          </div>
         </header>
         <div className="flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
           <div className="mx-auto w-full max-w-7xl">

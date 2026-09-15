@@ -12,9 +12,9 @@ const statusBadgeVariants = cva(
         neutral:
           'border-border bg-muted text-muted-foreground [&_[data-slot=status-dot]]:bg-muted-foreground',
         success:
-          'border-emerald-200 bg-emerald-50 text-emerald-800 [&_[data-slot=status-dot]]:bg-emerald-600 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300',
+          'border-brand-teal/30 bg-accent text-accent-foreground [&_[data-slot=status-dot]]:bg-brand-teal',
         warning:
-          'border-amber-200 bg-amber-50 text-amber-800 [&_[data-slot=status-dot]]:bg-amber-600 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300',
+          'border-brand-gold/30 bg-secondary text-secondary-foreground [&_[data-slot=status-dot]]:bg-brand-gold',
         danger:
           'border-red-200 bg-red-50 text-red-800 [&_[data-slot=status-dot]]:bg-red-600 dark:border-red-900 dark:bg-red-950 dark:text-red-300',
         info: 'border-sky-200 bg-sky-50 text-sky-800 [&_[data-slot=status-dot]]:bg-sky-600 dark:border-sky-900 dark:bg-sky-950 dark:text-sky-300',

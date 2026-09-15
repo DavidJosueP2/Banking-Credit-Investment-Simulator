@@ -174,6 +174,30 @@ no están implementados.
 - `app/providers/`: instancia única de `QueryClientProvider`, Tooltips y Sonner.
 - `lib/api.ts`: instancia central de Axios basada en `VITE_API_BASE_URL`.
 
+## Landing y acceso propuesto
+
+La ruta `/` es la landing pública preliminar y presenta únicamente los futuros
+simuladores de créditos e inversiones. `/admin` contiene el panel interno de
+demostración y `/admin/roles` muestra la matriz detallada de permisos.
+
+Los roles definidos en `src/app/access/permissions.ts` son:
+
+| Rol | Alcance previsto |
+| --- | --- |
+| Visitante | Simular crédito e inversión y descargar reportes públicos. |
+| Cliente | Lo público más solicitud de inversión, verificación de identidad, documentos y consulta de sus solicitudes. |
+| Asesor de crédito | Panel interno, productos, tasas, cobros y solicitudes de crédito. |
+| Asesor de inversiones | Panel interno, productos, tasas y solicitudes de inversión. |
+| Administrador | Panel interno, ambas áreas de gestión, configuración institucional y asignación de roles. |
+
+El selector “Vista de demostración” permite probar la navegación de cada rol;
+inicia en administrador y guarda la selección solo en la sesión de la pestaña.
+`PermissionGate` oculta rutas y controles de la interfaz según la matriz, pero
+**no autentica a nadie ni protege datos**. Antes de conectar trámites reales, el
+backend deberá identificar al usuario y verificar permisos en cada endpoint;
+actualmente `SecurityConfig` permite todas las solicitudes. El rol nunca deberá
+aceptarse como autoridad solo porque venga del navegador.
+
 ## Tipografía
 
 El sistema utiliza exclusivamente dos familias, servidas localmente mediante Fontsource:

@@ -35,65 +35,71 @@
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
+  --color-brand-gold: var(--brand-gold);
+  --color-brand-teal: var(--brand-teal);
 }
 
 :root {
   --radius: 0.625rem;
-  --background: oklch(0.985 0.004 240);
-  --foreground: oklch(0.2 0.025 245);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.2 0.025 245);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.2 0.025 245);
-  --primary: oklch(0.34 0.09 245);
-  --primary-foreground: oklch(0.985 0.004 240);
-  --secondary: oklch(0.94 0.015 235);
-  --secondary-foreground: oklch(0.28 0.045 245);
-  --muted: oklch(0.955 0.01 235);
-  --muted-foreground: oklch(0.5 0.025 245);
-  --accent: oklch(0.92 0.035 170);
-  --accent-foreground: oklch(0.28 0.06 175);
-  --destructive: oklch(0.58 0.22 27);
-  --border: oklch(0.88 0.015 235);
-  --input: oklch(0.88 0.015 235);
-  --ring: oklch(0.55 0.09 235);
-  --sidebar: hsl(0 0% 98%);
-  --sidebar-foreground: hsl(240 5.3% 26.1%);
-  --sidebar-primary: hsl(240 5.9% 10%);
-  --sidebar-primary-foreground: hsl(0 0% 98%);
-  --sidebar-accent: hsl(240 4.8% 95.9%);
-  --sidebar-accent-foreground: hsl(240 5.9% 10%);
-  --sidebar-border: hsl(220 13% 91%);
-  --sidebar-ring: hsl(217.2 91.2% 59.8%);
+  --background: #fafafa;
+  --foreground: #202527;
+  --card: #ffffff;
+  --card-foreground: #202527;
+  --popover: #ffffff;
+  --popover-foreground: #202527;
+  --primary: #252b2e;
+  --primary-foreground: #ffffff;
+  --secondary: #f0f1f1;
+  --secondary-foreground: #32383a;
+  --muted: #f3f4f4;
+  --muted-foreground: #586064;
+  --accent: #e9eceb;
+  --accent-foreground: #23292b;
+  --destructive: #b43e43;
+  --border: #dadddd;
+  --input: #cdd2d2;
+  --ring: #08747b;
+  --brand-gold: #946928;
+  --brand-teal: #08747b;
+  --sidebar: #f0f2f1;
+  --sidebar-foreground: #2a3234;
+  --sidebar-primary: #252b2e;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e1e6e4;
+  --sidebar-accent-foreground: #202527;
+  --sidebar-border: #d6dcda;
+  --sidebar-ring: #08747b;
 }
 
 .dark {
-  --background: oklch(0.17 0.025 245);
-  --foreground: oklch(0.96 0.01 235);
-  --card: oklch(0.22 0.03 245);
-  --card-foreground: oklch(0.96 0.01 235);
-  --popover: oklch(0.22 0.03 245);
-  --popover-foreground: oklch(0.96 0.01 235);
-  --primary: oklch(0.78 0.08 225);
-  --primary-foreground: oklch(0.2 0.035 245);
-  --secondary: oklch(0.29 0.035 245);
-  --secondary-foreground: oklch(0.96 0.01 235);
-  --muted: oklch(0.28 0.025 245);
-  --muted-foreground: oklch(0.72 0.025 235);
-  --accent: oklch(0.34 0.05 175);
-  --accent-foreground: oklch(0.94 0.035 165);
-  --destructive: oklch(0.7 0.19 24);
-  --border: oklch(1 0 0 / 12%);
-  --input: oklch(1 0 0 / 16%);
-  --ring: oklch(0.66 0.08 230);
-  --sidebar: hsl(240 5.9% 10%);
-  --sidebar-foreground: hsl(240 4.8% 95.9%);
-  --sidebar-primary: hsl(224.3 76.3% 48%);
-  --sidebar-primary-foreground: hsl(0 0% 100%);
-  --sidebar-accent: hsl(240 3.7% 15.9%);
-  --sidebar-accent-foreground: hsl(240 4.8% 95.9%);
-  --sidebar-border: hsl(240 3.7% 15.9%);
-  --sidebar-ring: hsl(217.2 91.2% 59.8%);
+  --background: #121516;
+  --foreground: #edf0ef;
+  --card: #1c2123;
+  --card-foreground: #edf0ef;
+  --popover: #1c2123;
+  --popover-foreground: #edf0ef;
+  --primary: #e5e9e7;
+  --primary-foreground: #1b2122;
+  --secondary: #2a3031;
+  --secondary-foreground: #e2e6e4;
+  --muted: #272c2e;
+  --muted-foreground: #adb6b5;
+  --accent: #303738;
+  --accent-foreground: #edf0ef;
+  --destructive: #b74348;
+  --border: #3d4547;
+  --input: #485253;
+  --ring: #70d4cd;
+  --brand-gold: #e1bd78;
+  --brand-teal: #70d4cd;
+  --sidebar: #1a292b;
+  --sidebar-foreground: #e7ebea;
+  --sidebar-primary: #e5e9e7;
+  --sidebar-primary-foreground: #1b2122;
+  --sidebar-accent: #2a3b3d;
+  --sidebar-accent-foreground: #edf0ef;
+  --sidebar-border: #3b4b4d;
+  --sidebar-ring: #70d4cd;
 }
 
 @layer base {
@@ -114,11 +120,11 @@
     font-family: var(--font-sans);
     font-size: 1rem;
     line-height: 1.5;
-    caret-color: var(--primary);
+    caret-color: var(--brand-teal);
   }
 
   ::selection {
-    background: color-mix(in oklch, var(--primary) 20%, transparent);
+    background: color-mix(in oklch, var(--brand-teal) 20%, transparent);
     color: var(--foreground);
   }
 

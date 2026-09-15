@@ -184,26 +184,32 @@ export function DevTablePage() {
           actions={<Badge variant="outline">Datos mock</Badge>}
         />
 
-        <DataTable
-          columns={mockColumns}
-          data={mockData}
-          getRowId={(record) => record.id}
-          search={{ columnId: 'reference', placeholder: 'Buscar por nombre...' }}
-          pagination={{ mode: 'client', initialPageSize: 10 }}
-          toolbar={(table) => (
-            <DataTableToolbar
-              table={table}
-              search={{
-                columnId: 'reference',
-                placeholder: 'Buscar por nombre...',
-              }}
-            >
-              <MockStatusFilter table={table} />
-            </DataTableToolbar>
-          )}
-          aria-label="Registros mock"
-        />
+        <MockDataTable />
       </div>
     </main>
+  )
+}
+
+export function MockDataTable() {
+  return (
+    <DataTable
+      columns={mockColumns}
+      data={mockData}
+      getRowId={(record) => record.id}
+      search={{ columnId: 'reference', placeholder: 'Buscar por nombre...' }}
+      pagination={{ mode: 'client', initialPageSize: 10 }}
+      toolbar={(table) => (
+        <DataTableToolbar
+          table={table}
+          search={{
+            columnId: 'reference',
+            placeholder: 'Buscar por nombre...',
+          }}
+        >
+          <MockStatusFilter table={table} />
+        </DataTableToolbar>
+      )}
+      aria-label="Registros de ejemplo"
+    />
   )
 }
