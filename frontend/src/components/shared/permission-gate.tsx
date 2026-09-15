@@ -1,9 +1,8 @@
 import type { ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, Navigate, useLocation } from 'react-router-dom'
 
-import { hasPermission, roleLabels, type Permission } from '@/app/access/permissions'
-import { useDemoAccess } from '@/app/providers/demo-access-provider'
-import { RolePreviewSelect } from '@/components/shared/role-preview-select'
+import { type Permission } from '@/app/access/permissions'
+import { useAuth } from '@/app/providers/auth-provider'
 import { Button } from '@/components/ui/button'
 
 interface PermissionGateProps {
@@ -12,26 +11,25 @@ interface PermissionGateProps {
 }
 
 export function PermissionGate({ permission, children }: PermissionGateProps) {
-  const { role } = useDemoAccess()
-  if (hasPermission(role, permission)) return children
+  const { account, isPending, isError, hasPermission } = useAuth()
+  const location = useLocation()
+  if (isPending) return <main className="mx-auto max-w-xl px-6 py-24 text-sm text-muted-foreground">Comprobando acceso…</main>
+  if (isError) return <main className="mx-auto max-w-xl px-6 py-24"><h1 className="text-3xl">No se pudo comprobar tu acceso</h1><p className="mt-4 text-muted-foreground">Revisa la conexión con el servidor e intenta de nuevo.</p></main>
+  if (!account) return <Navigate to={`/login?next=${encodeURIComponent(location.pathname)}`} replace />
+  if (hasPermission(permission)) return children
 
   return (
     <main className="mx-auto flex min-h-[50svh] max-w-xl flex-col justify-center px-6 py-16">
-      <h1 className="text-3xl">Esta vista no corresponde a tu perfil</h1>
+      <h1 className="text-3xl">No tienes acceso a esta sección</h1>
       <p className="mt-4 leading-7 text-muted-foreground">
-        El perfil de demostración “{roleLabels[role]}” no incluye este permiso.
-        Selecciona otro perfil para revisar la navegación prevista.
+        Tu cuenta no tiene el permiso necesario. Si necesitas trabajar aquí,
+        solicita acceso a un administrador de Brunexa.
       </p>
       <div className="mt-7 flex flex-wrap items-center gap-3">
-        <RolePreviewSelect />
         <Button asChild variant="outline">
-          <Link to="/">Ir a la landing</Link>
+          <Link to="/">Ir al inicio</Link>
         </Button>
       </div>
-      <p className="mt-6 text-sm text-muted-foreground">
-        Este selector solo representa permisos en la interfaz. La autorización real
-        deberá aplicarse en el backend.
-      </p>
     </main>
   )
 }

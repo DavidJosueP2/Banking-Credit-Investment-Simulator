@@ -7,8 +7,8 @@ import {
 } from 'lucide-react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
 
-import { hasPermission, type Permission } from '@/app/access/permissions'
-import { useDemoAccess } from '@/app/providers/demo-access-provider'
+import { type Permission } from '@/app/access/permissions'
+import { useAuth } from '@/app/providers/auth-provider'
 import { BrandLogo } from '@/components/shared/brand-logo'
 import {
   Sidebar,
@@ -39,7 +39,7 @@ const navigationItems = [
 
 export function AdminSidebar() {
   const location = useLocation()
-  const { role } = useDemoAccess()
+  const { hasPermission } = useAuth()
 
   return (
     <Sidebar collapsible="icon">
@@ -65,10 +65,10 @@ export function AdminSidebar() {
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Navegación</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-brand-gold">Navegación</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navigationItems.filter((item) => hasPermission(role, item.permission)).map((item) => {
+              {navigationItems.filter((item) => hasPermission(item.permission)).map((item) => {
                 const isActive = item.exact
                   ? location.pathname === item.url
                   : location.pathname.startsWith(item.url)
@@ -81,7 +81,7 @@ export function AdminSidebar() {
                       tooltip={item.title}
                     >
                       <NavLink to={item.url} end={item.exact}>
-                        <item.icon />
+                        <item.icon className={isActive ? 'text-brand-gold' : 'text-brand-teal'} />
                         <span>{item.title}</span>
                       </NavLink>
                     </SidebarMenuButton>

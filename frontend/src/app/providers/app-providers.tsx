@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useState, type PropsWithChildren } from 'react'
 
-import { DemoAccessProvider } from '@/app/providers/demo-access-provider'
+import { AuthProvider } from '@/app/providers/auth-provider'
 import { ThemeProvider, useTheme } from '@/app/providers/theme-provider'
 import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -29,12 +29,12 @@ export function AppProviders({ children }: PropsWithChildren) {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <DemoAccessProvider>
+        <AuthProvider>
           <TooltipProvider delayDuration={300}>
             {children}
             <ThemedToaster />
           </TooltipProvider>
-        </DemoAccessProvider>
+        </AuthProvider>
       </ThemeProvider>
     </QueryClientProvider>
   )

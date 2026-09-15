@@ -6,12 +6,12 @@ export function AdminHomePage() {
     <div className="space-y-8">
       <PageHeader
         title="Panel administrativo"
-        description="Vista de ejemplo para explorar los componentes de administración de Brunexa. No contiene datos reales ni acciones persistentes."
+        description="Gestiona los productos y accesos de Brunexa desde un mismo espacio. Las operaciones se habilitarán por módulo."
       />
 
       <section className="space-y-5" aria-labelledby="admin-example-title">
         <div className="space-y-2">
-          <h2 id="admin-example-title" className="text-xl">Tabla de ejemplo</h2>
+          <h2 id="admin-example-title" className="text-xl text-brand-gold">Tabla de ejemplo</h2>
           <p className="text-sm text-muted-foreground">
             Registros locales de demostración para probar búsqueda, filtros y paginación.
           </p>

@@ -94,7 +94,7 @@ La instancia compartida de Axios está en `src/lib/api.ts` y obtiene su `baseURL
 http://localhost:8080/api
 ```
 
-Los futuros servicios deben importar esa instancia en lugar de repetir la URL del backend. Los interceptores para autenticación se agregarán cuando exista el módulo de seguridad.
+Los servicios deben importar esa instancia en lugar de repetir la URL del backend. La instancia envía la cookie de sesión y el token CSRF en operaciones que modifican datos.
 
 ## Configuración de interfaz
 
@@ -102,8 +102,8 @@ Los futuros servicios deben importar esa instancia en lugar de repetir la URL de
 - El alias `@/` apunta a `src/` tanto en Vite como en TypeScript.
 - shadcn/ui utiliza variables CSS y una paleta sobria para el sistema financiero.
 - `AppProviders` centraliza TanStack Query y las notificaciones de Sonner.
-- El router separa la futura zona pública (`/`), la estructura administrativa
-  (`/admin`) y el laboratorio interno de tablas (`/dev/table`).
+- El router separa la zona pública (`/`, `/login`) mediante `PublicLayout`, el
+  panel interno (`/admin`) mediante `AdminLayout` y el laboratorio de tablas (`/dev/table`).
 
 ## Componentes UI
 
@@ -174,29 +174,13 @@ no están implementados.
 - `app/providers/`: instancia única de `QueryClientProvider`, Tooltips y Sonner.
 - `lib/api.ts`: instancia central de Axios basada en `VITE_API_BASE_URL`.
 
-## Landing y acceso propuesto
+## Landing y acceso
 
-La ruta `/` es la landing pública preliminar y presenta únicamente los futuros
-simuladores de créditos e inversiones. `/admin` contiene el panel interno de
-demostración y `/admin/roles` muestra la matriz detallada de permisos.
+La ruta `/` presenta los simuladores de créditos e inversiones sin inventar tasas ni productos. `PublicLayout` conserva la navegación institucional y `/login` permite ingresar con una cuenta persistida. `AdminLayout` usa una navegación interna independiente y solo se muestra cuando Spring Security confirma `admin.dashboard.view`.
 
-Los roles definidos en `src/app/access/permissions.ts` son:
+El visitante no necesita cuenta para la landing. Cliente, asesor de crédito, asesor de inversiones y administrador son roles persistidos en PostgreSQL. La matriz de autoridades se consulta desde el backend en `/admin/roles`; no existe un selector de perfiles local. En esa pantalla, el administrador puede crear usuarios y asignarles roles. La interfaz oculta accesos sin permiso y el backend vuelve a comprobar los permisos persistidos en cada petición privada.
 
-| Rol | Alcance previsto |
-| --- | --- |
-| Visitante | Simular crédito e inversión y descargar reportes públicos. |
-| Cliente | Lo público más solicitud de inversión, verificación de identidad, documentos y consulta de sus solicitudes. |
-| Asesor de crédito | Panel interno, productos, tasas, cobros y solicitudes de crédito. |
-| Asesor de inversiones | Panel interno, productos, tasas y solicitudes de inversión. |
-| Administrador | Panel interno, ambas áreas de gestión, configuración institucional y asignación de roles. |
-
-El selector “Vista de demostración” permite probar la navegación de cada rol;
-inicia en administrador y guarda la selección solo en la sesión de la pestaña.
-`PermissionGate` oculta rutas y controles de la interfaz según la matriz, pero
-**no autentica a nadie ni protege datos**. Antes de conectar trámites reales, el
-backend deberá identificar al usuario y verificar permisos en cada endpoint;
-actualmente `SecurityConfig` permite todas las solicitudes. El rol nunca deberá
-aceptarse como autoridad solo porque venga del navegador.
+Consulta `backend/README.md` para configurar la contraseña inicial y las cuentas de ejemplo del perfil `dev`. Las credenciales no se almacenan en `VITE_` ni en el código del navegador.
 
 ## Tipografía
 

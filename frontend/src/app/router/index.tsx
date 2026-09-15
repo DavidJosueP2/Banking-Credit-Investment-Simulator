@@ -1,17 +1,25 @@
 import { createBrowserRouter } from 'react-router-dom'
 
 import { AdminLayout } from '@/components/layout/admin-layout'
+import { PublicLayout } from '@/components/layout/public-layout'
 import { PermissionGate } from '@/components/shared/permission-gate'
 import { AdminHomePage } from '@/pages/admin-home-page'
+import { AccountPage } from '@/pages/account-page'
 import { DevTablePage } from '@/pages/dev-table-page'
 import { HomePage } from '@/pages/home-page'
+import { LoginPage } from '@/pages/login-page'
 import { PlaceholderPage } from '@/pages/placeholder-page'
 import { RolePermissionsPage } from '@/pages/role-permissions-page'
 
 export const router = createBrowserRouter([
   {
     path: '/',
-    element: <HomePage />,
+    element: <PublicLayout />,
+    children: [
+      { index: true, element: <HomePage /> },
+      { path: 'login', element: <LoginPage /> },
+      { path: 'cuenta', element: <AccountPage /> },
+    ],
   },
   {
     path: '/admin',
@@ -70,6 +78,6 @@ export const router = createBrowserRouter([
   },
   {
     path: '/dev/table',
-    element: <DevTablePage />,
+    element: <PermissionGate permission="admin.dashboard.view"><DevTablePage /></PermissionGate>,
   },
 ])
