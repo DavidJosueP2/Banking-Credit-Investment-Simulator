@@ -27,6 +27,10 @@ spring:
           time_zone: ${APP_TIME_ZONE:America/Guayaquil}
   jackson:
     time-zone: ${APP_TIME_ZONE:America/Guayaquil}
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
 
 server:
   port: ${SERVER_PORT:8080}

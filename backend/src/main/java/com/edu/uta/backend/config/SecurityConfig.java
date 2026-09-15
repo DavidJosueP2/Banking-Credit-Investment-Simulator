@@ -32,8 +32,9 @@ public class SecurityConfig {
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("/api/health", "/api/auth/csrf", "/api/auth/login").permitAll()
+                        .requestMatchers("/api/health", "/api/auth/csrf", "/api/auth/login", "/api/public/settings/**").permitAll()
                         .requestMatchers("/api/auth/me", "/api/auth/logout").authenticated()
+                        .requestMatchers("/api/admin/settings/**").hasAuthority("institution.manage")
                         .requestMatchers("/api/admin/**").hasAuthority("users.roles.manage")
                         .anyRequest().denyAll())
                 .formLogin(form -> form

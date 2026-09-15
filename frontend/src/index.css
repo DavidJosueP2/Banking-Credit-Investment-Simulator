@@ -36,7 +36,9 @@
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
   --color-brand-gold: var(--brand-gold);
+  --color-brand-gold-foreground: var(--brand-gold-foreground);
   --color-brand-teal: var(--brand-teal);
+  --color-brand-teal-foreground: var(--brand-teal-foreground);
 }
 
 :root {
@@ -60,7 +62,9 @@
   --input: #cdd2d2;
   --ring: #08747b;
   --brand-gold: #946928;
+  --brand-gold-foreground: #ffffff;
   --brand-teal: #08747b;
+  --brand-teal-foreground: #ffffff;
   --sidebar: #f0f2f1;
   --sidebar-foreground: #2a3234;
   --sidebar-primary: #252b2e;
@@ -91,7 +95,9 @@
   --input: #485253;
   --ring: #70d4cd;
   --brand-gold: #e1bd78;
+  --brand-gold-foreground: #1b2122;
   --brand-teal: #70d4cd;
+  --brand-teal-foreground: #1b2122;
   --sidebar: #1a292b;
   --sidebar-foreground: #e7ebea;
   --sidebar-primary: #e5e9e7;

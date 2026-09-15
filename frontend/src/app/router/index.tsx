@@ -7,6 +7,7 @@ import { AdminHomePage } from '@/pages/admin-home-page'
 import { AccountPage } from '@/pages/account-page'
 import { DevTablePage } from '@/pages/dev-table-page'
 import { HomePage } from '@/pages/home-page'
+import { InstitutionSettingsPage } from '@/pages/institution-settings-page'
 import { LoginPage } from '@/pages/login-page'
 import { PlaceholderPage } from '@/pages/placeholder-page'
 import { RolePermissionsPage } from '@/pages/role-permissions-page'
@@ -59,10 +60,7 @@ export const router = createBrowserRouter([
         path: 'configuracion',
         element: (
           <PermissionGate permission="institution.manage">
-            <PlaceholderPage
-              title="Configuración"
-              description="Espacio reservado para la futura configuración de Brunexa."
-            />
+            <InstitutionSettingsPage />
           </PermissionGate>
         ),
       },

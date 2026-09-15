@@ -2,17 +2,22 @@ import {
   ChartNoAxesCombined,
   Landmark,
   LayoutDashboard,
+  LogOut,
   Settings2,
   UsersRound,
 } from 'lucide-react'
-import { Link, NavLink, useLocation } from 'react-router-dom'
+import { useState } from 'react'
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
 
 import { type Permission } from '@/app/access/permissions'
 import { useAuth } from '@/app/providers/auth-provider'
 import { BrandLogo } from '@/components/shared/brand-logo'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -37,9 +42,35 @@ const navigationItems = [
   permission: Permission
 }>
 
+const accountRoleLabels: Record<string, string> = {
+  administrator: 'Administrador',
+  credit_advisor: 'Asesor de crédito',
+  investment_advisor: 'Asesor de inversiones',
+  client: 'Cliente',
+}
+
+function accountInitials(name: string) {
+  return name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toLocaleUpperCase('es-EC')).join('') || 'U'
+}
+
 export function AdminSidebar() {
   const location = useLocation()
-  const { hasPermission } = useAuth()
+  const navigate = useNavigate()
+  const { account, hasPermission, logout } = useAuth()
+  const [signingOut, setSigningOut] = useState(false)
+  const roleText = account?.roles.map((role) => accountRoleLabels[role] ?? role).join(', ') ?? ''
+
+  async function signOut() {
+    setSigningOut(true)
+    try {
+      await logout()
+      navigate('/', { replace: true })
+    } catch {
+      toast.error('No se pudo cerrar la sesión. Intenta de nuevo.')
+    } finally {
+      setSigningOut(false)
+    }
+  }
 
   return (
     <Sidebar collapsible="icon">
@@ -79,6 +110,7 @@ export function AdminSidebar() {
                       asChild
                       isActive={isActive}
                       tooltip={item.title}
+                      className="data-[active=true]:text-brand-teal"
                     >
                       <NavLink to={item.url} end={item.exact}>
                         <item.icon className={isActive ? 'text-brand-gold' : 'text-brand-teal'} />
@@ -92,6 +124,33 @@ export function AdminSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+
+      <SidebarFooter className="border-t border-sidebar-border">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild size="lg" tooltip="Ver mi perfil" className="justify-center">
+              <Link to="/cuenta" aria-label={`Ver mi perfil: ${account?.fullName ?? 'Usuario'}`}>
+                <Avatar className="size-9 group-data-[collapsible=icon]:size-8">
+                  <AvatarFallback className="bg-sidebar-accent font-medium text-brand-teal">
+                    {accountInitials(account?.fullName ?? '')}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
+                  <span className="block truncate font-medium" title={account?.fullName}>{account?.fullName}</span>
+                  <span className="block truncate text-xs text-sidebar-foreground/70" title={roleText}>{roleText}</span>
+                </span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton size="lg" tooltip="Cerrar sesión" aria-label="Cerrar sesión" onClick={signOut}
+              disabled={signingOut} className="group-data-[collapsible=icon]:justify-center">
+              <LogOut className="text-brand-gold" aria-hidden="true" />
+              <span className="group-data-[collapsible=icon]:hidden">{signingOut ? 'Saliendo…' : 'Cerrar sesión'}</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
 
       <SidebarRail />
     </Sidebar>
