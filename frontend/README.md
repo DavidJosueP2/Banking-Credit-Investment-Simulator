@@ -15,6 +15,7 @@ Interfaz web del simulador financiero. La base incluye navegación, acceso centr
 | shadcn/ui | Componentes locales con estilo `new-york` |
 | React Router DOM | 7.18.4 |
 | TanStack Query | 5.102.8 |
+| TanStack Table | 9.2.4 |
 | Axios | 1.20.0 |
 | React Hook Form | 7.88.0 |
 | Zod | 4.6.5 |
@@ -72,6 +73,8 @@ src/
 │   ├── providers/
 │   └── router/
 ├── components/
+│   ├── data-table/
+│   ├── layout/
 │   ├── shared/
 │   └── ui/
 ├── features/
@@ -99,7 +102,86 @@ Los futuros servicios deben importar esa instancia en lugar de repetir la URL de
 - El alias `@/` apunta a `src/` tanto en Vite como en TypeScript.
 - shadcn/ui utiliza variables CSS y una paleta sobria para el sistema financiero.
 - `AppProviders` centraliza TanStack Query y las notificaciones de Sonner.
-- El router contiene por ahora únicamente la ruta `/`.
+- El router separa la futura zona pública (`/`), la estructura administrativa
+  (`/admin`) y el laboratorio interno de tablas (`/dev/table`).
+
+## Componentes UI
+
+Los componentes base están disponibles localmente en `src/components/ui/` y
+fueron agregados desde el registro actual de shadcn/ui. Los componentes propios
+de cada módulo deben componerse a partir de esta biblioteca y utilizar
+`lucide-react` como única fuente de iconos.
+
+Sonner se utiliza para notificaciones. `Calendar` y `Popover` permiten componer
+selectores de fecha cuando se necesiten; no se mantiene una copia separada de
+recetas que el registro no publica como componente independiente.
+
+La infraestructura de formularios queda preparada con React Hook Form, Zod,
+`@hookform/resolvers` y el componente `Form` de shadcn/ui. Aún no hay formularios
+de negocio.
+
+## Data Tables
+
+La carpeta `src/components/data-table/` combina la tabla semántica de shadcn/ui
+con TanStack Table `9.2.4`. La implementación usa la API v9 (`useTable`,
+`tableFeatures` y modelos `create*RowModel`) y ofrece:
+
+- columnas tipadas y encabezados ordenables;
+- búsqueda y filtros componibles;
+- paginación y cambio de tamaño de página;
+- visibilidad de columnas y selección de filas;
+- acciones por fila con `DropdownMenu`;
+- estados vacío y de carga con `Skeleton`;
+- contenedor responsive con desplazamiento horizontal;
+- paginación del lado del cliente y del servidor.
+
+`DataTable<TData>` es independiente de las entidades del sistema. Para revisar
+la integración con datos locales identificados como mock, usa `/dev/table`.
+
+### Paginación del cliente
+
+Usa `pagination={{ mode: 'client', initialPageSize: 10 }}` cuando ya se dispone
+del conjunto completo. TanStack Table aplica localmente filtros, ordenamiento y
+paginación.
+
+### Paginación del backend
+
+Usa el modo `server` con el estado controlado de `pagination`, `sorting` y
+`columnFilters`, sus callbacks de cambio y el total `rowCount` o `pageCount`.
+En este modo la tabla activa `manualPagination`, `manualSorting` y
+`manualFiltering`; no realiza peticiones por sí sola ni procesa solamente la
+página cargada como si fuera el conjunto completo.
+
+El contrato esperado para Spring Boot será conceptualmente:
+
+```text
+?page=0&size=10&sort=nombre,asc
+```
+
+Los tipos `PageRequest`, `PageResponse<T>` y `ApiError` están en
+`src/types/api.ts`. La consulta real y el contrato definitivo del backend aún
+no están implementados.
+
+## Estructura reutilizable
+
+- `components/data-table/`: tabla genérica, toolbar, paginación, columnas,
+  selección, acciones y skeleton.
+- `components/layout/`: sidebar, header administrativo y `<Outlet />` para las
+  rutas hijas.
+- `components/shared/`: `PageHeader`, `StatusBadge` y `ConfirmDialog`.
+- `lib/formatters.ts`: moneda USD, porcentajes, fechas y fecha/hora con locale
+  `es-EC` mediante `Intl`.
+- `app/providers/`: instancia única de `QueryClientProvider`, Tooltips y Sonner.
+- `lib/api.ts`: instancia central de Axios basada en `VITE_API_BASE_URL`.
+
+## Tipografía
+
+El sistema utiliza exclusivamente dos familias, servidas localmente mediante Fontsource:
+
+- `font-heading`: Libre Baskerville 400 para títulos y encabezados.
+- `font-sans`: Inter 400/500 para texto, navegación, formularios y tablas.
+
+Los elementos `h1`, `h2`, `h3` y los títulos base de shadcn/ui reciben automáticamente la tipografía de encabezado. Los importes y demás datos tabulares utilizan cifras de ancho uniforme.
 
 ## Problemas comunes
 

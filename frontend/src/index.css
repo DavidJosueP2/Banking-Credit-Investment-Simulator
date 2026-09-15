@@ -3,6 +3,8 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  --font-heading: "Libre Baskerville", serif;
+  --font-sans: "Inter", sans-serif;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -25,6 +27,14 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
 }
 
 :root {
@@ -47,6 +57,14 @@
   --border: oklch(0.88 0.015 235);
   --input: oklch(0.88 0.015 235);
   --ring: oklch(0.55 0.09 235);
+  --sidebar: hsl(0 0% 98%);
+  --sidebar-foreground: hsl(240 5.3% 26.1%);
+  --sidebar-primary: hsl(240 5.9% 10%);
+  --sidebar-primary-foreground: hsl(0 0% 98%);
+  --sidebar-accent: hsl(240 4.8% 95.9%);
+  --sidebar-accent-foreground: hsl(240 5.9% 10%);
+  --sidebar-border: hsl(220 13% 91%);
+  --sidebar-ring: hsl(217.2 91.2% 59.8%);
 }
 
 .dark {
@@ -68,6 +86,14 @@
   --border: oklch(1 0 0 / 12%);
   --input: oklch(1 0 0 / 16%);
   --ring: oklch(0.66 0.08 230);
+  --sidebar: hsl(240 5.9% 10%);
+  --sidebar-foreground: hsl(240 4.8% 95.9%);
+  --sidebar-primary: hsl(224.3 76.3% 48%);
+  --sidebar-primary-foreground: hsl(0 0% 100%);
+  --sidebar-accent: hsl(240 3.7% 15.9%);
+  --sidebar-accent-foreground: hsl(240 4.8% 95.9%);
+  --sidebar-border: hsl(240 3.7% 15.9%);
+  --sidebar-ring: hsl(217.2 91.2% 59.8%);
 }
 
 @layer base {
@@ -76,19 +102,53 @@
   }
 
   html {
-    @apply bg-background;
+    @apply bg-background font-sans;
+    scrollbar-color: var(--border) transparent;
+    scrollbar-width: thin;
   }
 
   body {
     @apply min-h-screen bg-background text-foreground antialiased;
     margin: 0;
     min-width: 320px;
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    line-height: 1.5;
+    caret-color: var(--primary);
+  }
+
+  ::selection {
+    background: color-mix(in oklch, var(--primary) 20%, transparent);
+    color: var(--foreground);
+  }
+
+  a {
+    text-underline-offset: 0.2em;
+  }
+
+  h1,
+  h2,
+  h3,
+  [data-slot="card-title"],
+  [data-slot="dialog-title"],
+  [data-slot="alert-dialog-title"] {
+    font-family: var(--font-heading);
+    font-weight: 400;
+    line-height: 1.25;
+    letter-spacing: -0.015em;
+    text-wrap: balance;
   }
 
   button,
   input,
   select,
-  textarea {
-    font: inherit;
+  textarea,
+  table,
+  nav {
+    font-family: var(--font-sans);
+  }
+
+  table {
+    font-variant-numeric: tabular-nums lining-nums;
   }
 }

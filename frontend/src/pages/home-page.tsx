@@ -1,4 +1,5 @@
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import {
   Card,
   CardContent,
@@ -6,6 +7,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { Link } from 'react-router-dom'
 
 export function HomePage() {
   return (
@@ -21,9 +23,19 @@ export function HomePage() {
             administración.
           </CardDescription>
         </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">
-          Las funcionalidades financieras se incorporarán en las siguientes
-          etapas del proyecto.
+        <CardContent className="space-y-5 text-sm text-muted-foreground">
+          <p>
+            Las funcionalidades financieras se incorporarán en las siguientes
+            etapas del proyecto.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild>
+              <Link to="/admin">Abrir administración</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link to="/dev/table">Ver tabla mock</Link>
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </main>
