@@ -1,0 +1,7 @@
+# Operating system files
+.DS_Store
+Thumbs.db
+
+# Workspace-level editor settings
+.idea/
+*.iml
