@@ -1,4 +1,5 @@
 import { Columns3 } from 'lucide-react'
+import type { RowData } from '@tanstack/react-table'
 
 import type { DataTableInstance } from '@/components/data-table/data-table-features'
 import { Button } from '@/components/ui/button'
@@ -11,11 +12,11 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 
-interface DataTableViewOptionsProps<TData> {
+interface DataTableViewOptionsProps<TData extends RowData> {
   table: DataTableInstance<TData>
 }
 
-export function DataTableViewOptions<TData>({
+export function DataTableViewOptions<TData extends RowData>({
   table,
 }: DataTableViewOptionsProps<TData>) {
   const hideableColumns = table

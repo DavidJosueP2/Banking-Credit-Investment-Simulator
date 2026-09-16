@@ -20,7 +20,8 @@ const managementAreas = [
     description: 'Condiciones de inversión y solicitudes de clientes.',
     icon: ChartNoAxesCombined,
     permission: 'investment.products.manage',
-    status: 'En preparación',
+    status: 'Disponible',
+    url: '/admin/inversiones',
   },
   {
     title: 'Configuración institucional',

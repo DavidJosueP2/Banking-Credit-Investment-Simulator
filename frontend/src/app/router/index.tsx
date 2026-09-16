@@ -8,6 +8,8 @@ import { AccountPage } from '@/pages/account-page'
 import { DevTablePage } from '@/pages/dev-table-page'
 import { HomePage } from '@/pages/home-page'
 import { InstitutionSettingsPage } from '@/pages/institution-settings-page'
+import { InvestmentAdminPage } from '@/pages/investment-admin-page'
+import { InvestmentSimulatorPage } from '@/pages/investment-simulator-page'
 import { LoginPage } from '@/pages/login-page'
 import { PlaceholderPage } from '@/pages/placeholder-page'
 import { RolePermissionsPage } from '@/pages/role-permissions-page'
@@ -20,6 +22,7 @@ export const router = createBrowserRouter([
       { index: true, element: <HomePage /> },
       { path: 'login', element: <LoginPage /> },
       { path: 'cuenta', element: <AccountPage /> },
+      { path: 'inversiones/simulador', element: <InvestmentSimulatorPage /> },
     ],
   },
   {
@@ -49,10 +52,7 @@ export const router = createBrowserRouter([
         path: 'inversiones',
         element: (
           <PermissionGate permission="investment.products.manage">
-            <PlaceholderPage
-              title="Inversiones"
-              description="Espacio reservado para el futuro módulo administrativo de inversiones."
-            />
+            <InvestmentAdminPage />
           </PermissionGate>
         ),
       },

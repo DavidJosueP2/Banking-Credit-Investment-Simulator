@@ -272,7 +272,7 @@ export const defaultInstitutionSettings: InstitutionSettings = {
     investmentFeatureTwoTitle: 'Continuidad segura',
     investmentFeatureTwoDescription: 'La solicitud se vinculará a una cuenta identificada.',
     investmentFeatureTwoIcon: 'shield',
-    investmentStatusLabel: 'Módulo de inversión en preparación',
+    investmentStatusLabel: 'Simulador de inversión disponible',
     processEnabled: 'true',
     processTitle: 'Un recorrido ordenado, desde la consulta hasta la solicitud.',
     processDescription: 'Cada etapa conserva la información necesaria para que el siguiente paso sea comprensible y verificable.',
@@ -309,7 +309,7 @@ export const defaultInstitutionSettings: InstitutionSettings = {
   investment: {
     moduleEnabled: 'true',
     displayName: 'Inversiones',
-    simulatorEnabled: 'false',
+    simulatorEnabled: 'true',
     onlineApplicationEnabled: 'true',
     documentUploadEnabled: 'true',
     identityValidationEnabled: 'true',

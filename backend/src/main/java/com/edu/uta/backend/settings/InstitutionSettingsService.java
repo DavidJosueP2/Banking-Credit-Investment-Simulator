@@ -293,7 +293,7 @@ public class InstitutionSettingsService {
                 Map.entry("investmentFeatureTwoTitle", "Continuidad segura"),
                 Map.entry("investmentFeatureTwoDescription", "La solicitud se vinculará a una cuenta identificada."),
                 Map.entry("investmentFeatureTwoIcon", "shield"),
-                Map.entry("investmentStatusLabel", "Módulo de inversión en preparación"),
+                Map.entry("investmentStatusLabel", "Simulador de inversión disponible"),
                 Map.entry("processEnabled", "true"),
                 Map.entry("processTitle", "Un recorrido ordenado, desde la consulta hasta la solicitud."),
                 Map.entry("processDescription", "Cada etapa conserva la información necesaria para que el siguiente paso sea comprensible y verificable."),
@@ -328,7 +328,7 @@ public class InstitutionSettingsService {
         defaults.put("investment", Map.of(
                 "moduleEnabled", "true",
                 "displayName", "Inversiones",
-                "simulatorEnabled", "false",
+                "simulatorEnabled", "true",
                 "onlineApplicationEnabled", "true",
                 "documentUploadEnabled", "true",
                 "identityValidationEnabled", "true"));
