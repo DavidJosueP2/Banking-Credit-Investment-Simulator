@@ -25,7 +25,8 @@ public class InstitutionSettingsService {
             "wallet-cards", "bar-chart", "trending-up", "upload", "landmark", "file-text", "shield", "sliders");
     private static final Set<String> ASSET_KEYS = Set.of(
             "fullLogoLight", "fullLogoDark", "markLogoLight", "markLogoDark",
-            "heroImage", "creditImage", "investmentImage");
+            "heroImage", "carouselCreditImage", "carouselInvestmentImage",
+            "creditImage", "investmentImage");
 
     private static final Map<String, Map<String, String>> DEFAULTS = defaults();
 
@@ -156,6 +157,20 @@ public class InstitutionSettingsService {
         if (category.equals("landing") && key.endsWith("Icon") && !ICONS.contains(value)) {
             throw new IllegalArgumentException("El icono seleccionado no está disponible");
         }
+        if (category.equals("landing") && key.endsWith("Enabled")) {
+            if (!value.equals("true") && !value.equals("false"))
+                throw new IllegalArgumentException("El valor de " + key + " debe ser verdadero o falso");
+        }
+        if (category.equals("landing") && key.equals("bannerIntervalSeconds")) {
+            try {
+                int seconds = Integer.parseInt(value);
+                if (seconds < 3 || seconds > 20)
+                    throw new IllegalArgumentException("El intervalo del banner debe estar entre 3 y 20 segundos");
+                return Integer.toString(seconds);
+            } catch (NumberFormatException exception) {
+                throw new IllegalArgumentException("El intervalo del banner debe ser un número de segundos");
+            }
+        }
         if ((category.equals("credit") || category.equals("investment")) && key.endsWith("Enabled")) {
             if (!value.equals("true") && !value.equals("false")) throw new IllegalArgumentException("El valor de " + key + " debe ser verdadero o falso");
         }
@@ -214,17 +229,94 @@ public class InstitutionSettingsService {
                 Map.entry("heroTitle", "Tus decisiones financieras merecen"),
                 Map.entry("heroHighlight", "más claridad."),
                 Map.entry("heroDescription", "Explora escenarios de crédito e inversión con condiciones administradas por Brunexa, información ordenada y un recorrido pensado para comparar antes de decidir."),
+                Map.entry("heroCreditButton", "Explorar créditos"),
+                Map.entry("heroInvestmentButton", "Conocer inversiones"),
+                Map.entry("bannerEnabled", "true"),
+                Map.entry("bannerIntervalSeconds", "6"),
+                Map.entry("bannerGeneralTitle", "Más formas de avanzar con {shortName}."),
+                Map.entry("bannerGeneralDescription", "{description}"),
+                Map.entry("bannerGeneralImageAlt", "Manos cubiertas de colores que representan distintas decisiones y proyectos personales"),
+                Map.entry("bannerGeneralButton", "Explorar créditos"),
+                Map.entry("bannerGeneralInvestmentButton", "Conocer inversiones"),
+                Map.entry("bannerCreditTitle", "Créditos para comparar con tranquilidad."),
+                Map.entry("bannerCreditDescription", "Revisa cuotas, plazos y sistemas de amortización antes de elegir una alternativa."),
+                Map.entry("bannerCreditImageAlt", "Grupo de personas revisando información alrededor de una mesa"),
+                Map.entry("bannerCreditButton", "Ver opciones de crédito"),
+                Map.entry("bannerInvestmentTitle", "Una perspectiva clara para tus inversiones."),
+                Map.entry("bannerInvestmentDescription", "Proyecta escenarios y entiende las condiciones que acompañan cada decisión."),
+                Map.entry("bannerInvestmentImageAlt", "Persona observando una colección de obras en una galería"),
+                Map.entry("bannerInvestmentButton", "Conocer inversiones"),
+                Map.entry("servicesEnabled", "true"),
                 Map.entry("servicesTitle", "Soluciones para entender cada paso."),
                 Map.entry("servicesDescription", "Brunexa reúne herramientas para revisar alternativas, comprender sus componentes y continuar el proceso desde un entorno digital."),
+                Map.entry("creditServiceTitle", "Simulador de crédito"),
+                Map.entry("creditServiceDescription", "Compara monto, plazo y sistema de amortización en un solo recorrido."),
+                Map.entry("creditServiceButton", "Explorar créditos"),
                 Map.entry("creditServiceIcon", "wallet-cards"),
+                Map.entry("amortizationServiceTitle", "Tabla de amortización"),
+                Map.entry("amortizationServiceDescription", "Revisa cómo se distribuyen capital, intereses y cargos en cada cuota."),
+                Map.entry("amortizationServiceButton", "Conocer el cálculo"),
                 Map.entry("amortizationServiceIcon", "bar-chart"),
+                Map.entry("investmentServiceTitle", "Proyección de inversión"),
+                Map.entry("investmentServiceDescription", "Analiza escenarios según el monto, el plazo y las condiciones definidas."),
+                Map.entry("investmentServiceButton", "Explorar inversiones"),
                 Map.entry("investmentServiceIcon", "trending-up"),
+                Map.entry("applicationServiceTitle", "Solicitud digital"),
+                Map.entry("applicationServiceDescription", "Continúa el proceso con documentación e identidad desde tu cuenta."),
+                Map.entry("applicationServiceButton", "Conocer el proceso"),
                 Map.entry("applicationServiceIcon", "upload"),
+                Map.entry("perspectiveEnabled", "true"),
+                Map.entry("perspectiveTitle", "Antes de elegir, mira el panorama completo."),
+                Map.entry("perspectiveDescription", "La claridad está en conocer el plazo, las condiciones y lo que ocurre después de cada decisión."),
+                Map.entry("perspectiveCreditTitle", "Si buscas financiamiento"),
+                Map.entry("perspectiveCreditDescription", "Compara la cuota y la composición de los pagos antes de solicitar un crédito."),
+                Map.entry("perspectiveInvestmentTitle", "Si quieres proyectar una meta"),
+                Map.entry("perspectiveInvestmentDescription", "Revisa escenarios de inversión con sus plazos y condiciones."),
                 Map.entry("creditTitle", "Créditos que puedes comprender antes de avanzar."),
                 Map.entry("creditDescription", "Define el monto, el plazo y el tipo de crédito para comparar sistemas de amortización y revisar los cargos asociados."),
+                Map.entry("creditSectionIcon", "landmark"),
+                Map.entry("creditImageAlt", "Asesora explicando una alternativa de crédito a una clienta"),
+                Map.entry("creditImageCaption", "Un escenario claro comienza con condiciones bien explicadas."),
+                Map.entry("creditBulletOne", "Sistemas de amortización francés y alemán."),
+                Map.entry("creditBulletTwo", "Detalle de capital, interés, cuotas y cobros indirectos."),
+                Map.entry("creditBulletThree", "Tabla completa preparada para consulta y descarga."),
+                Map.entry("creditStatusLabel", "Simulador en preparación"),
                 Map.entry("investmentTitle", "Inversiones pensadas para proyectar con contexto."),
                 Map.entry("investmentDescription", "Explora cómo cambian los resultados según el monto, el plazo y las condiciones vigentes."),
-                Map.entry("processTitle", "Un recorrido ordenado, desde la consulta hasta la solicitud.")));
+                Map.entry("investmentSectionIcon", "trending-up"),
+                Map.entry("investmentDetail", "Cuando decidas continuar, el proceso conectará tu perfil, documentos y validación de identidad."),
+                Map.entry("investmentImageAlt", "Cliente y asesora revisando un escenario de inversión"),
+                Map.entry("investmentImageCaption", "Proyectar también significa entender cada condición."),
+                Map.entry("investmentFeatureOneTitle", "Escenarios configurables"),
+                Map.entry("investmentFeatureOneDescription", "Compara plazos y condiciones sin perder de vista el detalle."),
+                Map.entry("investmentFeatureOneIcon", "sliders"),
+                Map.entry("investmentFeatureTwoTitle", "Continuidad segura"),
+                Map.entry("investmentFeatureTwoDescription", "La solicitud se vinculará a una cuenta identificada."),
+                Map.entry("investmentFeatureTwoIcon", "shield"),
+                Map.entry("investmentStatusLabel", "Módulo de inversión en preparación"),
+                Map.entry("processEnabled", "true"),
+                Map.entry("processTitle", "Un recorrido ordenado, desde la consulta hasta la solicitud."),
+                Map.entry("processDescription", "Cada etapa conserva la información necesaria para que el siguiente paso sea comprensible y verificable."),
+                Map.entry("processStepOneTitle", "Explora"),
+                Map.entry("processStepOneDescription", "Selecciona el producto y completa los parámetros del escenario que quieres analizar."),
+                Map.entry("processStepTwoTitle", "Compara"),
+                Map.entry("processStepTwoDescription", "Revisa resultados, composición de pagos y condiciones antes de tomar una decisión."),
+                Map.entry("processStepThreeTitle", "Continúa"),
+                Map.entry("processStepThreeDescription", "Accede a tu cuenta para completar documentación y los controles de identidad requeridos."),
+                Map.entry("closingEnabled", "true"),
+                Map.entry("closingTitle", "Tu espacio financiero"),
+                Map.entry("closingHighlight", "continúa contigo."),
+                Map.entry("closingDescription", "En {shortName} encuentras alternativas para financiar tus proyectos, proyectar tus metas y decidir con información clara."),
+                Map.entry("closingBulletOne", "Créditos para impulsar tus proyectos"),
+                Map.entry("closingBulletTwo", "Inversiones pensadas para tus metas"),
+                Map.entry("closingBulletThree", "Información clara para decidir con calma"),
+                Map.entry("closingButton", "Ingresar a {shortName}"),
+                Map.entry("headerServicesLabel", "Servicios"),
+                Map.entry("headerProcessLabel", "Cómo funciona"),
+                Map.entry("footerProductsHeading", "Productos"),
+                Map.entry("footerAccessHeading", "Acceso"),
+                Map.entry("footerContactHeading", "Contacto"),
+                Map.entry("footerHomeLabel", "Inicio")));
         defaults.put("credit", Map.of(
                 "moduleEnabled", "true",
                 "displayName", "Créditos",

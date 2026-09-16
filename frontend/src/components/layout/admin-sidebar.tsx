@@ -1,9 +1,11 @@
 import {
   ChartNoAxesCombined,
+  ChevronsUpDown,
   Landmark,
   LayoutDashboard,
   LogOut,
   Settings2,
+  UserRound,
   UsersRound,
 } from 'lucide-react'
 import { useState } from 'react'
@@ -14,6 +16,13 @@ import { type Permission } from '@/app/access/permissions'
 import { useAuth } from '@/app/providers/auth-provider'
 import { BrandLogo } from '@/components/shared/brand-logo'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import {
   Sidebar,
   SidebarContent,
@@ -128,26 +137,48 @@ export function AdminSidebar() {
       <SidebarFooter className="border-t border-sidebar-border">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild size="lg" tooltip="Ver mi perfil" className="justify-center">
-              <Link to="/cuenta" aria-label={`Ver mi perfil: ${account?.fullName ?? 'Usuario'}`}>
-                <Avatar className="size-9 group-data-[collapsible=icon]:size-8">
-                  <AvatarFallback className="bg-sidebar-accent font-medium text-brand-teal">
-                    {accountInitials(account?.fullName ?? '')}
-                  </AvatarFallback>
-                </Avatar>
-                <span className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
-                  <span className="block truncate font-medium" title={account?.fullName}>{account?.fullName}</span>
-                  <span className="block truncate text-xs text-sidebar-foreground/70" title={roleText}>{roleText}</span>
-                </span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton size="lg" tooltip="Cerrar sesión" aria-label="Cerrar sesión" onClick={signOut}
-              disabled={signingOut} className="group-data-[collapsible=icon]:justify-center">
-              <LogOut className="text-brand-gold" aria-hidden="true" />
-              <span className="group-data-[collapsible=icon]:hidden">{signingOut ? 'Saliendo…' : 'Cerrar sesión'}</span>
-            </SidebarMenuButton>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <SidebarMenuButton
+                  size="lg"
+                  aria-label={`Abrir menú de cuenta de ${account?.fullName ?? 'Usuario'}`}
+                  className="justify-center data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+                >
+                  <Avatar className="size-9 group-data-[collapsible=icon]:size-8">
+                    <AvatarFallback className="bg-sidebar-accent font-medium text-brand-teal">
+                      {accountInitials(account?.fullName ?? '')}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="min-w-0 flex-1 text-left group-data-[collapsible=icon]:hidden">
+                    <span className="block truncate font-medium" title={account?.fullName}>{account?.fullName}</span>
+                    <span className="block truncate text-xs text-sidebar-foreground/70" title={roleText}>{roleText}</span>
+                  </span>
+                  <ChevronsUpDown className="ml-auto size-4 text-sidebar-foreground/60 group-data-[collapsible=icon]:hidden" aria-hidden="true" />
+                </SidebarMenuButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                side="top"
+                align="start"
+                sideOffset={8}
+                className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
+              >
+                <DropdownMenuItem asChild>
+                  <Link to="/cuenta">
+                    <UserRound className="text-brand-teal" aria-hidden="true" />
+                    Mi cuenta
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  variant="destructive"
+                  disabled={signingOut}
+                  onSelect={() => void signOut()}
+                >
+                  <LogOut aria-hidden="true" />
+                  {signingOut ? 'Cerrando sesión…' : 'Cerrar sesión'}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>

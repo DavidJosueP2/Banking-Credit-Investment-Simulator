@@ -1,22 +1,26 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
-import { ExternalLink, Info, RotateCcw, Save, Upload } from 'lucide-react'
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import { ExternalLink, Images, Info, RotateCcw, Save, Upload } from 'lucide-react'
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
+import { toast } from 'sonner'
 
 import fullDark from '@/assets/bank/Full-dark-mode.png'
 import fullLight from '@/assets/bank/Full.png'
 import markDark from '@/assets/bank/logo-dark-mode.png'
 import markLight from '@/assets/bank/logo.png'
 import creditImage from '@/assets/landing/brunexa-creditos.png'
-import heroImage from '@/assets/landing/brunexa-hero.png'
 import investmentImage from '@/assets/landing/brunexa-inversiones.png'
+import carouselCommunityImage from '@/assets/landing/carrusel/brooke-cagle--uHVRvDr7pg-unsplash.jpg'
+import carouselIdentityImage from '@/assets/landing/carrusel/debashis-rc-biswas-dyPFnxxUhYk-unsplash.jpg'
+import carouselPerspectiveImage from '@/assets/landing/carrusel/zalfa-imani-1xp5VxvyKL0-unsplash.jpg'
 import { settingsQueryKey, useInstitutionSettings } from '@/app/providers/settings-provider'
 import {
   defaultInstitutionSettings,
   mergeSettings,
   type AssetKey,
   type InstitutionSettings,
+  type LandingSection,
   type SettingsResponse,
   type SettingsSection,
 } from '@/app/settings/institution-settings'
@@ -56,6 +60,174 @@ const iconOptions = [
   ['sliders', 'Configuración'],
 ]
 
+type LandingField = {
+  key: keyof LandingSection
+  label: string
+  multiline?: boolean
+  hint?: string
+}
+
+const landingGroups: Array<{
+  id: string
+  label: string
+  title: string
+  description: string
+  enabledKey?: keyof LandingSection
+  fields: LandingField[]
+}> = [
+  {
+    id: 'intro', label: 'Portada', title: 'Presentación',
+    description: 'Primera impresión del sitio: mensaje central y accesos a los productos.',
+    fields: [
+      { key: 'heroTitle', label: 'Título principal' },
+      { key: 'heroHighlight', label: 'Texto destacado', hint: 'Se muestra con el color principal.' },
+      { key: 'heroDescription', label: 'Descripción principal', multiline: true },
+      { key: 'heroCreditButton', label: 'Botón de créditos' },
+      { key: 'heroInvestmentButton', label: 'Botón de inversiones' },
+    ],
+  },
+  {
+    id: 'banner', label: 'Banner', title: 'Banner y carrusel',
+    description: 'Tres destacados con imágenes independientes. Si ocultas un producto, su diapositiva desaparece automáticamente.',
+    enabledKey: 'bannerEnabled',
+    fields: [
+      { key: 'bannerGeneralTitle', label: 'Destacado principal · título', hint: 'Puedes usar {shortName} para el nombre corto de la institución.' },
+      { key: 'bannerGeneralDescription', label: 'Destacado principal · descripción', multiline: true, hint: 'Puedes usar {description} para reutilizar la descripción institucional.' },
+      { key: 'bannerGeneralImageAlt', label: 'Destacado principal · descripción de imagen', hint: 'Describe la fotografía para quienes usan lectores de pantalla.' },
+      { key: 'bannerGeneralButton', label: 'Destacado principal · botón de créditos' },
+      { key: 'bannerGeneralInvestmentButton', label: 'Destacado principal · botón de inversiones' },
+      { key: 'bannerCreditTitle', label: 'Créditos · título' },
+      { key: 'bannerCreditDescription', label: 'Créditos · descripción', multiline: true },
+      { key: 'bannerCreditImageAlt', label: 'Créditos · descripción de imagen' },
+      { key: 'bannerCreditButton', label: 'Créditos · botón' },
+      { key: 'bannerInvestmentTitle', label: 'Inversiones · título' },
+      { key: 'bannerInvestmentDescription', label: 'Inversiones · descripción', multiline: true },
+      { key: 'bannerInvestmentImageAlt', label: 'Inversiones · descripción de imagen' },
+      { key: 'bannerInvestmentButton', label: 'Inversiones · botón' },
+    ],
+  },
+  {
+    id: 'services', label: 'Servicios', title: 'Servicios destacados',
+    description: 'Edita los cuatro servicios, sus textos de enlace y sus iconos.',
+    enabledKey: 'servicesEnabled',
+    fields: [
+      { key: 'servicesTitle', label: 'Título de la sección' },
+      { key: 'servicesDescription', label: 'Descripción de la sección', multiline: true },
+      { key: 'creditServiceTitle', label: 'Simulador de crédito · título' },
+      { key: 'creditServiceDescription', label: 'Simulador de crédito · descripción', multiline: true },
+      { key: 'creditServiceButton', label: 'Simulador de crédito · enlace' },
+      { key: 'amortizationServiceTitle', label: 'Tabla de amortización · título' },
+      { key: 'amortizationServiceDescription', label: 'Tabla de amortización · descripción', multiline: true },
+      { key: 'amortizationServiceButton', label: 'Tabla de amortización · enlace' },
+      { key: 'investmentServiceTitle', label: 'Proyección de inversión · título' },
+      { key: 'investmentServiceDescription', label: 'Proyección de inversión · descripción', multiline: true },
+      { key: 'investmentServiceButton', label: 'Proyección de inversión · enlace' },
+      { key: 'applicationServiceTitle', label: 'Solicitud digital · título' },
+      { key: 'applicationServiceDescription', label: 'Solicitud digital · descripción', multiline: true },
+      { key: 'applicationServiceButton', label: 'Solicitud digital · enlace' },
+    ],
+  },
+  {
+    id: 'perspective', label: 'Panorama', title: 'Antes de decidir',
+    description: 'Nueva sección editorial entre servicios y productos, enfocada en lo que conviene comparar.',
+    enabledKey: 'perspectiveEnabled',
+    fields: [
+      { key: 'perspectiveTitle', label: 'Título de la sección' },
+      { key: 'perspectiveDescription', label: 'Descripción general', multiline: true },
+      { key: 'perspectiveCreditTitle', label: 'Financiamiento · título' },
+      { key: 'perspectiveCreditDescription', label: 'Financiamiento · descripción', multiline: true },
+      { key: 'perspectiveInvestmentTitle', label: 'Inversión · título' },
+      { key: 'perspectiveInvestmentDescription', label: 'Inversión · descripción', multiline: true },
+    ],
+  },
+  {
+    id: 'credit', label: 'Créditos', title: 'Sección de créditos',
+    description: 'Contenido editorial, fotografía, tres puntos clave y estado visible del módulo.',
+    fields: [
+      { key: 'creditTitle', label: 'Título' },
+      { key: 'creditDescription', label: 'Descripción', multiline: true },
+      { key: 'creditImageAlt', label: 'Descripción de la imagen' },
+      { key: 'creditImageCaption', label: 'Pie de fotografía' },
+      { key: 'creditBulletOne', label: 'Punto clave 1' },
+      { key: 'creditBulletTwo', label: 'Punto clave 2' },
+      { key: 'creditBulletThree', label: 'Punto clave 3' },
+      { key: 'creditStatusLabel', label: 'Estado del simulador' },
+    ],
+  },
+  {
+    id: 'investment', label: 'Inversiones', title: 'Sección de inversiones',
+    description: 'Contenido editorial, fotografía, características y estado visible del módulo.',
+    fields: [
+      { key: 'investmentTitle', label: 'Título' },
+      { key: 'investmentDescription', label: 'Descripción', multiline: true },
+      { key: 'investmentDetail', label: 'Continuación de la descripción', multiline: true },
+      { key: 'investmentImageAlt', label: 'Descripción de la imagen' },
+      { key: 'investmentImageCaption', label: 'Pie de fotografía' },
+      { key: 'investmentFeatureOneTitle', label: 'Característica 1 · título' },
+      { key: 'investmentFeatureOneDescription', label: 'Característica 1 · descripción', multiline: true },
+      { key: 'investmentFeatureTwoTitle', label: 'Característica 2 · título' },
+      { key: 'investmentFeatureTwoDescription', label: 'Característica 2 · descripción', multiline: true },
+      { key: 'investmentStatusLabel', label: 'Estado del módulo' },
+    ],
+  },
+  {
+    id: 'process', label: 'Proceso', title: 'Cómo funciona',
+    description: 'Explica las tres etapas desde la consulta hasta la continuidad en la cuenta.',
+    enabledKey: 'processEnabled',
+    fields: [
+      { key: 'processTitle', label: 'Título de la sección' },
+      { key: 'processDescription', label: 'Introducción', multiline: true },
+      { key: 'processStepOneTitle', label: 'Etapa 1 · título' },
+      { key: 'processStepOneDescription', label: 'Etapa 1 · descripción', multiline: true },
+      { key: 'processStepTwoTitle', label: 'Etapa 2 · título' },
+      { key: 'processStepTwoDescription', label: 'Etapa 2 · descripción', multiline: true },
+      { key: 'processStepThreeTitle', label: 'Etapa 3 · título' },
+      { key: 'processStepThreeDescription', label: 'Etapa 3 · descripción', multiline: true },
+    ],
+  },
+  {
+    id: 'closing', label: 'Cierre', title: 'Invitación final',
+    description: 'Mensaje institucional, puntos de valor y acceso a la cuenta.',
+    enabledKey: 'closingEnabled',
+    fields: [
+      { key: 'closingTitle', label: 'Título' },
+      { key: 'closingHighlight', label: 'Texto destacado' },
+      { key: 'closingDescription', label: 'Descripción', multiline: true, hint: 'Puedes usar {shortName} para el nombre corto de la institución.' },
+      { key: 'closingBulletOne', label: 'Punto de valor 1' },
+      { key: 'closingBulletTwo', label: 'Punto de valor 2' },
+      { key: 'closingBulletThree', label: 'Punto de valor 3' },
+      { key: 'closingButton', label: 'Botón de acceso', hint: 'Puedes usar {shortName} para el nombre corto de la institución.' },
+    ],
+  },
+  {
+    id: 'navigation', label: 'Navegación', title: 'Cabecera y pie de página',
+    description: 'Etiquetas de las rutas públicas y encabezados del pie del sitio.',
+    fields: [
+      { key: 'headerServicesLabel', label: 'Navegación · servicios' },
+      { key: 'headerProcessLabel', label: 'Navegación · proceso' },
+      { key: 'footerProductsHeading', label: 'Pie · productos' },
+      { key: 'footerAccessHeading', label: 'Pie · acceso' },
+      { key: 'footerContactHeading', label: 'Pie · contacto' },
+      { key: 'footerHomeLabel', label: 'Pie · inicio' },
+    ],
+  },
+]
+
+const landingIconFields: Record<string, Array<[keyof LandingSection, string]>> = {
+  services: [
+    ['creditServiceIcon', 'Simulador de crédito'],
+    ['amortizationServiceIcon', 'Tabla de amortización'],
+    ['investmentServiceIcon', 'Proyección de inversión'],
+    ['applicationServiceIcon', 'Solicitud digital'],
+  ],
+  credit: [['creditSectionIcon', 'Encabezado de créditos']],
+  investment: [
+    ['investmentSectionIcon', 'Encabezado de inversiones'],
+    ['investmentFeatureOneIcon', 'Característica 1'],
+    ['investmentFeatureTwoIcon', 'Característica 2'],
+  ],
+}
+
 const assetDefinitions: Array<{
   key: AssetKey
   title: string
@@ -68,7 +240,9 @@ const assetDefinitions: Array<{
   { key: 'fullLogoDark', title: 'Logotipo completo · modo oscuro', description: 'Versión con contraste para fondos oscuros.', fallback: fullDark, darkPreview: true, compact: true },
   { key: 'markLogoLight', title: 'Símbolo · modo claro', description: 'Marca compacta para el panel y espacios reducidos.', fallback: markLight, compact: true },
   { key: 'markLogoDark', title: 'Símbolo · modo oscuro', description: 'Símbolo compacto para superficies oscuras.', fallback: markDark, darkPreview: true, compact: true },
-  { key: 'heroImage', title: 'Imagen principal', description: 'Fotografía de apertura de la landing.', fallback: heroImage },
+  { key: 'heroImage', title: 'Banner · destacado principal', description: 'Primera fotografía del carrusel público.', fallback: carouselIdentityImage },
+  { key: 'carouselCreditImage', title: 'Banner · créditos', description: 'Fotografía del destacado de créditos.', fallback: carouselCommunityImage },
+  { key: 'carouselInvestmentImage', title: 'Banner · inversiones', description: 'Fotografía del destacado de inversiones.', fallback: carouselPerspectiveImage },
   { key: 'creditImage', title: 'Imagen de créditos', description: 'Fotografía de la sección pública de créditos.', fallback: creditImage },
   { key: 'investmentImage', title: 'Imagen de inversiones', description: 'Fotografía de la sección pública de inversiones.', fallback: investmentImage },
 ]
@@ -199,6 +373,7 @@ function FormActions({ saving, dirty, onReset }: { saving: boolean; dirty: boole
 export function InstitutionSettingsPage() {
   const client = useQueryClient()
   const { assets } = useInstitutionSettings()
+  const draftHydrated = useRef(false)
   const query = useQuery({
     queryKey: ['admin', 'institution-settings'],
     queryFn: async () => (await api.get<SettingsResponse>('/admin/settings')).data,
@@ -207,19 +382,20 @@ export function InstitutionSettingsPage() {
   const [activeTab, setActiveTab] = useState<SettingsTab>('institution')
   const [saving, setSaving] = useState<SettingsTab | null>(null)
   const [uploading, setUploading] = useState<AssetKey | null>(null)
-  const [message, setMessage] = useState('')
   const [error, setError] = useState('')
 
   useEffect(() => {
-    if (query.data) setDraft(mergeSettings(query.data).sections)
-  }, [query.data])
+    if (query.data && !query.isFetching && !draftHydrated.current) {
+      setDraft(mergeSettings(query.data).sections)
+      draftHydrated.current = true
+    }
+  }, [query.data, query.isFetching])
 
   function update(section: SettingsSection, key: string, value: string) {
     setDraft((current) => ({
       ...current,
       [section]: { ...current[section], [key]: value },
     }))
-    setMessage('')
     setError('')
   }
 
@@ -228,22 +404,32 @@ export function InstitutionSettingsPage() {
     update(section, key, value)
   }
 
-  function applyResponse(response: SettingsResponse) {
+  function applyResponse(response: SettingsResponse, changedSection?: SettingsSection) {
     const merged = mergeSettings(response)
     client.setQueryData(['admin', 'institution-settings'], response)
     client.setQueryData(settingsQueryKey, response)
-    setDraft(merged.sections)
+    if (changedSection) {
+      setDraft((current) => ({ ...current, [changedSection]: merged.sections[changedSection] }))
+    }
+  }
+
+  function reportError(title: string, cause: unknown) {
+    const description = requestError(cause)
+    setError(description)
+    toast.error(title, { description })
   }
 
   async function saveSection(section: SettingsSection) {
     setSaving(section)
-    setMessage('')
     setError('')
     try {
       const { data } = await api.put<SettingsResponse>(`/admin/settings/sections/${section}`, { values: draft[section] })
-      applyResponse(data)
+      applyResponse(data, section)
+      toast.success('Cambios guardados', {
+        description: 'La configuración ya está aplicada al sitio público.',
+      })
     } catch (saveError) {
-      setError(requestError(saveError))
+      reportError('No se pudo guardar la configuración', saveError)
     } finally {
       setSaving(null)
     }
@@ -251,14 +437,15 @@ export function InstitutionSettingsPage() {
 
   async function resetSection(section: SettingsSection) {
     setSaving(section)
-    setMessage('')
     setError('')
     try {
       const { data } = await api.delete<SettingsResponse>(`/admin/settings/sections/${section}`)
-      applyResponse(data)
-      setMessage('La pestaña volvió a los valores Brunexa predeterminados.')
+      applyResponse(data, section)
+      toast.success('Pestaña restaurada', {
+        description: 'Se aplicaron los valores Brunexa predeterminados.',
+      })
     } catch (resetError) {
-      setError(requestError(resetError))
+      reportError('No se pudo restaurar la pestaña', resetError)
     } finally {
       setSaving(null)
     }
@@ -266,7 +453,6 @@ export function InstitutionSettingsPage() {
 
   async function uploadAsset(key: AssetKey, file: File) {
     setUploading(key)
-    setMessage('')
     setError('')
     const body = new FormData()
     body.append('file', file)
@@ -275,9 +461,11 @@ export function InstitutionSettingsPage() {
         headers: { 'Content-Type': null },
       })
       applyResponse(data)
-      setMessage('Recurso gráfico actualizado y aplicado al sitio público.')
+      toast.success('Imagen actualizada', {
+        description: 'El nuevo recurso ya está aplicado al sitio público.',
+      })
     } catch (uploadError) {
-      setError(requestError(uploadError))
+      reportError('No se pudo actualizar la imagen', uploadError)
     } finally {
       setUploading(null)
     }
@@ -285,14 +473,15 @@ export function InstitutionSettingsPage() {
 
   async function resetAsset(key: AssetKey) {
     setUploading(key)
-    setMessage('')
     setError('')
     try {
       const { data } = await api.delete<SettingsResponse>(`/admin/settings/assets/${key}`)
       applyResponse(data)
-      setMessage('El recurso volvió a la imagen Brunexa predeterminada.')
+      toast.success('Imagen restaurada', {
+        description: 'Se recuperó la versión Brunexa predeterminada.',
+      })
     } catch (resetError) {
-      setError(requestError(resetError))
+      reportError('No se pudo restaurar la imagen', resetError)
     } finally {
       setUploading(null)
     }
@@ -300,20 +489,21 @@ export function InstitutionSettingsPage() {
 
   async function resetAssets() {
     setSaving('media')
-    setMessage('')
     setError('')
     try {
       const { data } = await api.delete<SettingsResponse>('/admin/settings/assets')
       applyResponse(data)
-      setMessage('Todos los recursos gráficos volvieron a sus versiones predeterminadas.')
+      toast.success('Recursos restaurados', {
+        description: 'Se recuperaron todos los logos e imágenes predeterminados.',
+      })
     } catch (resetError) {
-      setError(requestError(resetError))
+      reportError('No se pudieron restaurar los recursos', resetError)
     } finally {
       setSaving(null)
     }
   }
 
-  if (query.isPending) return <p className="py-10 text-sm text-muted-foreground">Cargando configuración institucional…</p>
+  if (query.isPending || (!draftHydrated.current && !query.isError)) return <p className="py-10 text-sm text-muted-foreground">Cargando configuración institucional…</p>
   if (query.isError) return (
     <div className="py-10">
       <h1 className="text-2xl">No se pudo cargar la configuración</h1>
@@ -336,7 +526,6 @@ export function InstitutionSettingsPage() {
         description="Administra la identidad, apariencia, contenido público y disponibilidad de los módulos de Brunexa. Los campos restaurados se aplican al guardar."
         actions={<Button asChild variant="gold-outline"><Link to="/" target="_blank" rel="noreferrer">Ver sitio público <ExternalLink aria-hidden="true" /></Link></Button>} />
 
-      {message && <p role="status" className="text-sm text-foreground">{message}</p>}
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       {activeDirty && <p className="text-sm font-medium text-brand-gold">Hay cambios sin guardar en esta pestaña.</p>}
 
@@ -420,23 +609,79 @@ export function InstitutionSettingsPage() {
         </TabsContent>
 
         <TabsContent value="landing">
-          <form onSubmit={submit('landing')} className="max-w-4xl space-y-10">
-            <div><h2 className="text-xl">Contenido de la landing</h2><p className="mt-2 text-sm text-muted-foreground">Edita los mensajes principales sin cambiar la estructura de la página.</p></div>
-            <section className="space-y-6"><h3 className="text-base">Portada</h3><div className="grid gap-6 sm:grid-cols-2">
-              <ConfigField label="Título principal" onReset={() => resetField('landing', 'heroTitle')}><Input value={draft.landing.heroTitle} onChange={(event) => update('landing', 'heroTitle', event.target.value)} maxLength={120} required /></ConfigField>
-              <ConfigField label="Texto destacado" hint="Se muestra con el color principal." onReset={() => resetField('landing', 'heroHighlight')}><Input value={draft.landing.heroHighlight} onChange={(event) => update('landing', 'heroHighlight', event.target.value)} maxLength={80} required /></ConfigField>
-            </div><ConfigField label="Descripción principal" onReset={() => resetField('landing', 'heroDescription')}><Textarea value={draft.landing.heroDescription} onChange={(event) => update('landing', 'heroDescription', event.target.value)} maxLength={500} required /></ConfigField></section>
-            <section className="space-y-6 border-t pt-8"><h3 className="text-base">Servicios</h3><ConfigField label="Título de servicios" onReset={() => resetField('landing', 'servicesTitle')}><Input value={draft.landing.servicesTitle} onChange={(event) => update('landing', 'servicesTitle', event.target.value)} maxLength={140} required /></ConfigField><ConfigField label="Descripción de servicios" onReset={() => resetField('landing', 'servicesDescription')}><Textarea value={draft.landing.servicesDescription} onChange={(event) => update('landing', 'servicesDescription', event.target.value)} maxLength={500} required /></ConfigField></section>
-            <section className="space-y-6 border-t pt-8"><div><h3 className="text-base">Iconos de servicios</h3><p className="mt-2 text-sm text-muted-foreground">Selecciona símbolos de una misma biblioteca para mantener consistencia visual.</p></div><div className="grid gap-6 sm:grid-cols-2">
-              {[
-                ['creditServiceIcon', 'Simulador de crédito'],
-                ['amortizationServiceIcon', 'Tabla de amortización'],
-                ['investmentServiceIcon', 'Proyección de inversión'],
-                ['applicationServiceIcon', 'Solicitud digital'],
-              ].map(([key, label]) => <ConfigField key={key} label={label} onReset={() => resetField('landing', key)}><Select value={(draft.landing as unknown as Record<string, string>)[key]} onValueChange={(value) => update('landing', key, value)}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent>{iconOptions.map(([value, optionLabel]) => <SelectItem key={value} value={value}>{optionLabel}</SelectItem>)}</SelectContent></Select></ConfigField>)}
-            </div></section>
-            <section className="space-y-6 border-t pt-8"><h3 className="text-base">Créditos e inversiones</h3><div className="grid gap-6 sm:grid-cols-2"><ConfigField label="Título de créditos" onReset={() => resetField('landing', 'creditTitle')}><Input value={draft.landing.creditTitle} onChange={(event) => update('landing', 'creditTitle', event.target.value)} maxLength={160} required /></ConfigField><ConfigField label="Título de inversiones" onReset={() => resetField('landing', 'investmentTitle')}><Input value={draft.landing.investmentTitle} onChange={(event) => update('landing', 'investmentTitle', event.target.value)} maxLength={160} required /></ConfigField><ConfigField label="Descripción de créditos" onReset={() => resetField('landing', 'creditDescription')}><Textarea value={draft.landing.creditDescription} onChange={(event) => update('landing', 'creditDescription', event.target.value)} maxLength={500} required /></ConfigField><ConfigField label="Descripción de inversiones" onReset={() => resetField('landing', 'investmentDescription')}><Textarea value={draft.landing.investmentDescription} onChange={(event) => update('landing', 'investmentDescription', event.target.value)} maxLength={500} required /></ConfigField></div></section>
-            <ConfigField label="Título del proceso" onReset={() => resetField('landing', 'processTitle')}><Input value={draft.landing.processTitle} onChange={(event) => update('landing', 'processTitle', event.target.value)} maxLength={160} required /></ConfigField>
+          <form onSubmit={submit('landing')} className="max-w-5xl space-y-8">
+            <div>
+              <h2 className="text-xl">Contenido público</h2>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">Administra el recorrido completo de la landing. Los cambios se aplican al guardar esta pestaña.</p>
+            </div>
+            <Tabs defaultValue="intro" className="gap-7">
+              <div className="overflow-x-auto border-b">
+                <TabsList aria-label="Partes de la landing" className="h-auto w-max min-w-full justify-start gap-5 rounded-none bg-transparent p-0">
+                  {landingGroups.map((group) => (
+                    <TabsTrigger key={group.id} value={group.id}
+                      className="h-11 flex-none rounded-none border-x-0 border-t-0 border-b-2 bg-transparent px-1 shadow-none data-[state=active]:border-brand-teal data-[state=active]:bg-transparent data-[state=active]:text-brand-teal data-[state=active]:shadow-none">
+                      {group.label}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </div>
+              {landingGroups.map((group) => (
+                <TabsContent key={group.id} value={group.id} className="space-y-7">
+                  <div>
+                    <h3 className="text-lg">{group.title}</h3>
+                    <p className="mt-2 max-w-[70ch] text-sm leading-6 text-muted-foreground">{group.description}</p>
+                  </div>
+                  {group.enabledKey && <div className="rounded-lg border bg-card px-5">
+                    <ToggleRow
+                      label={`Mostrar ${group.label.toLowerCase()} en el sitio público`}
+                      description="Puedes ocultar esta sección sin perder los textos y recursos guardados."
+                      checked={draft.landing[group.enabledKey] === 'true'}
+                      onCheckedChange={(value) => update('landing', group.enabledKey!, String(value))}
+                      onReset={() => resetField('landing', group.enabledKey!)}
+                    />
+                  </div>}
+                  {group.id === 'banner' && <ConfigField label="Cambio automático del banner" hint="Entre 3 y 20 segundos. Se pausa si el visitante prefiere reducir animaciones." onReset={() => resetField('landing', 'bannerIntervalSeconds')}>
+                    <div className="flex items-center gap-3">
+                      <Input type="number" min={3} max={20} step={1} value={draft.landing.bannerIntervalSeconds}
+                        onChange={(event) => update('landing', 'bannerIntervalSeconds', event.target.value)} className="max-w-32" required />
+                      <span className="text-sm text-muted-foreground">segundos</span>
+                    </div>
+                  </ConfigField>}
+                  <div className="grid gap-6 sm:grid-cols-2">
+                    {group.fields.map((field) => (
+                      <div key={field.key} className={field.multiline ? 'sm:col-span-2' : undefined}>
+                        <ConfigField label={field.label} hint={field.hint} onReset={() => resetField('landing', field.key)}>
+                          {field.multiline ? (
+                            <Textarea value={draft.landing[field.key]} onChange={(event) => update('landing', field.key, event.target.value)} maxLength={500} required />
+                          ) : (
+                            <Input value={draft.landing[field.key]} onChange={(event) => update('landing', field.key, event.target.value)} maxLength={180} required />
+                          )}
+                        </ConfigField>
+                      </div>
+                    ))}
+                  </div>
+                  {(landingIconFields[group.id]?.length ?? 0) > 0 && <section className="space-y-5" aria-labelledby={`${group.id}-icons-title`}>
+                    <div>
+                      <h4 id={`${group.id}-icons-title`} className="text-base">Iconos de {group.label.toLowerCase()}</h4>
+                      <p className="mt-2 text-sm text-muted-foreground">Elige símbolos de una misma biblioteca para mantener la consistencia visual.</p>
+                    </div>
+                    <div className="grid gap-6 sm:grid-cols-2">
+                      {landingIconFields[group.id].map(([key, label]) => (
+                        <ConfigField key={key} label={label} onReset={() => resetField('landing', key)}>
+                          <Select value={draft.landing[key]} onValueChange={(value) => update('landing', key, value)}>
+                            <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                            <SelectContent>{iconOptions.map(([value, optionLabel]) => <SelectItem key={value} value={value}>{optionLabel}</SelectItem>)}</SelectContent>
+                          </Select>
+                        </ConfigField>
+                      ))}
+                    </div>
+                  </section>}
+                  {group.id === 'banner' && <Button type="button" variant="outline" onClick={() => setActiveTab('media')}>
+                    <Images aria-hidden="true" /> Editar imágenes del banner
+                  </Button>}
+                </TabsContent>
+              ))}
+            </Tabs>
             <FormActions saving={saving === 'landing'} dirty={isDirty('landing')} onReset={() => void resetSection('landing')} />
           </form>
         </TabsContent>

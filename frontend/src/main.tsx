@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client'
 import '@fontsource/inter/latin-400.css'
 import '@fontsource/inter/latin-500.css'
 import '@fontsource/libre-baskerville/latin-400.css'
+import '@fontsource/libre-baskerville/latin-700.css'
 
 import { AppProviders } from '@/app/providers/app-providers'
 import App from '@/App'
