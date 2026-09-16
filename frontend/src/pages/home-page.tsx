@@ -11,13 +11,15 @@ import {
   WalletCards,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
 
 import creditImage from '@/assets/landing/brunexa-creditos.png'
 import investmentImage from '@/assets/landing/brunexa-inversiones.png'
 import carouselCommunityImage from '@/assets/landing/carrusel/brooke-cagle--uHVRvDr7pg-unsplash.jpg'
 import carouselIdentityImage from '@/assets/landing/carrusel/debashis-rc-biswas-dyPFnxxUhYk-unsplash.jpg'
 import carouselPerspectiveImage from '@/assets/landing/carrusel/zalfa-imani-1xp5VxvyKL0-unsplash.jpg'
+import { useAuth } from '@/app/providers/auth-provider'
 import { useInstitutionSettings } from '@/app/providers/settings-provider'
 import { BrandLogo } from '@/components/shared/brand-logo'
 import { Button } from '@/components/ui/button'
@@ -50,12 +52,15 @@ function landingText(value: string, shortName: string, description: string) {
 }
 
 export function HomePage() {
+  const navigate = useNavigate()
+  const { account, isPending: authPending, refreshAccount } = useAuth()
   const { settings, assets } = useInstitutionSettings()
   const { institution, landing, credit, investment } = settings
   const creditVisible = credit.moduleEnabled === 'true'
   const investmentVisible = investment.moduleEnabled === 'true'
   const [carouselApi, setCarouselApi] = useState<CarouselApi>()
   const [currentSlide, setCurrentSlide] = useState(0)
+  const [checkingAccess, setCheckingAccess] = useState(false)
   const carouselSlides = [
     {
       id: 'brunexa',
@@ -141,6 +146,23 @@ export function HomePage() {
   const InvestmentSectionIcon = serviceIcon(landing.investmentSectionIcon, 'trending-up')
   const InvestmentFeatureOneIcon = serviceIcon(landing.investmentFeatureOneIcon, 'sliders')
   const InvestmentFeatureTwoIcon = serviceIcon(landing.investmentFeatureTwoIcon, 'shield')
+  const closingAccessLabel = account
+    ? account.permissions.includes('admin.dashboard.view') ? 'Ir al panel' : 'Mi cuenta'
+    : landingText(landing.closingButton, institution.shortName, institution.description)
+
+  async function openAccount() {
+    if (checkingAccess) return
+    setCheckingAccess(true)
+    try {
+      const current = await refreshAccount()
+      const destination = !current ? '/login' : current.permissions.includes('admin.dashboard.view') ? '/admin' : '/cuenta'
+      navigate(destination)
+    } catch {
+      toast.error('No se pudo comprobar tu sesión. Inténtalo de nuevo.')
+    } finally {
+      setCheckingAccess(false)
+    }
+  }
 
   return (
     <main id="contenido">
@@ -380,8 +402,10 @@ export function HomePage() {
                 <li key={index} className="flex items-center gap-3"><Check className="size-4 shrink-0 text-brand-teal" aria-hidden="true" />{bullet}</li>
               ))}
             </ul>
-            <Button asChild size="lg" variant="brand" className="mt-8 w-full sm:w-auto">
-              <Link to="/login">{landingText(landing.closingButton, institution.shortName, institution.description)} <ArrowRight aria-hidden="true" /></Link>
+            <Button type="button" size="lg" variant="brand" className="mt-8 w-full sm:w-auto"
+              disabled={authPending || checkingAccess} onClick={() => void openAccount()}>
+              {checkingAccess ? 'Comprobando acceso…' : closingAccessLabel}
+              {!checkingAccess && <ArrowRight aria-hidden="true" />}
             </Button>
           </div>
         </div>

@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
-import { createContext, useContext, type PropsWithChildren } from 'react'
+import { createContext, useCallback, useContext, type PropsWithChildren } from 'react'
 
 import { api, clearCsrfToken } from '@/lib/api'
 
@@ -19,6 +19,7 @@ const AuthContext = createContext<{
   account: Account | null
   isPending: boolean
   isError: boolean
+  refreshAccount: () => Promise<Account | null>
   login: (email: string, password: string) => Promise<Account>
   logout: () => Promise<void>
   hasPermission: (permission: string) => boolean
@@ -38,7 +39,15 @@ export function AuthProvider({ children }: PropsWithChildren) {
       }
     },
     retry: (count, error) => !(axios.isAxiosError(error) && error.response?.status === 401) && count < 1,
+    staleTime: 0,
+    refetchOnWindowFocus: 'always',
   })
+
+  const refreshAccount = useCallback(async (): Promise<Account | null> => {
+    const result = await query.refetch()
+    if (result.isError) throw result.error
+    return result.data ?? null
+  }, [query.refetch])
 
   async function login(email: string, password: string): Promise<Account> {
     const fields = new URLSearchParams({ email, password })
@@ -61,6 +70,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       account: query.data ?? null,
       isPending: query.isPending,
       isError: query.isError,
+      refreshAccount,
       login,
       logout,
       hasPermission: (permission) => query.data?.permissions.includes(permission) ?? false,

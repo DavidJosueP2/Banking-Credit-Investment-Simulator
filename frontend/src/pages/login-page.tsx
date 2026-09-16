@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 
 import { useAuth, type Account } from '@/app/providers/auth-provider'
@@ -20,18 +20,28 @@ function destinationAfterLogin(account: Account, requested: string | null) {
   const fallback = account.permissions.includes('admin.dashboard.view') ? '/admin' : '/cuenta'
   if (requested === '/cuenta') return requested
   const permission = requested ? protectedDestinations[requested] : undefined
+  if (requested?.startsWith('/admin/') && !account.permissions.includes('admin.dashboard.view')) return fallback
   if (requested && permission && account.permissions.includes(permission)) return requested
   return fallback
 }
 
 export function LoginPage() {
-  const { account, isPending, login } = useAuth()
+  const { account, isPending, refreshAccount, login } = useAuth()
   const navigate = useNavigate()
   const [search] = useSearchParams()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [sessionChecked, setSessionChecked] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    void refreshAccount().catch(() => null).finally(() => {
+      if (active) setSessionChecked(true)
+    })
+    return () => { active = false }
+  }, [refreshAccount])
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -51,7 +61,7 @@ export function LoginPage() {
     }
   }
 
-  if (isPending) return <main id="contenido" className="mx-auto flex min-h-[65svh] max-w-7xl items-center px-5 py-16 text-sm text-muted-foreground sm:px-8" aria-live="polite">Comprobando tu sesión…</main>
+  if (isPending || !sessionChecked) return <main id="contenido" className="mx-auto flex min-h-[65svh] max-w-7xl items-center px-5 py-16 text-sm text-muted-foreground sm:px-8" aria-live="polite">Comprobando tu sesión…</main>
   if (account) return <Navigate to={destinationAfterLogin(account, search.get('next'))} replace />
 
   return (
