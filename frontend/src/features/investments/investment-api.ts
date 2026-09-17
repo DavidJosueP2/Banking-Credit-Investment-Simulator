@@ -3,6 +3,10 @@ import { api } from '@/lib/api'
 export type PayoutFrequency = 'AT_MATURITY' | 'MONTHLY' | 'BIMONTHLY' | 'QUARTERLY' | 'SEMIANNUAL' | 'ANNUAL'
 export type CalculationMethod = 'SIMPLE' | 'COMPOUND'
 export type RateType = 'NOMINAL_ANNUAL' | 'EFFECTIVE_ANNUAL'
+export type TermUnit = 'DAYS' | 'MONTHS' | 'YEARS'
+export type TermSelection = 'PREDEFINED' | 'RANGE'
+export type TaxRuleType = 'PERCENTAGE' | 'FIXED'
+export type TaxBase = 'GROSS_INTEREST' | 'CAPITAL' | 'TOTAL'
 
 export interface InvestmentRate {
   id?: number
@@ -11,7 +15,22 @@ export interface InvestmentRate {
   maximumAmount: number
   minimumTermDays: number
   maximumTermDays: number
+  termUnit?: TermUnit
+  termSelection?: TermSelection
+  minimumTermValue?: number
+  maximumTermValue?: number
+  termIncrement?: number
   annualRate: number
+  position?: number
+}
+
+export interface InvestmentTaxRule {
+  id?: number
+  name: string
+  ruleType: TaxRuleType
+  value: number
+  base: TaxBase
+  active: boolean
   position?: number
 }
 
@@ -24,6 +43,11 @@ export interface InvestmentProduct {
   maximumAmount: number
   minimumTermDays: number
   maximumTermDays: number
+  termUnit: TermUnit
+  termSelection: TermSelection
+  minimumTermValue: number
+  maximumTermValue: number
+  termIncrement: number
   calculationMethod: CalculationMethod
   rateType: RateType
   capitalizationFrequency: PayoutFrequency | null
@@ -35,6 +59,7 @@ export interface InvestmentProduct {
   terms: number[]
   payoutFrequencies: PayoutFrequency[]
   rates: InvestmentRate[]
+  taxRules: InvestmentTaxRule[]
 }
 
 export interface InvestmentProductInput {
@@ -44,6 +69,11 @@ export interface InvestmentProductInput {
   maximumAmount: number
   minimumTermDays: number
   maximumTermDays: number
+  termUnit: TermUnit
+  termSelection: TermSelection
+  minimumTermValue: number
+  maximumTermValue: number
+  termIncrement: number
   calculationMethod: CalculationMethod
   rateType: RateType
   capitalizationFrequency: PayoutFrequency | null
@@ -53,6 +83,7 @@ export interface InvestmentProductInput {
   terms: number[]
   payoutFrequencies: PayoutFrequency[]
   rates: InvestmentRate[]
+  taxRules: InvestmentTaxRule[]
 }
 
 export interface SimulationRequest {
@@ -81,6 +112,8 @@ export interface SimulationResult {
   currency: string
   amount: number
   termDays: number
+  termValue: number
+  termUnit: TermUnit
   rateLabel: string
   annualRate: number
   calculationMethod: CalculationMethod
@@ -147,4 +180,10 @@ export const calculationMethodLabels: Record<CalculationMethod, string> = {
 export const rateTypeLabels: Record<RateType, string> = {
   NOMINAL_ANNUAL: 'Nominal anual',
   EFFECTIVE_ANNUAL: 'Efectiva anual',
+}
+
+export const termUnitLabels: Record<TermUnit, string> = {
+  DAYS: 'Días',
+  MONTHS: 'Meses',
+  YEARS: 'Años',
 }

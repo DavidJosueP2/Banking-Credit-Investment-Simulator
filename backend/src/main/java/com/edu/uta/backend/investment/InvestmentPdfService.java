@@ -13,6 +13,8 @@ import java.util.Locale;
 import java.util.zip.DeflaterOutputStream;
 
 import javax.imageio.ImageIO;
+import java.awt.Color;
+import java.awt.Graphics2D;
 
 import org.springframework.stereotype.Service;
 
@@ -41,7 +43,7 @@ public class InvestmentPdfService {
         int primary = color(value(institution, "appearance", "brandPrimaryColor", "#08747b"));
         int secondary = color(value(institution, "appearance", "brandSecondaryColor", "#946928"));
 
-        ImageAsset logo = loadLogo(institution.assets());
+        ImageAsset logo = loadLogo(institution.assets(), primary);
         List<Page> pages = new ArrayList<>();
         List<InvestmentCalculator.Payment> payments = result.payments();
         int paymentIndex = 0;
@@ -91,10 +93,18 @@ public class InvestmentPdfService {
         page.text(352, boxY + 13, 13, money(result.maturityValue(), result.currency()), 0x946928, true);
 
         int detailsY = boxY - 22;
-        page.text(42, detailsY, 9, "Plazo: " + result.termDays() + " días", 0x4b5563, false);
+        page.text(42, detailsY, 9, "Plazo: " + result.termValue() + " " + termUnit(result.termUnit(), result.termValue()), 0x4b5563, false);
         page.text(180, detailsY, 9, "Tasa: " + percent(result.annualRate()), 0x4b5563, false);
         page.text(300, detailsY, 9, "Pago: " + frequency(result.payoutFrequency()), 0x4b5563, false);
         page.text(438, detailsY, 9, "Retención: " + money(result.withholding(), result.currency()), 0x4b5563, false);
+    }
+
+    private String termUnit(String unit, int value) {
+        return switch (unit) {
+            case "MONTHS" -> value == 1 ? "mes" : "meses";
+            case "YEARS" -> value == 1 ? "año" : "años";
+            default -> value == 1 ? "día" : "días";
+        };
     }
 
     private int drawSchedule(Page page, List<InvestmentCalculator.Payment> payments,
@@ -131,17 +141,21 @@ public class InvestmentPdfService {
         page.text(42, 29, 7, "Los valores presentados son una estimacion y pueden estar sujetos a las condiciones vigentes.", 0x64748b, false);
     }
 
-    private ImageAsset loadLogo(java.util.Map<String, String> assets) {
+    private ImageAsset loadLogo(java.util.Map<String, String> assets, int backgroundColor) {
         for (String key : List.of("fullLogoLight", "markLogoLight", "fullLogoDark", "markLogoDark")) {
             String path = assets.get(key);
             if (path == null) continue;
             try {
                 InstitutionSettingsService.Asset asset = settings.asset(key);
                 BufferedImage image = ImageIO.read(new java.io.ByteArrayInputStream(asset.content()));
-                if (image != null) return ImageAsset.from(image);
+                if (image != null) return ImageAsset.from(image, backgroundColor);
             } catch (IOException | RuntimeException ignored) {
-                // El PDF conserva la cabecera textual si el activo no es legible.
             }
+        }
+        try {
+            BufferedImage image = ImageIO.read(getClass().getResourceAsStream("/branding/brunexa-logo.png"));
+            if (image != null) return ImageAsset.from(image, backgroundColor);
+        } catch (IOException | RuntimeException ignored) {
         }
         return null;
     }
@@ -180,7 +194,13 @@ public class InvestmentPdfService {
     }
 
     private record ImageAsset(int width, int height, byte[] data) {
-        static ImageAsset from(BufferedImage image) throws IOException {
+        static ImageAsset from(BufferedImage source, int backgroundColor) throws IOException {
+            BufferedImage image = new BufferedImage(source.getWidth(), source.getHeight(), BufferedImage.TYPE_INT_RGB);
+            Graphics2D graphics = image.createGraphics();
+            graphics.setColor(new Color(backgroundColor));
+            graphics.fillRect(0, 0, image.getWidth(), image.getHeight());
+            graphics.drawImage(source, 0, 0, null);
+            graphics.dispose();
             int width = image.getWidth();
             int height = image.getHeight();
             ByteArrayOutputStream raw = new ByteArrayOutputStream(width * height * 3);

@@ -11,6 +11,8 @@ import org.springframework.stereotype.Component;
 @Component
 public class InvestmentCalculator {
 
+    public record TaxRule(String ruleType, BigDecimal value, String base, boolean active) {}
+
     public record Payment(
             int number,
             LocalDate paymentDate,
@@ -38,6 +40,14 @@ public class InvestmentCalculator {
     public Projection calculate(BigDecimal principal, BigDecimal annualRate, int termDays,
             int dayCountBasis, BigDecimal withholdingRate, String payoutFrequency,
             String calculationMethod, String rateType, String capitalizationFrequency, LocalDate startDate) {
+        return calculate(principal, annualRate, termDays, dayCountBasis, withholdingRate, payoutFrequency,
+                calculationMethod, rateType, capitalizationFrequency, startDate, List.of());
+    }
+
+    public Projection calculate(BigDecimal principal, BigDecimal annualRate, int termDays,
+            int dayCountBasis, BigDecimal withholdingRate, String payoutFrequency,
+            String calculationMethod, String rateType, String capitalizationFrequency, LocalDate startDate,
+            List<TaxRule> taxRules) {
         if (principal == null || principal.signum() <= 0 || annualRate == null || annualRate.signum() <= 0
                 || withholdingRate == null || withholdingRate.signum() < 0) {
             throw new IllegalArgumentException("El capital, la tasa y la retención deben ser válidos.");
@@ -62,7 +72,8 @@ public class InvestmentCalculator {
             elapsed += periodDays;
             BigDecimal gross = interest(balance, annualRate, periodDays, dayCountBasis, calculationMethod,
                     rateType, capitalizationFrequency);
-            BigDecimal tax = gross.multiply(withholdingRate).setScale(2, RoundingMode.HALF_UP);
+            BigDecimal tax = gross.multiply(withholdingRate).add(taxes(taxRules, gross, balance, gross))
+                    .setScale(2, RoundingMode.HALF_UP);
             BigDecimal net = gross.subtract(tax).setScale(2, RoundingMode.HALF_UP);
             boolean finalPayment = elapsed == termDays;
             BigDecimal capital = finalPayment ? principal.setScale(2, RoundingMode.HALF_UP)
@@ -77,6 +88,7 @@ public class InvestmentCalculator {
             if ("COMPOUND".equals(calculationMethod)) {
                 balance = balance.add(gross);
             }
+
         }
 
         BigDecimal netTotal = grossTotal.subtract(taxTotal).setScale(2, RoundingMode.HALF_UP);
@@ -85,6 +97,19 @@ public class InvestmentCalculator {
                 : principal.add(netTotal).setScale(2, RoundingMode.HALF_UP);
         return new Projection(grossTotal.setScale(2, RoundingMode.HALF_UP), taxTotal.setScale(2, RoundingMode.HALF_UP),
                 netTotal, maturityValue, startDate.plusDays(termDays), List.copyOf(payments));
+    }
+
+    private BigDecimal taxes(List<TaxRule> rules, BigDecimal gross, BigDecimal capital, BigDecimal total) {
+        return rules.stream().filter(TaxRule::active).map(rule -> {
+            BigDecimal base = switch (rule.base()) {
+                case "CAPITAL" -> capital;
+                case "TOTAL" -> total.add(capital);
+                default -> gross;
+            };
+            return "PERCENTAGE".equals(rule.ruleType())
+                    ? base.multiply(rule.value()).divide(BigDecimal.valueOf(100), 8, RoundingMode.HALF_UP)
+                    : rule.value();
+        }).reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     private int intervalDays(String frequency, int termDays) {
