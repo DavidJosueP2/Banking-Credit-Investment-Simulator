@@ -1,6 +1,8 @@
 import { api } from '@/lib/api'
 
-export type PayoutFrequency = 'AT_MATURITY' | 'MONTHLY' | 'BIMONTHLY' | 'QUARTERLY' | 'SEMIANNUAL'
+export type PayoutFrequency = 'AT_MATURITY' | 'MONTHLY' | 'BIMONTHLY' | 'QUARTERLY' | 'SEMIANNUAL' | 'ANNUAL'
+export type CalculationMethod = 'SIMPLE' | 'COMPOUND'
+export type RateType = 'NOMINAL_ANNUAL' | 'EFFECTIVE_ANNUAL'
 
 export interface InvestmentRate {
   id?: number
@@ -22,12 +24,16 @@ export interface InvestmentProduct {
   maximumAmount: number
   minimumTermDays: number
   maximumTermDays: number
-  payoutFrequency: PayoutFrequency
+  calculationMethod: CalculationMethod
+  rateType: RateType
+  capitalizationFrequency: PayoutFrequency | null
   dayCountBasis: 360 | 365
   withholdingRate: number
   active: boolean
   createdAt: string
   updatedAt: string
+  terms: number[]
+  payoutFrequencies: PayoutFrequency[]
   rates: InvestmentRate[]
 }
 
@@ -38,10 +44,14 @@ export interface InvestmentProductInput {
   maximumAmount: number
   minimumTermDays: number
   maximumTermDays: number
-  payoutFrequency: PayoutFrequency
+  calculationMethod: CalculationMethod
+  rateType: RateType
+  capitalizationFrequency: PayoutFrequency | null
   dayCountBasis: 360 | 365
   withholdingRate: number
   active: boolean
+  terms: number[]
+  payoutFrequencies: PayoutFrequency[]
   rates: InvestmentRate[]
 }
 
@@ -49,6 +59,7 @@ export interface SimulationRequest {
   productId: number
   amount: number
   termDays: number
+  payoutFrequency: PayoutFrequency
 }
 
 export interface InvestmentPayment {
@@ -72,7 +83,10 @@ export interface SimulationResult {
   termDays: number
   rateLabel: string
   annualRate: number
+  calculationMethod: CalculationMethod
+  rateType: RateType
   payoutFrequency: PayoutFrequency
+  capitalizationFrequency: PayoutFrequency | null
   dayCountBasis: number
   withholdingRate: number
   grossInterest: number
@@ -122,4 +136,15 @@ export const payoutLabels: Record<PayoutFrequency, string> = {
   BIMONTHLY: 'Bimestral',
   QUARTERLY: 'Trimestral',
   SEMIANNUAL: 'Semestral',
+  ANNUAL: 'Anual',
+}
+
+export const calculationMethodLabels: Record<CalculationMethod, string> = {
+  SIMPLE: 'Interés simple',
+  COMPOUND: 'Interés compuesto',
+}
+
+export const rateTypeLabels: Record<RateType, string> = {
+  NOMINAL_ANNUAL: 'Nominal anual',
+  EFFECTIVE_ANNUAL: 'Efectiva anual',
 }

@@ -33,4 +33,16 @@ class InvestmentCalculatorTests {
         assertEquals(new BigDecimal("2.40"), result.withholding());
         assertEquals(new BigDecimal("12117.60"), result.maturityValue());
     }
+
+    @Test
+    void compoundsInterestAndPaysOnlyAtMaturity() {
+        var result = calculator.calculate(new BigDecimal("5000.00"), new BigDecimal("0.04"),
+                360, 360, BigDecimal.ZERO, "AT_MATURITY", "COMPOUND", "NOMINAL_ANNUAL", "MONTHLY",
+                LocalDate.of(2026, 1, 1));
+
+        assertEquals(1, result.payments().size());
+        assertEquals(new BigDecimal("5203.71"), result.maturityValue());
+        assertEquals(new BigDecimal("203.71"), result.grossInterest());
+        assertEquals(new BigDecimal("5000.00"), result.payments().getFirst().capital());
+    }
 }
