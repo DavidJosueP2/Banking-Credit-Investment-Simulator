@@ -1,13 +1,13 @@
 import axios from 'axios'
 import { CirclePlus, Pencil, Power, Plus, Trash2, X } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
 import { PageHeader } from '@/components/shared/page-header'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -18,7 +18,7 @@ import {
   payoutLabels, rateTypeLabels, setInvestmentProductStatus, updateInvestmentProduct,
   type CalculationMethod, type InvestmentProduct, type InvestmentProductInput,
   type PayoutFrequency, type RateType, type TermSelection, type TermUnit,
-  type TaxBase, type TaxRuleType,
+  termUnitLabels, type TaxBase, type TaxRuleType,
 } from '@/features/investments/investment-api'
 import { formatCurrency, formatPercentage } from '@/lib/formatters'
 
@@ -103,7 +103,7 @@ function errorMessage(error: unknown) {
   return 'No se pudo guardar el producto.'
 }
 
-function ProductEditor({ open, product, onOpenChange, onSave, saving }: { open: boolean; product?: InvestmentProduct; onOpenChange: (open: boolean) => void; onSave: (input: InvestmentProductInput) => Promise<void>; saving: boolean }) {
+function ProductEditor({ product, onCancel, onSave, saving }: { product?: InvestmentProduct; onCancel: () => void; onSave: (input: InvestmentProductInput) => Promise<void>; saving: boolean }) {
   const [draft, setDraft] = useState(() => draftFrom(product))
   const [newTerm, setNewTerm] = useState('')
   const set = <K extends keyof ProductDraft>(key: K, value: ProductDraft[K]) => setDraft((current) => ({ ...current, [key]: value }))
@@ -134,9 +134,9 @@ function ProductEditor({ open, product, onOpenChange, onSave, saving }: { open: 
     if (!draft.rates.length) return toast.error('Agrega al menos una tasa.')
     await onSave(toInput(draft))
   }
-  return <Dialog open={open} onOpenChange={(next) => !saving && onOpenChange(next)}><DialogContent className="max-h-[92svh] overflow-y-auto sm:max-w-5xl">
-    <DialogHeader><DialogTitle>{product ? 'Editar producto de inversión' : 'Nuevo producto de inversión'}</DialogTitle><DialogDescription>Configura el producto, sus plazos, tasas y formas autorizadas de pago.</DialogDescription></DialogHeader>
-    <form onSubmit={(event) => void submit(event)} className="space-y-6">
+  return <div className="space-y-8">
+    <PageHeader title={product ? 'Editar producto de inversión' : 'Nuevo producto de inversión'} description="Configura el producto, sus plazos, tasas y formas autorizadas de pago." actions={<Button type="button" variant="outline" onClick={onCancel} disabled={saving}>Volver a productos</Button>} />
+    <form onSubmit={(event) => void submit(event)} className="space-y-6 rounded-xl border bg-card p-5 shadow-sm sm:p-6">
       <section className="grid gap-4 sm:grid-cols-2">
         <Field label="Nombre" value={draft.name} onChange={(value) => set('name', value)} required />
         <Field label="Descripción" value={draft.description} onChange={(value) => set('description', value)} />
@@ -158,11 +158,11 @@ function ProductEditor({ open, product, onOpenChange, onSave, saving }: { open: 
         {draft.termSelection === 'PREDEFINED' && <div className="flex gap-2"><Input className="max-w-40" type="number" min="1" placeholder={`Nuevo plazo en ${draft.termUnit === 'DAYS' ? 'días' : draft.termUnit === 'MONTHS' ? 'meses' : 'años'}`} value={newTerm} onChange={(event) => setNewTerm(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); addTerm() } }} /><Button type="button" variant="outline" onClick={addTerm}><Plus />Agregar plazo</Button></div>}
         {draft.termSelection === 'PREDEFINED' && <div className="flex flex-wrap gap-2">{terms.map((term) => <span key={term} className="inline-flex items-center gap-1 rounded-full bg-secondary px-3 py-1 text-sm">{term} {draft.termUnit === 'DAYS' ? 'días' : draft.termUnit === 'MONTHS' ? 'meses' : 'años'}<button type="button" aria-label={`Quitar plazo ${term}`} className="rounded-full p-0.5 hover:bg-background" onClick={() => removeTerm(term)}><X className="size-3" /></button></span>)}</div>}
       </section>
-      <section className="space-y-3 border-t pt-5"><div className="flex items-center justify-between gap-2"><div><h3 className="font-medium">Tasas por plazo y monto</h3><p className="text-sm text-muted-foreground">Define el rendimiento para cada combinación. Los rangos no pueden cruzarse.</p></div><Button type="button" variant="outline" size="sm" onClick={addRate}><Plus />Agregar tasa</Button></div>{draft.rates.map((rate, index) => <div key={index} className="grid gap-3 rounded-lg border p-3 sm:grid-cols-2 lg:grid-cols-6"><Field label="Nombre visible" value={rate.label} onChange={(value) => updateRate(index, 'label', value)} /><Field label="Plazo desde (días)" type="number" value={rate.minimumTermDays} onChange={(value) => updateRate(index, 'minimumTermDays', value)} /><Field label="Plazo hasta (días)" type="number" value={rate.maximumTermDays} onChange={(value) => updateRate(index, 'maximumTermDays', value)} /><Field label="Monto desde" type="number" value={rate.minimumAmount} onChange={(value) => updateRate(index, 'minimumAmount', value)} /><Field label="Monto hasta" type="number" value={rate.maximumAmount} onChange={(value) => updateRate(index, 'maximumAmount', value)} /><div className="flex items-end gap-2"><div className="min-w-0 flex-1"><Field label="Rendimiento anual (%)" type="number" value={rate.annualRatePercent} onChange={(value) => updateRate(index, 'annualRatePercent', value)} /></div><Button type="button" variant="ghost" size="icon" aria-label="Quitar tasa" onClick={() => removeRate(index)}><Trash2 /></Button></div></div>)}</section>
+      <section className="space-y-3 border-t pt-5"><div className="flex items-center justify-between gap-2"><div><h3 className="font-medium">Tasas por plazo y monto</h3><p className="text-sm text-muted-foreground">Define el rendimiento para cada combinación. Los rangos no pueden cruzarse.</p></div><Button type="button" variant="outline" size="sm" onClick={addRate}><Plus />Agregar tasa</Button></div>{draft.rates.map((rate, index) => <div key={index} className="grid gap-3 rounded-lg border p-3 sm:grid-cols-2 lg:grid-cols-6"><Field label="Nombre visible" value={rate.label} onChange={(value) => updateRate(index, 'label', value)} /><Field label={`Plazo desde (${termUnitLabels[draft.termUnit].toLowerCase()})`} type="number" value={rate.minimumTermDays} onChange={(value) => updateRate(index, 'minimumTermDays', value)} /><Field label={`Plazo hasta (${termUnitLabels[draft.termUnit].toLowerCase()})`} type="number" value={rate.maximumTermDays} onChange={(value) => updateRate(index, 'maximumTermDays', value)} /><Field label="Monto desde" type="number" value={rate.minimumAmount} onChange={(value) => updateRate(index, 'minimumAmount', value)} /><Field label="Monto hasta" type="number" value={rate.maximumAmount} onChange={(value) => updateRate(index, 'maximumAmount', value)} /><div className="flex items-end gap-2"><div className="min-w-0 flex-1"><Field label="Rendimiento anual (%)" type="number" value={rate.annualRatePercent} onChange={(value) => updateRate(index, 'annualRatePercent', value)} /></div><Button type="button" variant="ghost" size="icon" aria-label="Quitar tasa" onClick={() => removeRate(index)}><Trash2 /></Button></div></div>)}</section>
       <section className="space-y-3 border-t pt-5"><div className="flex items-center justify-between gap-2"><div><h3 className="font-medium">Impuestos y retenciones</h3><p className="text-sm text-muted-foreground">Estas reglas se aplican al calcular el resultado para el cliente.</p></div><Button type="button" variant="outline" size="sm" onClick={addTaxRule}><Plus />Agregar regla</Button></div>{draft.taxRules.length === 0 && <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">No hay reglas adicionales. El producto no aplicará una retención adicional.</p>}{draft.taxRules.map((rule, index) => <div key={index} className="grid gap-3 rounded-lg border p-3 sm:grid-cols-2 lg:grid-cols-6"><Field label="Nombre" value={rule.name} onChange={(value) => updateTaxRule(index, 'name', value)} /><SelectField label="Tipo" value={rule.ruleType} options={{ PERCENTAGE: 'Porcentaje', FIXED: 'Valor fijo' }} onChange={(value) => updateTaxRule(index, 'ruleType', value)} /><Field label={rule.ruleType === 'PERCENTAGE' ? 'Porcentaje (%)' : 'Valor fijo'} type="number" value={rule.value} onChange={(value) => updateTaxRule(index, 'value', value)} /><SelectField label="Aplicar sobre" value={rule.base} options={{ GROSS_INTEREST: 'Interés generado', CAPITAL: 'Capital', TOTAL: 'Total recibido' }} onChange={(value) => updateTaxRule(index, 'base', value)} /><label className="flex items-center gap-2 pt-7 text-sm"><Switch checked={rule.active} onCheckedChange={(value) => updateTaxRule(index, 'active', value)} />Activa</label><div className="flex items-end justify-end"><Button type="button" variant="ghost" size="icon" aria-label="Quitar regla fiscal" onClick={() => removeTaxRule(index)}><Trash2 /></Button></div></div>)}</section>
-      <DialogFooter><Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancelar</Button><Button type="submit" disabled={saving}>{saving ? 'Guardando…' : 'Guardar producto'}</Button></DialogFooter>
+      <div className="flex justify-end gap-2 border-t pt-5"><Button type="button" variant="outline" onClick={onCancel} disabled={saving}>Cancelar</Button><Button type="submit" disabled={saving}>{saving ? 'Guardando…' : 'Guardar producto'}</Button></div>
     </form>
-  </DialogContent></Dialog>
+  </div>
 }
 
 function Field({ label, value, onChange, type = 'text', required = false }: { label: string; value: string; onChange: (value: string) => void; type?: string; required?: boolean }) {
@@ -175,13 +175,32 @@ function SelectField({ label, value, options, onChange }: { label: string; value
 
 export function InvestmentAdminPage() {
   const client = useQueryClient()
-  const [editing, setEditing] = useState<InvestmentProduct>()
-  const [open, setOpen] = useState(false)
+  const navigate = useNavigate()
   const products = useQuery({ queryKey: investmentKeys.adminProducts, queryFn: getAdminInvestmentProducts })
-  const save = useMutation({ mutationFn: ({ product, input }: { product?: InvestmentProduct; input: InvestmentProductInput }) => product ? updateInvestmentProduct(product.id, input) : createInvestmentProduct(input), onSuccess: async (_, variables) => { await client.invalidateQueries({ queryKey: investmentKeys.adminProducts }); await client.invalidateQueries({ queryKey: investmentKeys.publicProducts }); toast.success(variables.product ? 'Producto actualizado.' : 'Producto creado.'); setOpen(false) }, onError: (error) => toast.error(errorMessage(error)) })
   const status = useMutation({ mutationFn: ({ product, active }: { product: InvestmentProduct; active: boolean }) => setInvestmentProductStatus(product.id, active), onSuccess: async () => { await client.invalidateQueries({ queryKey: investmentKeys.adminProducts }); await client.invalidateQueries({ queryKey: investmentKeys.publicProducts }) }, onError: (error) => toast.error(errorMessage(error)) })
-  return <div className="space-y-8"><PageHeader title="Productos de inversión" description="Configura productos, plazos concretos, tasas y modalidades de pago." actions={<Button onClick={() => { setEditing(undefined); setOpen(true) }}><CirclePlus />Nuevo producto</Button>} />
-    <div className="overflow-x-auto rounded-xl border"><table className="w-full text-sm"><thead><tr className="border-b text-left"><th className="p-4">Producto</th><th className="p-4">Plazos</th><th className="p-4">Tasas</th><th className="p-4">Estado</th><th className="p-4" /></tr></thead><tbody>{(products.data ?? []).map((product) => <tr key={product.id} className="border-b last:border-0"><td className="p-4"><strong>{product.name}</strong><span className="block text-xs text-muted-foreground">{formatCurrency(product.minimumAmount)} – {formatCurrency(product.maximumAmount)}</span></td><td className="p-4">{product.terms.join(', ')} días</td><td className="p-4">{product.rates.length} · {product.rates.length ? `${formatPercentage(Math.min(...product.rates.map((rate) => rate.annualRate)))} – ${formatPercentage(Math.max(...product.rates.map((rate) => rate.annualRate)))}` : 'Sin tasas'}</td><td className="p-4"><StatusBadge tone={product.active ? 'success' : 'neutral'}>{product.active ? 'Activo' : 'Inactivo'}</StatusBadge></td><td className="p-4 text-right"><Button variant="ghost" size="sm" onClick={() => { setEditing(product); setOpen(true) }}><Pencil />Editar</Button><Button variant="ghost" size="sm" onClick={() => status.mutate({ product, active: !product.active })}><Power />{product.active ? 'Desactivar' : 'Activar'}</Button></td></tr>)}</tbody></table>{products.isPending && <p className="p-6 text-sm text-muted-foreground">Cargando productos…</p>}{products.data?.length === 0 && <p className="p-6 text-sm text-muted-foreground">Todavía no existen productos.</p>}</div>
-    {open && <ProductEditor open product={editing} onOpenChange={setOpen} saving={save.isPending} onSave={(input) => save.mutateAsync({ product: editing, input }).then(() => undefined)} />}
+  return <div className="space-y-8"><PageHeader title="Productos de inversión" description="Configura productos, plazos concretos, tasas y modalidades de pago." actions={<Button onClick={() => navigate('/admin/inversiones/nuevo')}><CirclePlus />Nuevo producto</Button>} />
+    <div className="overflow-x-auto rounded-xl border"><table className="w-full text-sm"><thead><tr className="border-b text-left"><th className="p-4">Producto</th><th className="p-4">Plazos</th><th className="p-4">Tasas</th><th className="p-4">Estado</th><th className="p-4" /></tr></thead><tbody>{(products.data ?? []).map((product) => <tr key={product.id} className="border-b last:border-0"><td className="p-4"><strong>{product.name}</strong><span className="block text-xs text-muted-foreground">{formatCurrency(product.minimumAmount)} – {formatCurrency(product.maximumAmount)}</span></td><td className="p-4">{product.terms.join(', ')} días</td><td className="p-4">{product.rates.length} · {product.rates.length ? `${formatPercentage(Math.min(...product.rates.map((rate) => rate.annualRate)))} – ${formatPercentage(Math.max(...product.rates.map((rate) => rate.annualRate)))}` : 'Sin tasas'}</td><td className="p-4"><StatusBadge tone={product.active ? 'success' : 'neutral'}>{product.active ? 'Activo' : 'Inactivo'}</StatusBadge></td><td className="p-4 text-right"><Button variant="ghost" size="sm" onClick={() => navigate(`/admin/inversiones/${product.id}/editar`)}><Pencil />Editar</Button><Button variant="ghost" size="sm" onClick={() => status.mutate({ product, active: !product.active })}><Power />{product.active ? 'Desactivar' : 'Activar'}</Button></td></tr>)}</tbody></table>{products.isPending && <p className="p-6 text-sm text-muted-foreground">Cargando productos…</p>}{products.data?.length === 0 && <p className="p-6 text-sm text-muted-foreground">Todavía no existen productos.</p>}</div>
   </div>
+}
+
+export function InvestmentProductEditorPage() {
+  const navigate = useNavigate()
+  const { productId } = useParams()
+  const client = useQueryClient()
+  const products = useQuery({ queryKey: investmentKeys.adminProducts, queryFn: getAdminInvestmentProducts })
+  const product = productId ? products.data?.find((item) => item.id === Number(productId)) : undefined
+  const save = useMutation({
+    mutationFn: (input: InvestmentProductInput) => product ? updateInvestmentProduct(product.id, input) : createInvestmentProduct(input),
+    onSuccess: async () => {
+      await client.invalidateQueries({ queryKey: investmentKeys.adminProducts })
+      await client.invalidateQueries({ queryKey: investmentKeys.publicProducts })
+      toast.success(product ? 'Producto actualizado.' : 'Producto creado.')
+      navigate('/admin/inversiones')
+    },
+    onError: (error) => toast.error(errorMessage(error)),
+  })
+
+  if (products.isPending) return <p className="text-sm text-muted-foreground">Cargando producto…</p>
+  if (productId && !product) return <div className="space-y-4"><PageHeader title="Producto no encontrado" description="No pudimos encontrar el producto solicitado." /><Button onClick={() => navigate('/admin/inversiones')}>Volver a productos</Button></div>
+  return <ProductEditor key={product?.id ?? 'new'} product={product} onCancel={() => navigate('/admin/inversiones')} saving={save.isPending} onSave={(input) => save.mutateAsync(input).then(() => undefined)} />
 }
