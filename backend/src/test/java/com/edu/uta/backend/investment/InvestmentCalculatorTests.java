@@ -73,4 +73,28 @@ class InvestmentCalculatorTests {
         assertEquals(new BigDecimal("120.00"), result.grossInterest());
         assertEquals(new BigDecimal("1120.00"), result.maturityValue());
     }
+
+    @Test
+    void advancesCalendarPaymentsByCalendarMonths() {
+        var result = calculator.calculate(new BigDecimal("1000.00"), new BigDecimal("0.12"),
+                60, 360, BigDecimal.ZERO, "MONTHLY", "SIMPLE", "NOMINAL_ANNUAL", null,
+                LocalDate.of(2026, 1, 31), List.of(), "CALENDAR");
+
+        assertEquals(LocalDate.of(2026, 2, 28), result.payments().get(0).paymentDate());
+        assertEquals(LocalDate.of(2026, 3, 28), result.payments().get(1).paymentDate());
+        assertEquals(LocalDate.of(2026, 4, 1), result.payments().get(2).paymentDate());
+    }
+
+    @Test
+    void appliesCompoundTaxOnlyAtMaturity() {
+        var rules = List.of(new InvestmentCalculator.TaxRule(
+                "PERCENTAGE", new BigDecimal("10"), "GROSS_INTEREST", true));
+
+        var result = calculator.calculate(new BigDecimal("1000.00"), new BigDecimal("0.12"),
+                60, 360, BigDecimal.ZERO, "AT_MATURITY", "COMPOUND", "NOMINAL_ANNUAL", "MONTHLY",
+                LocalDate.of(2026, 1, 1), rules);
+
+        assertEquals(new BigDecimal("2.01"), result.withholding());
+        assertEquals(new BigDecimal("2.01"), result.payments().getFirst().withholding());
+    }
 }

@@ -7,6 +7,7 @@ export type TermUnit = 'DAYS' | 'MONTHS' | 'YEARS'
 export type TermSelection = 'PREDEFINED' | 'RANGE'
 export type TaxRuleType = 'PERCENTAGE' | 'FIXED'
 export type TaxBase = 'GROSS_INTEREST' | 'CAPITAL' | 'TOTAL'
+export type CalendarMode = 'FIXED_DAYS' | 'CALENDAR'
 
 export interface InvestmentRate {
   id?: number
@@ -15,11 +16,8 @@ export interface InvestmentRate {
   maximumAmount: number
   minimumTermDays: number
   maximumTermDays: number
-  termUnit?: TermUnit
-  termSelection?: TermSelection
-  minimumTermValue?: number
-  maximumTermValue?: number
-  termIncrement?: number
+  minimumTermValue: number
+  maximumTermValue: number
   annualRate: number
   position?: number
 }
@@ -51,6 +49,7 @@ export interface InvestmentProduct {
   calculationMethod: CalculationMethod
   rateType: RateType
   capitalizationFrequency: PayoutFrequency | null
+  calendarMode: CalendarMode
   dayCountBasis: 360 | 365
   withholdingRate: number
   active: boolean
@@ -77,6 +76,7 @@ export interface InvestmentProductInput {
   calculationMethod: CalculationMethod
   rateType: RateType
   capitalizationFrequency: PayoutFrequency | null
+  calendarMode: CalendarMode
   dayCountBasis: 360 | 365
   withholdingRate: number
   active: boolean
