@@ -1,5 +1,6 @@
 import { Search, X } from 'lucide-react'
 import type { ReactNode } from 'react'
+import type { RowData } from '@tanstack/react-table'
 
 import type { DataTableInstance } from '@/components/data-table/data-table-features'
 import { DataTableViewOptions } from '@/components/data-table/data-table-view-options'
@@ -11,14 +12,14 @@ export interface DataTableSearchOptions {
   placeholder?: string
 }
 
-interface DataTableToolbarProps<TData> {
+interface DataTableToolbarProps<TData extends RowData> {
   table: DataTableInstance<TData>
   search?: DataTableSearchOptions
   children?: ReactNode
   actions?: ReactNode
 }
 
-export function DataTableToolbar<TData>({
+export function DataTableToolbar<TData extends RowData>({
   table,
   search,
   children,

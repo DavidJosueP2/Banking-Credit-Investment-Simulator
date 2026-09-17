@@ -11,7 +11,7 @@ import {
   WalletCards,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import creditImage from '@/assets/landing/brunexa-creditos.png'
@@ -340,6 +340,7 @@ export function HomePage() {
               </div>
             </div>
             <p className="mt-8 text-sm font-medium text-brand-gold">{landing.investmentStatusLabel}</p>
+            {investment.simulatorEnabled === 'true' && <Button asChild size="lg" variant="gold" className="mt-5"><Link to="/inversiones/simulador">Simular mi inversión <ArrowRight aria-hidden="true" /></Link></Button>}
           </div>
 
           <figure className="lg:order-2">

@@ -20,6 +20,7 @@ import {
   tableFeatures,
   type ColumnDef,
   type ReactTable,
+  type RowData,
 } from '@tanstack/react-table'
 
 export interface DataTableColumnMeta {
@@ -52,12 +53,12 @@ export const dataTableFeatures = tableFeatures({
   rowSelectionFeature,
 })
 
-export type DataTableColumnDef<TData> = ColumnDef<
+export type DataTableColumnDef<TData extends RowData> = ColumnDef<
   typeof dataTableFeatures,
   TData
 >
 
-export type DataTableInstance<TData> = ReactTable<
+export type DataTableInstance<TData extends RowData> = ReactTable<
   typeof dataTableFeatures,
   TData
 >
