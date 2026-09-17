@@ -9,6 +9,7 @@ import { useAuth } from '@/app/providers/auth-provider'
 import { useInstitutionSettings } from '@/app/providers/settings-provider'
 import { PageHeader } from '@/components/shared/page-header'
 import { Button } from '@/components/ui/button'
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -18,9 +19,11 @@ import {
   getPublicInvestmentProducts,
   investmentKeys,
   payoutLabels,
+  termUnitLabels,
   simulateInvestment,
   type SimulationRequest,
   type SimulationResult,
+  type InvestmentProduct,
 } from '@/features/investments/investment-api'
 import { formatCurrency, formatDate, formatPercentage } from '@/lib/formatters'
 
@@ -86,9 +89,8 @@ export function InvestmentSimulatorPage() {
       <div className="mt-10 grid gap-8 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:items-start">
         <form onSubmit={submit} className="space-y-6 rounded-xl border bg-card p-6 lg:sticky lg:top-24">
           {products.data && products.data.length > 1 && <div className="space-y-2"><Label>Producto</Label><Select value={effectiveProductId} onValueChange={(value) => { setProductId(value); setAmount(''); setTermDays(''); setPayoutFrequency(''); setResult(undefined) }} disabled={products.isPending}><SelectTrigger><SelectValue placeholder="Selecciona un producto" /></SelectTrigger><SelectContent>{products.data.map((product) => <SelectItem key={product.id} value={String(product.id)}>{product.name}</SelectItem>)}</SelectContent></Select></div>}
-          {selected && <div className="rounded-lg bg-muted/50 p-4 text-sm"><p>{selected.description}</p><dl className="mt-3 grid grid-cols-2 gap-3 text-muted-foreground"><div><dt>Monto permitido</dt><dd className="font-medium text-foreground">{formatCurrency(selected.minimumAmount)} – {formatCurrency(selected.maximumAmount)}</dd></div><div><dt>Plazos disponibles</dt><dd className="font-medium text-foreground">{selected.terms.join(', ')} días</dd></div><div><dt>Base de cálculo</dt><dd className="font-medium text-foreground">{selected.dayCountBasis} días</dd></div></dl></div>}
-          <div className="space-y-2"><Label htmlFor="simulation-amount">Monto a invertir</Label><Input id="simulation-amount" type="number" step="0.01" min={selected?.minimumAmount} max={selected?.maximumAmount} value={effectiveAmount} onChange={(event) => { setAmount(event.target.value); setResult(undefined) }} required /></div>
-          <div className="space-y-2"><Label>Plazo</Label><Select value={effectiveTermDays} onValueChange={(value) => { setTermDays(value); setResult(undefined) }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{selected?.terms.map((term) => <SelectItem key={term} value={String(term)}>{term} días</SelectItem>)}</SelectContent></Select></div>
+          <div className="space-y-2"><Label htmlFor="simulation-amount">Monto a invertir</Label><Input id="simulation-amount" type="number" step="0.01" min={selected?.minimumAmount} max={selected?.maximumAmount} value={effectiveAmount} onChange={(event) => { setAmount(event.target.value); setResult(undefined) }} onBlur={() => { if (selected && Number(effectiveAmount) < selected.minimumAmount) toast.error(`El monto mínimo es ${formatCurrency(selected.minimumAmount)}.`); if (selected && Number(effectiveAmount) > selected.maximumAmount) toast.error(`El monto máximo es ${formatCurrency(selected.maximumAmount)}.`) }} required /></div>
+          <div className="space-y-2"><Label htmlFor="simulation-term">Plazo</Label>{selected?.termSelection === 'RANGE' ? <Input id="simulation-term" type="number" min={selected.minimumTermValue} max={selected.maximumTermValue} step={selected.termIncrement} value={effectiveTermDays} onChange={(event) => { setTermDays(event.target.value); setResult(undefined) }} required /> : <Select value={effectiveTermDays} onValueChange={(value) => { setTermDays(value); setResult(undefined) }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{selected?.terms.map((term) => <SelectItem key={term} value={String(term)}>{term} {termUnitLabels[selected.termUnit]}</SelectItem>)}</SelectContent></Select>}</div>
           <div className="space-y-2"><Label>Pago de intereses</Label><Select value={effectivePayoutFrequency} onValueChange={(value) => { setPayoutFrequency(value); setResult(undefined) }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{selected?.payoutFrequencies.map((frequency) => <SelectItem key={frequency} value={frequency}>{payoutLabels[frequency]}</SelectItem>)}</SelectContent></Select></div>
           {products.isError && <p className="text-sm text-destructive">No se pudieron cargar los productos disponibles.</p>}
           {!products.isPending && products.data?.length === 0 && <p className="text-sm text-muted-foreground">No existen productos activos para simular.</p>}
@@ -101,9 +103,38 @@ export function InvestmentSimulatorPage() {
           {result && <SimulationResults result={result} downloading={pdf.isPending} onDownload={() => pdf.mutate(currentRequest())} continueTo={account ? '/cuenta' : '/login?next=%2Fcuenta'} />}
         </section>
       </div>
+      {selected && <PlanInformation product={selected} />}
       <Button asChild variant="ghost" className="mt-10"><Link to="/"><ArrowLeft />Volver al inicio</Link></Button>
     </main>
   )
+}
+
+function PlanInformation({ product }: { product: InvestmentProduct }) {
+  const unit = termUnitLabels[product.termUnit]
+  return <section className="mt-10 rounded-xl border bg-card p-6 sm:p-8">
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+      <div><p className="text-sm font-medium text-brand-gold">Conoce el plan</p><h2 className="mt-1 text-2xl">{product.name}</h2></div>
+      <p className="max-w-xl text-sm text-muted-foreground">Una alternativa diseñada para ayudarte a organizar tus metas financieras con condiciones claras antes de invertir.</p>
+    </div>
+    <Accordion type="single" collapsible className="mt-5">
+      <AccordionItem value="details">
+        <AccordionTrigger>Ver características y condiciones</AccordionTrigger>
+        <AccordionContent>
+          <div className="grid gap-4 pt-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
+            <Detail label="Monto disponible" value={`${formatCurrency(product.minimumAmount)} – ${formatCurrency(product.maximumAmount)}`} />
+            <Detail label="Plazos disponibles" value={`${product.terms.join(', ')} ${unit}`} />
+            <Detail label="Pago de intereses" value={product.payoutFrequencies.map((frequency) => payoutLabels[frequency]).join(', ')} />
+            <Detail label="Tasa aplicable" value="Se determina según el monto y el plazo elegidos." />
+          </div>
+          <p className="mt-5 leading-6 text-muted-foreground">{product.description}</p>
+        </AccordionContent>
+      </AccordionItem>
+    </Accordion>
+  </section>
+}
+
+function Detail({ label, value }: { label: string; value: string }) {
+  return <div className="rounded-lg bg-muted/40 p-4"><p className="text-muted-foreground">{label}</p><p className="mt-1 font-medium text-foreground">{value}</p></div>
 }
 
 function SimulationResults({ result, downloading, onDownload, continueTo }: { result: SimulationResult; downloading: boolean; onDownload: () => void; continueTo: string }) {
