@@ -1,5 +1,13 @@
 import { api } from '@/lib/api'
-import { type SegmentoCredito, type TipoCredito, type ProductoCredito, type TasaCredito } from '@/types'
+import {
+  type SegmentoCredito,
+  type TipoCredito,
+  type ProductoCredito,
+  type TasaCredito,
+  type RangoCredito,
+  type CargoCredito,
+  type SeguroCredito,
+} from '@/types'
 
 export const creditosService = {
   getSegmentos: async (): Promise<SegmentoCredito[]> => {
@@ -68,5 +76,62 @@ export const creditosService = {
   },
   toggleTasa: async (id: number): Promise<void> => {
     await api.patch(`/api/creditos/tasas/${id}/toggle`)
+  },
+
+  // ─── Rangos ─────────────────────────────────────────────────────────────
+  getRangos: async (productoId?: number): Promise<RangoCredito[]> => {
+    const { data } = await api.get<RangoCredito[]>('/api/creditos/rangos', {
+      params: productoId ? { productoId } : undefined,
+    })
+    return data
+  },
+  createRango: async (dto: Partial<RangoCredito>): Promise<RangoCredito> => {
+    const { data } = await api.post<RangoCredito>('/api/creditos/rangos', dto)
+    return data
+  },
+  updateRango: async (id: number, dto: Partial<RangoCredito>): Promise<RangoCredito> => {
+    const { data } = await api.put<RangoCredito>(`/api/creditos/rangos/${id}`, dto)
+    return data
+  },
+  toggleRango: async (id: number): Promise<void> => {
+    await api.patch(`/api/creditos/rangos/${id}/toggle`)
+  },
+
+  // ─── Cargos ─────────────────────────────────────────────────────────────
+  getCargos: async (productoId?: number): Promise<CargoCredito[]> => {
+    const { data } = await api.get<CargoCredito[]>('/api/creditos/cargos', {
+      params: productoId ? { productoId } : undefined,
+    })
+    return data
+  },
+  createCargo: async (dto: Partial<CargoCredito>): Promise<CargoCredito> => {
+    const { data } = await api.post<CargoCredito>('/api/creditos/cargos', dto)
+    return data
+  },
+  updateCargo: async (id: number, dto: Partial<CargoCredito>): Promise<CargoCredito> => {
+    const { data } = await api.put<CargoCredito>(`/api/creditos/cargos/${id}`, dto)
+    return data
+  },
+  toggleCargo: async (id: number): Promise<void> => {
+    await api.patch(`/api/creditos/cargos/${id}/toggle`)
+  },
+
+  // ─── Seguros ────────────────────────────────────────────────────────────
+  getSeguros: async (productoId?: number): Promise<SeguroCredito[]> => {
+    const { data } = await api.get<SeguroCredito[]>('/api/creditos/seguros', {
+      params: productoId ? { productoId } : undefined,
+    })
+    return data
+  },
+  createSeguro: async (dto: Partial<SeguroCredito>): Promise<SeguroCredito> => {
+    const { data } = await api.post<SeguroCredito>('/api/creditos/seguros', dto)
+    return data
+  },
+  updateSeguro: async (id: number, dto: Partial<SeguroCredito>): Promise<SeguroCredito> => {
+    const { data } = await api.put<SeguroCredito>(`/api/creditos/seguros/${id}`, dto)
+    return data
+  },
+  toggleSeguro: async (id: number): Promise<void> => {
+    await api.patch(`/api/creditos/seguros/${id}/toggle`)
   },
 }

@@ -93,6 +93,52 @@ export interface TasaCredito {
   creadoEn: string
 }
 
+export type TipoCargo = 'FIJO' | 'PORCENTAJE'
+
+export type TipoSeguro = 'DESGRAVAMEN' | 'INCENDIO' | 'ROBO' | 'VIDA' | 'OTRO'
+
+export interface RangoCredito {
+  id: number
+  productoId: number
+  productoNombre?: string
+  tasaId?: number
+  tasaValor?: number
+  tasaNombre?: string
+  montoMin: number
+  montoMax: number
+  plazoMinMeses: number
+  plazoMaxMeses: number
+  descripcion?: string
+  activo: boolean
+  creadoEn: string
+}
+
+export interface CargoCredito {
+  id: number
+  productoId: number
+  productoNombre?: string
+  nombre: string
+  tipoCargo: TipoCargo
+  valor: number
+  obligatorio: boolean
+  descripcion?: string
+  activo: boolean
+  creadoEn: string
+}
+
+export interface SeguroCredito {
+  id: number
+  productoId: number
+  productoNombre?: string
+  nombre: string
+  tipoSeguro: TipoSeguro
+  valorPorcentaje: number
+  obligatorio: boolean
+  descripcion?: string
+  activo: boolean
+  creadoEn: string
+}
+
 export type SistemaAmortizacion = 'FRANCES' | 'ALEMAN'
 
 export interface CuotaSimulacion {

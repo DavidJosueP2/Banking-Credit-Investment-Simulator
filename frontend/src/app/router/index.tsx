@@ -2,7 +2,15 @@ import { createBrowserRouter } from 'react-router-dom'
 import { LandingPage } from '@/pages/home-page'
 import { LoginPage } from '@/pages/auth/login-page'
 import { SimuladorPage } from '@/pages/creditos/simulador-page'
+import { CatalogoPage } from '@/pages/creditos/catalogo-page'
 import { InstitucionPage } from '@/pages/admin/institucion-page'
+import { SegmentosPage } from '@/pages/admin/creditos/segmentos-page'
+import { TiposPage } from '@/pages/admin/creditos/tipos-page'
+import { ProductosPage } from '@/pages/admin/creditos/productos-page'
+import { TasasPage } from '@/pages/admin/creditos/tasas-page'
+import { RangosPage } from '@/pages/admin/creditos/rangos-page'
+import { CargosPage } from '@/pages/admin/creditos/cargos-page'
+import { SegurosPage } from '@/pages/admin/creditos/seguros-page'
 import { AppLayout } from '@/components/shared/layout'
 import { ProtectedRoute } from '@/features/auth/components/protected-route'
 
@@ -19,11 +27,15 @@ export const router = createBrowserRouter([
     element: <LoginPage />,
   },
 
-  // ── Créditos (público — sin sidebar) ──────────────────────────────────────
+  // ── Créditos (público con layout) ──────────────────────────────────────────
   {
     path: '/creditos',
     element: <AppLayout />,
     children: [
+      {
+        index: true,
+        element: <CatalogoPage />,
+      },
       {
         path: 'simular',
         element: <SimuladorPage />,
@@ -43,11 +55,34 @@ export const router = createBrowserRouter([
             path: 'institucion',
             element: <InstitucionPage />,
           },
-          // Los módulos de créditos de admin se irán agregando aquí
-          // {
-          //   path: 'creditos/segmentos',
-          //   element: <SegmentosPage />,
-          // },
+          {
+            path: 'creditos/segmentos',
+            element: <SegmentosPage />,
+          },
+          {
+            path: 'creditos/tipos',
+            element: <TiposPage />,
+          },
+          {
+            path: 'creditos/productos',
+            element: <ProductosPage />,
+          },
+          {
+            path: 'creditos/tasas',
+            element: <TasasPage />,
+          },
+          {
+            path: 'creditos/rangos',
+            element: <RangosPage />,
+          },
+          {
+            path: 'creditos/cargos',
+            element: <CargosPage />,
+          },
+          {
+            path: 'creditos/seguros',
+            element: <SegurosPage />,
+          },
         ],
       },
     ],
