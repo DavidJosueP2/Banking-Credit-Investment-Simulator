@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useState, type PropsWithChildren } from 'react'
-
 import { Toaster } from '@/components/ui/sonner'
+import { AuthProvider } from '@/features/auth/context/auth-context'
 
 export function AppProviders({ children }: PropsWithChildren) {
   const [queryClient] = useState(
@@ -18,8 +18,10 @@ export function AppProviders({ children }: PropsWithChildren) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      {children}
-      <Toaster />
+      <AuthProvider>
+        {children}
+        <Toaster richColors position="top-right" />
+      </AuthProvider>
     </QueryClientProvider>
   )
 }

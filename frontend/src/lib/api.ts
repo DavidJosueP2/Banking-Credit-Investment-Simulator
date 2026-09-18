@@ -7,4 +7,24 @@ export const api = axios.create({
   },
 })
 
-// Add request and response interceptors here when authentication is implemented.
+// Inyecta el token JWT en cada request si existe
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token')
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
+
+// Maneja errores globales de autenticación
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token')
+      localStorage.removeItem('usuario')
+      window.location.href = '/auth/login'
+    }
+    return Promise.reject(error)
+  },
+)
