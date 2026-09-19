@@ -29,7 +29,7 @@ export function LoginPage() {
   const { account, isPending, refreshAccount, login } = useAuth()
   const navigate = useNavigate()
   const [search] = useSearchParams()
-  const [email, setEmail] = useState('')
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -48,11 +48,14 @@ export function LoginPage() {
     setError('')
     setSubmitting(true)
     try {
-      const signedIn = await login(email.trim(), password)
+      const signedIn = await login(username.trim(), password)
       navigate(destinationAfterLogin(signedIn, search.get('next')), { replace: true })
     } catch (cause) {
       if (axios.isAxiosError(cause) && cause.response?.status === 401) {
-        setError('Correo o contraseña incorrectos. Revisa tus datos e inténtalo de nuevo.')
+        setError('Usuario o contraseña incorrectos. Revisa tus datos e inténtalo de nuevo.')
+      } else if (axios.isAxiosError(cause) && cause.response?.status === 403) {
+        const detail = cause.response.data as { message?: string } | undefined
+        setError(detail?.message ?? 'Verifica tu correo antes de ingresar.')
       } else {
         setError('No pudimos iniciar sesión. Comprueba la conexión con el servidor e inténtalo de nuevo.')
       }
@@ -73,9 +76,9 @@ export function LoginPage() {
         </p>
         <form onSubmit={submit} className="mt-8 space-y-5">
           <div className="space-y-2">
-            <Label htmlFor="login-email">Correo electrónico</Label>
-            <Input id="login-email" type="email" autoComplete="username" value={email}
-              onChange={(event) => setEmail(event.target.value)} required />
+            <Label htmlFor="login-username">Usuario</Label>
+            <Input id="login-username" autoComplete="username" value={username}
+              onChange={(event) => setUsername(event.target.value)} required />
           </div>
           <div className="space-y-2">
             <Label htmlFor="login-password">Contraseña</Label>
@@ -87,7 +90,13 @@ export function LoginPage() {
             {submitting ? 'Ingresando…' : 'Ingresar'}
           </Button>
         </form>
-        <Link to="/" className="mt-6 inline-block text-sm text-brand-gold underline underline-offset-4 hover:text-foreground">
+        <p className="mt-6 text-sm text-muted-foreground">
+          ¿Aún no tienes cuenta?{' '}
+          <Link to="/registro" className="text-brand-gold underline underline-offset-4 hover:text-foreground">
+            Crear cuenta
+          </Link>
+        </p>
+        <Link to="/" className="mt-4 inline-block text-sm text-brand-gold underline underline-offset-4 hover:text-foreground">
           Volver al inicio
         </Link>
       </div>

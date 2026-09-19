@@ -33,11 +33,15 @@ export function AccountPage() {
       <p className="mt-4 leading-7 text-muted-foreground">Tu identidad y accesos están registrados en Brunexa.</p>
       <dl className="mt-10 grid gap-6 border-y py-8 sm:grid-cols-2">
         <div><dt className="text-sm text-muted-foreground">Nombre</dt><dd className="mt-1 font-medium">{account.fullName}</dd></div>
+        <div><dt className="text-sm text-muted-foreground">Usuario</dt><dd className="mt-1 font-medium">{account.username}</dd></div>
         <div><dt className="text-sm text-muted-foreground">Correo</dt><dd className="mt-1 font-medium">{account.email}</dd></div>
         <div><dt className="text-sm text-muted-foreground">Roles asignados</dt><dd className="mt-1 font-medium">{account.roles.join(', ')}</dd></div>
         <div><dt className="text-sm text-muted-foreground">Estado</dt><dd className="mt-1 font-medium text-brand-teal">{account.enabled ? 'Activa' : 'Inactiva'}</dd></div>
       </dl>
       <div className="mt-8 flex flex-wrap items-center gap-3">
+        <Link to="/perfil" className="text-sm text-brand-gold underline underline-offset-4 hover:text-foreground">
+          Mi perfil y verificación de identidad
+        </Link>
         {hasPermission('admin.dashboard.view') && <Button asChild><Link to="/admin">Abrir panel interno</Link></Button>}
         <Button variant="outline" onClick={signOut} disabled={signingOut}>{signingOut ? 'Saliendo…' : 'Cerrar sesión'}</Button>
       </div>

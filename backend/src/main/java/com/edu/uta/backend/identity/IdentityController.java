@@ -34,7 +34,8 @@ public class IdentityController {
         this.identity = identity;
     }
 
-    public record CreateUser(@NotBlank @Email String email,
+    public record CreateUser(@NotBlank @Size(min = 4, max = 30) String username,
+                             @NotBlank @Email String email,
                              @NotBlank @Size(max = 120) String fullName,
                              @NotBlank @Size(min = 12) String password,
                              @Size(min = 1) List<String> roles) {}
@@ -48,7 +49,7 @@ public class IdentityController {
 
     @GetMapping("/auth/me")
     public IdentityService.Account me(Authentication authentication) {
-        return identity.accountByEmail(authentication.getName());
+        return identity.accountByUsername(authentication.getName());
     }
 
     @GetMapping("/admin/roles")
@@ -73,7 +74,7 @@ public class IdentityController {
     @PreAuthorize("hasAuthority('users.roles.manage')")
     public ResponseEntity<IdentityService.Account> createUser(@Valid @RequestBody CreateUser request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(identity.createAccount(
-                request.email(), request.fullName(), request.password(), request.roles()));
+                request.username(), request.email(), request.fullName(), request.password(), request.roles()));
     }
 
     @PutMapping("/admin/users/{id}/roles")
@@ -95,6 +96,6 @@ public class IdentityController {
 
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<Map<String, String>> conflict(DataIntegrityViolationException exception) {
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("message", "El correo ya está registrado"));
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("message", "El correo o el usuario ya están registrados"));
     }
 }

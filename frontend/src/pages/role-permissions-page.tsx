@@ -47,6 +47,7 @@ export function RolePermissionsPage() {
   const [createOpen, setCreateOpen] = useState(false)
   const [newName, setNewName] = useState('')
   const [newEmail, setNewEmail] = useState('')
+  const [newUsername, setNewUsername] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [newRole, setNewRole] = useState('')
   const [creating, setCreating] = useState(false)
@@ -80,10 +81,11 @@ export function RolePermissionsPage() {
     setCreating(true)
     setMessage('')
     try {
-      await api.post('/admin/users', { email: newEmail, fullName: newName, password: newPassword, roles: [newRole] })
+      await api.post('/admin/users', { username: newUsername.trim().toLowerCase(), email: newEmail, fullName: newName, password: newPassword, roles: [newRole] })
       await client.invalidateQueries({ queryKey: ['admin', 'users'] })
       setNewName('')
       setNewEmail('')
+      setNewUsername('')
       setNewPassword('')
       setNewRole('')
       setCreateOpen(false)
@@ -111,6 +113,7 @@ export function RolePermissionsPage() {
     if (!open) {
       setNewName('')
       setNewEmail('')
+      setNewUsername('')
       setNewPassword('')
       setNewRole('')
     }
@@ -134,6 +137,7 @@ export function RolePermissionsPage() {
             <div className="grid gap-5 sm:grid-cols-2">
               <div className="space-y-2"><Label htmlFor="new-name">Nombre completo</Label><Input id="new-name" value={newName} onChange={(event) => setNewName(event.target.value)} required maxLength={120} autoComplete="name" /></div>
               <div className="space-y-2"><Label htmlFor="new-email">Correo electrónico</Label><Input id="new-email" type="email" value={newEmail} onChange={(event) => setNewEmail(event.target.value)} required autoComplete="email" /></div>
+              <div className="space-y-2"><Label htmlFor="new-username">Usuario</Label><Input id="new-username" value={newUsername} onChange={(event) => setNewUsername(event.target.value)} required minLength={4} maxLength={30} autoComplete="off" /></div>
               <div className="space-y-2"><Label htmlFor="new-password">Contraseña inicial</Label><Input id="new-password" type="password" minLength={12} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required autoComplete="new-password" /></div>
               <div className="space-y-2"><Label htmlFor="new-role">Rol inicial</Label><Select value={newRole} onValueChange={setNewRole} required><SelectTrigger id="new-role" className="w-full"><SelectValue placeholder="Selecciona un rol" /></SelectTrigger><SelectContent>{roles.data.map((role) => <SelectItem key={role.code} value={role.code}>{role.label}</SelectItem>)}</SelectContent></Select></div>
             </div>
@@ -201,7 +205,7 @@ export function RolePermissionsPage() {
               {roles.data.map((role) => <label key={role.code} className="flex min-h-10 cursor-pointer items-center gap-3 rounded-md px-2 text-sm hover:bg-muted">
                 <input type="checkbox" checked={selectedRoles.includes(role.code)}
                   onChange={(event) => setSelectedRoles((current) => event.target.checked ? [...current, role.code] : current.filter((code) => code !== role.code))}
-                  disabled={editing?.email === account?.email && role.code === 'administrator'}
+                  disabled={editing?.username === account?.username && role.code === 'administrator'}
                   className="size-4 accent-brand-teal" />
                 {role.label}
               </label>)}

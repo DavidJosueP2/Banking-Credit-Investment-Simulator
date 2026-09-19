@@ -6,6 +6,7 @@ import { api, clearCsrfToken } from '@/lib/api'
 
 export interface Account {
   id: number
+  username: string
   email: string
   fullName: string
   enabled: boolean
@@ -20,7 +21,7 @@ const AuthContext = createContext<{
   isPending: boolean
   isError: boolean
   refreshAccount: () => Promise<Account | null>
-  login: (email: string, password: string) => Promise<Account>
+  login: (username: string, password: string) => Promise<Account>
   logout: () => Promise<void>
   hasPermission: (permission: string) => boolean
 } | null>(null)
@@ -49,8 +50,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
     return result.data ?? null
   }, [query.refetch])
 
-  async function login(email: string, password: string): Promise<Account> {
-    const fields = new URLSearchParams({ email, password })
+  async function login(username: string, password: string): Promise<Account> {
+    const fields = new URLSearchParams({ username, password })
     await api.post('/auth/login', fields, { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } })
     clearCsrfToken()
     const { data } = await api.get<Account>('/auth/me')
@@ -73,7 +74,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       refreshAccount,
       login,
       logout,
-      hasPermission: (permission) => query.data?.permissions.includes(permission) ?? false,
+      hasPermission: (permission) => query.data?.permissions?.includes(permission) ?? false,
     }}>
       {children}
     </AuthContext.Provider>
