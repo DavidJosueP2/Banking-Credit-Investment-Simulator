@@ -336,12 +336,13 @@ export function SimuladorPage() {
                     <SelectContent>
                       {tasasDelSegmento.map(t => (
                         <SelectItem key={t.label + t.valor} value={String(t.valor)}>
-                          <span className="flex items-center gap-2">
+                          {/* div evita span>div (Badge) que rompe el DOM */}
+                          <div className="flex items-center gap-2">
                             <Badge variant={t.tipo === 'MAXIMUM' ? 'destructive' : 'secondary'} className="text-[10px] px-1 py-0">
                               {t.tipo === 'MAXIMUM' ? 'MÁX' : 'REF'}
                             </Badge>
-                            {t.label} — {t.valor}%
-                          </span>
+                            <span>{t.label} — {t.valor}%</span>
+                          </div>
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -524,12 +525,15 @@ export function SimuladorPage() {
               <Card>
                 <CardHeader className="pb-0">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      Tabla de amortización
+                    <div className="flex items-center gap-2">
+                      <CardTitle className="text-base">
+                        Tabla de amortización
+                      </CardTitle>
+                      {/* Badge fuera del CardTitle para evitar div dentro de h-element */}
                       <Badge variant="secondary">
                         {result.sistema === 'FRANCES' ? 'Sistema Francés' : 'Sistema Alemán'}
                       </Badge>
-                    </CardTitle>
+                    </div>
                     <Button
                       variant="outline" size="sm"
                       onClick={() => exportPdf(result, watch())}
