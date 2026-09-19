@@ -143,6 +143,8 @@ export type SistemaAmortizacion = 'FRANCES' | 'ALEMAN'
 
 export interface CuotaSimulacion {
   numeroCuota: number
+  /** Fecha exacta de vencimiento de la cuota (ISO-8601) */
+  fechaVencimiento?: string
   saldoInicial: number
   capital: number
   interes: number
@@ -163,6 +165,10 @@ export interface SimulacionResult {
   totalCargos: number
   totalSeguros: number
   totalPagar: number
+  /** Fecha de desembolso (ISO-8601) */
+  fechaDesembolso?: string
+  /** Tasa anual del seguro de desgravamen (%) */
+  seguroDesgravamenPct?: number
   tablaCuotas: CuotaSimulacion[]
 }
 

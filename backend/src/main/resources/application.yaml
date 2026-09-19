@@ -34,3 +34,7 @@ server:
 app:
   cors:
     allowed-origin: ${FRONTEND_URL:http://localhost:5173}
+  jwt:
+    # Cambia este secret en producción — mínimo 32 caracteres para HS256
+    secret: ${JWT_SECRET:financiero-sistema-ecuatoriano-secreto-cambiar-en-prod-2024}
+    expiration-ms: ${JWT_EXPIRATION_MS:86400000}   # 24 horas

@@ -107,8 +107,14 @@ export function LoginPage() {
               </div>
 
               <Button type="submit" className="w-full" disabled={loading}>
-                {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                Iniciar sesión
+                {loading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Iniciando sesión…</span>
+                  </span>
+                ) : (
+                  <span>Iniciar sesión</span>
+                )}
               </Button>
             </form>
 

@@ -1,114 +1,250 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Calculator, Download, RotateCcw, Info, TrendingUp, DollarSign, Calendar } from 'lucide-react'
+import {
+  Calculator, Download, RotateCcw, Info, TrendingUp,
+  DollarSign, Calendar, Shield, ChevronDown, BarChart3, TableIcon,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+} from 'recharts'
+import jsPDF from 'jspdf'
+import autoTable from 'jspdf-autotable'
 import { simuladorService } from '@/features/creditos/simulador/services/simulador.service'
 import { type SimulacionResult, type SistemaAmortizacion } from '@/types'
 
+// ─── Segmentos y tasas BCE ────────────────────────────────────────────────────
+
+const SEGMENTOS = [
+  { value: 'CONSUMO',     label: 'Consumo Prioritario' },
+  { value: 'VIVIENDA',    label: 'Vivienda / Interés Social' },
+  { value: 'MICROCREDITO',label: 'Microcrédito Minorista' },
+  { value: 'PYMES',       label: 'Productivo PYMES' },
+] as const
+
+type SegmentoBce = typeof SEGMENTOS[number]['value']
+
+interface TasaRef {
+  label: string
+  valor: number
+  tipo: 'REFERENTIAL' | 'MAXIMUM'
+  segmento: SegmentoBce
+}
+
+const TASAS_REF: TasaRef[] = [
+  { label: 'Referencial (BCE)',    valor: 15.74, tipo: 'REFERENTIAL', segmento: 'CONSUMO'      },
+  { label: 'Máxima (BCE)',         valor: 16.77, tipo: 'MAXIMUM',      segmento: 'CONSUMO'      },
+  { label: 'Referencial (BCE)',    valor:  4.82, tipo: 'REFERENTIAL', segmento: 'VIVIENDA'     },
+  { label: 'Máxima (BCE)',         valor:  4.99, tipo: 'MAXIMUM',      segmento: 'VIVIENDA'     },
+  { label: 'Referencial (BCE)',    valor: 28.24, tipo: 'REFERENTIAL', segmento: 'MICROCREDITO' },
+  { label: 'Máxima (BCE)',         valor: 30.50, tipo: 'MAXIMUM',      segmento: 'MICROCREDITO' },
+  { label: 'Referencial (BCE)',    valor: 11.32, tipo: 'REFERENTIAL', segmento: 'PYMES'        },
+  { label: 'Máxima (BCE)',         valor: 11.83, tipo: 'MAXIMUM',      segmento: 'PYMES'        },
+]
+
+const TASA_MAX: Record<SegmentoBce, number> = {
+  CONSUMO:      16.77,
+  VIVIENDA:      4.99,
+  MICROCREDITO: 30.50,
+  PYMES:        11.83,
+}
+
+// ─── Zod schema ──────────────────────────────────────────────────────────────
+
 const schema = z.object({
-  monto:          z.number({ message: 'Ingrese un monto válido' }).min(100, 'Mínimo $100'),
-  plazoMeses:     z.number({ message: 'Ingrese un plazo válido' }).min(1, 'Mínimo 1 mes').max(480),
-  tasaEfectiva:   z.number({ message: 'Ingrese una tasa válida' }).min(0.01).max(100),
-  sistema:        z.enum(['FRANCES', 'ALEMAN'] as const),
-  usarTasaPersonalizada: z.boolean(),
-  tasaPersonalizada:     z.number().optional(),
+  monto:              z.number({ message: 'Ingrese un monto válido' }).min(100, 'Mínimo $100'),
+  plazoMeses:         z.number({ message: 'Ingrese un plazo válido' }).min(1).max(480),
+  tasaEfectiva:       z.number({ message: 'Ingrese una tasa válida' }).min(0.01).max(100),
+  sistema:            z.enum(['FRANCES', 'ALEMAN'] as const),
+  segmentoBce:        z.enum(['CONSUMO', 'VIVIENDA', 'MICROCREDITO', 'PYMES'] as const),
+  incluirDesgravamen: z.boolean(),
+  seguroDesgravamenPct: z.number().min(0).max(5).optional(),
+  fechaDesembolso:    z.string().min(1, 'Selecciona la fecha de desembolso'),
 })
 
 type FormData = z.infer<typeof schema>
 
-// Tasas académicas/de referencia para demostración
-const TASAS_REF = [
-  { label: 'Consumo Prioritario — Referencial (BCE)', valor: 15.74, tipo: 'REFERENTIAL' },
-  { label: 'Consumo Prioritario — Máxima (BCE)',      valor: 16.77, tipo: 'MAXIMUM' },
-  { label: 'Vivienda Interés Social (BCE)',            valor: 4.99,  tipo: 'REFERENTIAL' },
-  { label: 'Productivo PYMES — Referencial (BCE)',     valor: 11.83, tipo: 'REFERENTIAL' },
-  { label: 'Microcrédito Minorista — Máxima (BCE)',    valor: 30.50, tipo: 'MAXIMUM' },
-]
+// ─── Formatters ──────────────────────────────────────────────────────────────
 
 const fmt = new Intl.NumberFormat('es-EC', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 })
-const fmtNum = (n: number) => fmt.format(n)
-const fmtPct = (n: number) => `${n.toFixed(4)}%`
+const fmtNum  = (n: number) => fmt.format(n)
+const fmtPct  = (n: number) => `${n.toFixed(4)}%`
+const fmtDate = (iso: string | undefined) => {
+  if (!iso) return '—'
+  const [y, m, d] = iso.split('-')
+  return `${d}/${m}/${y}`
+}
+const todayIso = () => new Date().toISOString().split('T')[0]
+
+// ─── PDF export ───────────────────────────────────────────────────────────────
+
+function exportPdf(result: SimulacionResult, formData: FormData) {
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
+
+  // Header
+  doc.setFontSize(16)
+  doc.setFont('helvetica', 'bold')
+  doc.text('Tabla de Amortización', 14, 18)
+
+  doc.setFontSize(9)
+  doc.setFont('helvetica', 'normal')
+  const segLabel = SEGMENTOS.find(s => s.value === formData.segmentoBce)?.label ?? formData.segmentoBce
+  const infoLines = [
+    [`Sistema:`, result.sistema === 'FRANCES' ? 'Francés (cuota fija)' : 'Alemán (amortización constante)'],
+    [`Segmento:`, segLabel],
+    [`Monto:`, fmtNum(result.monto)],
+    [`Plazo:`, `${result.plazoMeses} meses`],
+    [`Tasa E.A.:`, `${result.tasaEfectivaAnual}%`],
+    [`Fecha de Desembolso:`, fmtDate(result.fechaDesembolso)],
+    [`Total intereses:`, fmtNum(result.totalIntereses)],
+    [`Total seguros:`, fmtNum(result.totalSeguros)],
+    [`Total a pagar:`, fmtNum(result.totalPagar)],
+  ]
+
+  let yPos = 26
+  infoLines.forEach(([k, v]) => {
+    doc.setFont('helvetica', 'bold')
+    doc.text(k, 14, yPos)
+    doc.setFont('helvetica', 'normal')
+    doc.text(v, 55, yPos)
+    yPos += 5
+  })
+
+  const hasSeguro = result.totalSeguros > 0
+  const hasDate   = !!result.tablaCuotas[0]?.fechaVencimiento
+
+  const head: string[][] = [[
+    'N°',
+    ...(hasDate ? ['Fecha Vcto.'] : []),
+    'Saldo Inicial',
+    'Capital',
+    'Interés',
+    ...(hasSeguro ? ['Seguro'] : []),
+    'Cuota Total',
+    'Saldo Final',
+  ]]
+
+  const body = result.tablaCuotas.map(c => [
+    String(c.numeroCuota),
+    ...(hasDate ? [fmtDate(c.fechaVencimiento)] : []),
+    fmtNum(c.saldoInicial),
+    fmtNum(c.capital),
+    fmtNum(c.interes),
+    ...(hasSeguro ? [fmtNum(c.seguro)] : []),
+    fmtNum(c.cuotaTotal),
+    fmtNum(c.saldoFinal),
+  ])
+
+  autoTable(doc, {
+    head,
+    body,
+    startY: yPos + 4,
+    styles: { fontSize: 7.5, cellPadding: 1.5 },
+    headStyles: { fillColor: [30, 64, 175], textColor: 255 },
+    alternateRowStyles: { fillColor: [240, 245, 255] },
+    columnStyles: { 0: { halign: 'center' } },
+  })
+
+  doc.save(`amortizacion_${result.sistema}_${result.plazoMeses}m.pdf`)
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export function SimuladorPage() {
   const [result, setResult] = useState<SimulacionResult | null>(null)
-  const [usarPersonalizada, setUsarPersonalizada] = useState(false)
+  const [vistaTabla, setVistaTabla] = useState<'tabla' | 'grafico'>('tabla')
 
-  const { register, handleSubmit, control, watch, setValue, reset, formState: { errors } } = useForm<FormData>({
-    resolver: zodResolver(schema),
-    defaultValues: {
-      monto:        5000,
-      plazoMeses:   24,
-      tasaEfectiva: 15.74,
-      sistema:      'FRANCES',
-      usarTasaPersonalizada: false,
-    },
-  })
+  const { register, handleSubmit, control, watch, setValue, reset, formState: { errors } } =
+    useForm<FormData>({
+      resolver: zodResolver(schema),
+      defaultValues: {
+        monto:                5000,
+        plazoMeses:           24,
+        tasaEfectiva:         15.74,
+        sistema:              'FRANCES',
+        segmentoBce:          'CONSUMO',
+        incluirDesgravamen:   false,
+        seguroDesgravamenPct: 0.0699,
+        fechaDesembolso:      todayIso(),
+      },
+    })
 
-  const sistema = watch('sistema')
-  const tasaActual = watch('tasaEfectiva')
+  const sistema            = watch('sistema')
+  const tasaActual         = watch('tasaEfectiva')
+  const segmentoBce        = watch('segmentoBce')
+  const incluirDesgravamen = watch('incluirDesgravamen')
+
+  const tasasDelSegmento = TASAS_REF.filter(t => t.segmento === segmentoBce)
+  const tasaMaxPermitida  = TASA_MAX[segmentoBce]
+  const superaTasaMax     = tasaActual > tasaMaxPermitida
 
   const mutation = useMutation({
     mutationFn: simuladorService.simular,
-    onSuccess: (data) => setResult(data),
-    onError: () => toast.error('Error al calcular la simulación'),
+    onSuccess: (data) => { setResult(data); setVistaTabla('tabla') },
+    onError:   () => toast.error('Error al calcular la simulación'),
   })
 
-  const onSubmit = (dto: FormData) => {
+  const onSubmit = useCallback((dto: FormData) => {
     mutation.mutate({
-      monto:        dto.monto,
-      plazoMeses:   dto.plazoMeses,
-      tasaEfectiva: dto.tasaEfectiva,
-      sistema:      dto.sistema,
+      monto:               dto.monto,
+      plazoMeses:          dto.plazoMeses,
+      tasaEfectiva:        dto.tasaEfectiva,
+      sistema:             dto.sistema,
+      segmentoBce:         dto.segmentoBce,
+      fechaDesembolso:     dto.fechaDesembolso,
+      incluirSeguros:      dto.incluirDesgravamen,
+      seguroDesgravamenPct: dto.incluirDesgravamen ? (dto.seguroDesgravamenPct ?? 0.0699) : undefined,
     })
-  }
+  }, [mutation])
 
-  const handleTasaRef = (valor: string) => {
-    const num = parseFloat(valor)
-    if (!isNaN(num)) setValue('tasaEfectiva', num)
-  }
+  const handleReset = () => { reset(); setResult(null) }
+
+  // Datos para el gráfico
+  const chartData = result
+    ? result.tablaCuotas.map(c => ({
+        n:       c.numeroCuota,
+        Capital: +c.capital.toFixed(2),
+        Interés: +c.interes.toFixed(2),
+        Seguro:  +c.seguro.toFixed(2),
+      }))
+    : []
+
+  const hasSeguro = !!result && result.totalSeguros > 0
+  const hasDate   = !!result?.tablaCuotas[0]?.fechaVencimiento
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
 
-      {/* Header */}
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <Calculator className="w-6 h-6 text-primary" />
           Simulador de Crédito
         </h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Calcula tu tabla de amortización usando el sistema Francés o Alemán
+          Precisión bancaria — Sistema Francés · Alemán · Seguro de Desgravamen · Fechas de vencimiento
         </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-        {/* ── Panel de entrada ── */}
+        {/* ── Panel de entrada ─────────────────────────────────────────────── */}
         <div className="lg:col-span-1 space-y-4">
           <Card>
             <CardHeader className="pb-3">
@@ -117,6 +253,32 @@ export function SimuladorPage() {
             <CardContent>
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
 
+                {/* Segmento BCE */}
+                <div className="space-y-1.5">
+                  <Label>Segmento de Crédito (BCE)</Label>
+                  <Controller
+                    control={control}
+                    name="segmentoBce"
+                    render={({ field }) => (
+                      <Select value={field.value} onValueChange={(v) => {
+                        field.onChange(v as SegmentoBce)
+                        // Autocompletar con la tasa referencial del segmento
+                        const ref = TASAS_REF.find(t => t.segmento === v && t.tipo === 'REFERENTIAL')
+                        if (ref) setValue('tasaEfectiva', ref.valor)
+                      }}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {SEGMENTOS.map(s => (
+                            <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                </div>
+
                 {/* Monto */}
                 <div className="space-y-1.5">
                   <Label htmlFor="monto">Monto solicitado (USD)</Label>
@@ -124,10 +286,7 @@ export function SimuladorPage() {
                     <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input
                       id="monto"
-                      type="number"
-                      step="100"
-                      min="100"
-                      placeholder="5000"
+                      type="number" step="100" min="100" placeholder="5000"
                       className="pl-9"
                       {...register('monto', { valueAsNumber: true })}
                     />
@@ -142,10 +301,7 @@ export function SimuladorPage() {
                     <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input
                       id="plazo"
-                      type="number"
-                      min="1"
-                      max="480"
-                      placeholder="24"
+                      type="number" min="1" max="480" placeholder="24"
                       className="pl-9"
                       {...register('plazoMeses', { valueAsNumber: true })}
                     />
@@ -153,60 +309,64 @@ export function SimuladorPage() {
                   {errors.plazoMeses && <p className="text-xs text-destructive">{errors.plazoMeses.message}</p>}
                 </div>
 
+                {/* Fecha de desembolso */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="fechaDesembolso">Fecha de Desembolso</Label>
+                  <div className="relative">
+                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      id="fechaDesembolso"
+                      type="date"
+                      className="pl-9"
+                      {...register('fechaDesembolso')}
+                    />
+                  </div>
+                  {errors.fechaDesembolso && (
+                    <p className="text-xs text-destructive">{errors.fechaDesembolso.message}</p>
+                  )}
+                </div>
+
                 {/* Tasa de referencia */}
                 <div className="space-y-1.5">
                   <Label>Tasa de referencia (BCE)</Label>
-                  <Select onValueChange={handleTasaRef}>
+                  <Select onValueChange={(v) => setValue('tasaEfectiva', parseFloat(v))}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar tasa referencial…" />
+                      <SelectValue placeholder="Seleccionar tasa…" />
                     </SelectTrigger>
                     <SelectContent>
-                      {TASAS_REF.map((t) => (
-                        <SelectItem key={t.label} value={String(t.valor)}>
-                          {t.label} — {t.valor}%
+                      {tasasDelSegmento.map(t => (
+                        <SelectItem key={t.label + t.valor} value={String(t.valor)}>
+                          <span className="flex items-center gap-2">
+                            <Badge variant={t.tipo === 'MAXIMUM' ? 'destructive' : 'secondary'} className="text-[10px] px-1 py-0">
+                              {t.tipo === 'MAXIMUM' ? 'MÁX' : 'REF'}
+                            </Badge>
+                            {t.label} — {t.valor}%
+                          </span>
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-xs text-muted-foreground">
-                    Tasa actual: <strong>{tasaActual}%</strong>
-                  </p>
                 </div>
 
-                {/* Tasa personalizada */}
-                <div className="space-y-2 p-3 rounded-lg border bg-muted/30">
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="custom"
-                      checked={usarPersonalizada}
-                      onChange={(e) => {
-                        setUsarPersonalizada(e.target.checked)
-                        if (!e.target.checked) setValue('tasaEfectiva', 15.74)
-                      }}
-                      className="rounded"
+                {/* Tasa efectiva anual */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="tasa">Tasa Efectiva Anual (%)</Label>
+                  <div className="relative">
+                    <TrendingUp className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      id="tasa"
+                      type="number" step="0.01" min="0.01" max="100"
+                      className={`pl-9 ${superaTasaMax ? 'border-destructive focus-visible:ring-destructive' : ''}`}
+                      {...register('tasaEfectiva', { valueAsNumber: true })}
                     />
-                    <Label htmlFor="custom" className="cursor-pointer font-normal">
-                      ¿Usar tasa personalizada?
-                    </Label>
                   </div>
-                  {usarPersonalizada && (
-                    <div className="space-y-1">
-                      <div className="relative">
-                        <TrendingUp className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <Input
-                          type="number"
-                          step="0.01"
-                          min="0.01"
-                          max="100"
-                          placeholder="13.00"
-                          className="pl-9"
-                          {...register('tasaEfectiva', { valueAsNumber: true })}
-                        />
-                      </div>
-                      {errors.tasaEfectiva && <p className="text-xs text-destructive">{errors.tasaEfectiva.message}</p>}
-                    </div>
+                  {superaTasaMax && (
+                    <p className="text-xs text-destructive flex items-center gap-1">
+                      <ChevronDown className="w-3 h-3" />
+                      Supera la tasa máxima BCE ({tasaMaxPermitida}%) para este segmento
+                    </p>
                   )}
+                  {errors.tasaEfectiva && <p className="text-xs text-destructive">{errors.tasaEfectiva.message}</p>}
                 </div>
 
                 {/* Sistema de amortización */}
@@ -231,6 +391,53 @@ export function SimuladorPage() {
                   </p>
                 </div>
 
+                {/* Seguro de desgravamen */}
+                <div className="space-y-2 p-3 rounded-lg border bg-muted/30">
+                  <div className="flex items-center gap-2">
+                    <Controller
+                      control={control}
+                      name="incluirDesgravamen"
+                      render={({ field }) => (
+                        <input
+                          type="checkbox"
+                          id="desgravamen"
+                          checked={field.value}
+                          onChange={field.onChange}
+                          className="rounded w-4 h-4 accent-primary"
+                        />
+                      )}
+                    />
+                    <Label htmlFor="desgravamen" className="cursor-pointer font-medium flex items-center gap-1.5">
+                      <Shield className="w-3.5 h-3.5 text-primary" />
+                      Seguro de Desgravamen
+                    </Label>
+                  </div>
+                  {incluirDesgravamen && (
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">
+                        Tasa anual del seguro (% sobre saldo deudor)
+                      </p>
+                      <div className="relative">
+                        <Input
+                          type="number"
+                          step="0.0001"
+                          min="0"
+                          max="5"
+                          className="pr-8"
+                          {...register('seguroDesgravamenPct', { valueAsNumber: true })}
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">%</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Valor de referencia mercado: <strong>0.0699% anual</strong>
+                      </p>
+                      {errors.seguroDesgravamenPct && (
+                        <p className="text-xs text-destructive">{errors.seguroDesgravamenPct.message}</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 <Separator />
 
                 <div className="flex gap-2">
@@ -247,12 +454,7 @@ export function SimuladorPage() {
                       </span>
                     )}
                   </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={() => { reset(); setResult(null) }}
-                  >
+                  <Button type="button" variant="outline" size="icon" onClick={handleReset}>
                     <RotateCcw className="w-4 h-4" />
                   </Button>
                 </div>
@@ -266,25 +468,25 @@ export function SimuladorPage() {
               <div className="flex gap-2 text-xs text-accent-foreground">
                 <Info className="w-4 h-4 shrink-0 mt-0.5" />
                 <p>
-                  Las tasas referenciales y máximas son publicadas por el
-                  <strong> Banco Central del Ecuador (BCE)</strong> y la <strong>SEPS</strong>.
-                  La tasa personalizada permite simular condiciones específicas.
+                  Tasas referenciales y máximas publicadas por el{' '}
+                  <strong>Banco Central del Ecuador (BCE)</strong>. El seguro de desgravamen
+                  se calcula mensualmente sobre el saldo deudor vigente.
                 </p>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* ── Panel de resultados ── */}
+        {/* ── Panel de resultados ──────────────────────────────────────────── */}
         <div className="lg:col-span-2 space-y-4">
           {result ? (
             <>
-              {/* Resumen */}
+              {/* Tarjetas resumen */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <SummaryCard
                   label="Cuota mensual"
                   value={fmtNum(result.cuotaMensual)}
-                  sub={result.sistema === 'FRANCES' ? 'Fija' : 'Primera cuota'}
+                  sub={result.sistema === 'FRANCES' ? 'Primera cuota' : 'Primera cuota'}
                   highlight
                 />
                 <SummaryCard
@@ -292,6 +494,13 @@ export function SimuladorPage() {
                   value={fmtNum(result.totalIntereses)}
                   sub="Costo financiero"
                 />
+                {hasSeguro && (
+                  <SummaryCard
+                    label="Total seguros"
+                    value={fmtNum(result.totalSeguros)}
+                    sub="Desgravamen acum."
+                  />
+                )}
                 <SummaryCard
                   label="Total a pagar"
                   value={fmtNum(result.totalPagar)}
@@ -302,11 +511,18 @@ export function SimuladorPage() {
                   value={`${result.tasaEfectivaAnual}%`}
                   sub={`Tasa mensual: ${fmtPct(result.tasaMensual)}`}
                 />
+                {result.fechaDesembolso && (
+                  <SummaryCard
+                    label="Desembolso"
+                    value={fmtDate(result.fechaDesembolso)}
+                    sub={`Última cuota: ${fmtDate(result.tablaCuotas.at(-1)?.fechaVencimiento)}`}
+                  />
+                )}
               </div>
 
-              {/* Tabla de amortización */}
+              {/* Tabla / Gráfico tabs */}
               <Card>
-                <CardHeader className="pb-3">
+                <CardHeader className="pb-0">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-base flex items-center gap-2">
                       Tabla de amortización
@@ -314,54 +530,121 @@ export function SimuladorPage() {
                         {result.sistema === 'FRANCES' ? 'Sistema Francés' : 'Sistema Alemán'}
                       </Badge>
                     </CardTitle>
-                    <Button variant="outline" size="sm">
+                    <Button
+                      variant="outline" size="sm"
+                      onClick={() => exportPdf(result, watch())}
+                    >
                       <Download className="w-4 h-4 mr-1.5" />
                       PDF
                     </Button>
                   </div>
-                </CardHeader>
-                <CardContent className="p-0">
-                  <div className="overflow-auto max-h-[500px] rounded-b-lg">
-                    <Table>
-                      <TableHeader className="sticky top-0 bg-muted/80 backdrop-blur-sm">
-                        <TableRow>
-                          <TableHead className="w-12 text-center">N°</TableHead>
-                          <TableHead className="text-right">Saldo inicial</TableHead>
-                          <TableHead className="text-right">Capital</TableHead>
-                          <TableHead className="text-right">Interés</TableHead>
-                          <TableHead className="text-right font-semibold">Cuota total</TableHead>
-                          <TableHead className="text-right">Saldo final</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {result.tablaCuotas.map((cuota) => (
-                          <TableRow
-                            key={cuota.numeroCuota}
-                            className="hover:bg-muted/50 transition-colors"
-                          >
-                            <TableCell className="text-center text-muted-foreground text-xs font-mono">
-                              {cuota.numeroCuota}
-                            </TableCell>
-                            <TableCell className="text-right text-xs font-mono">
-                              {fmtNum(cuota.saldoInicial)}
-                            </TableCell>
-                            <TableCell className="text-right text-xs font-mono text-green-600 dark:text-green-400">
-                              {fmtNum(cuota.capital)}
-                            </TableCell>
-                            <TableCell className="text-right text-xs font-mono text-orange-600 dark:text-orange-400">
-                              {fmtNum(cuota.interes)}
-                            </TableCell>
-                            <TableCell className="text-right text-xs font-mono font-semibold">
-                              {fmtNum(cuota.cuotaTotal)}
-                            </TableCell>
-                            <TableCell className="text-right text-xs font-mono text-muted-foreground">
-                              {fmtNum(cuota.saldoFinal)}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+
+                  {/* Sub-tabs tabla vs gráfico */}
+                  <div className="flex gap-1 mt-3 border-b pb-0">
+                    <button
+                      onClick={() => setVistaTabla('tabla')}
+                      className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors -mb-px ${
+                        vistaTabla === 'tabla'
+                          ? 'border-primary text-primary'
+                          : 'border-transparent text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      <TableIcon className="w-3.5 h-3.5" /> Tabla
+                    </button>
+                    <button
+                      onClick={() => setVistaTabla('grafico')}
+                      className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors -mb-px ${
+                        vistaTabla === 'grafico'
+                          ? 'border-primary text-primary'
+                          : 'border-transparent text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      <BarChart3 className="w-3.5 h-3.5" /> Gráfico
+                    </button>
                   </div>
+                </CardHeader>
+
+                <CardContent className="p-0">
+                  {vistaTabla === 'tabla' ? (
+                    <div className="overflow-auto max-h-[500px] rounded-b-lg">
+                      <Table>
+                        <TableHeader className="sticky top-0 bg-muted/80 backdrop-blur-sm">
+                          <TableRow>
+                            <TableHead className="w-10 text-center">N°</TableHead>
+                            {hasDate && <TableHead>Fecha Vcto.</TableHead>}
+                            <TableHead className="text-right">Saldo Inicial</TableHead>
+                            <TableHead className="text-right">Capital</TableHead>
+                            <TableHead className="text-right">Interés</TableHead>
+                            {hasSeguro && <TableHead className="text-right">Seguro</TableHead>}
+                            <TableHead className="text-right font-semibold">Cuota Total</TableHead>
+                            <TableHead className="text-right">Saldo Final</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {result.tablaCuotas.map((c) => (
+                            <TableRow key={c.numeroCuota} className="hover:bg-muted/50 transition-colors">
+                              <TableCell className="text-center text-muted-foreground text-xs font-mono">
+                                {c.numeroCuota}
+                              </TableCell>
+                              {hasDate && (
+                                <TableCell className="text-xs font-mono">
+                                  {fmtDate(c.fechaVencimiento)}
+                                </TableCell>
+                              )}
+                              <TableCell className="text-right text-xs font-mono">
+                                {fmtNum(c.saldoInicial)}
+                              </TableCell>
+                              <TableCell className="text-right text-xs font-mono text-green-600 dark:text-green-400">
+                                {fmtNum(c.capital)}
+                              </TableCell>
+                              <TableCell className="text-right text-xs font-mono text-orange-600 dark:text-orange-400">
+                                {fmtNum(c.interes)}
+                              </TableCell>
+                              {hasSeguro && (
+                                <TableCell className="text-right text-xs font-mono text-blue-600 dark:text-blue-400">
+                                  {fmtNum(c.seguro)}
+                                </TableCell>
+                              )}
+                              <TableCell className="text-right text-xs font-mono font-semibold">
+                                {fmtNum(c.cuotaTotal)}
+                              </TableCell>
+                              <TableCell className="text-right text-xs font-mono text-muted-foreground">
+                                {fmtNum(c.saldoFinal)}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  ) : (
+                    <div className="p-4 h-[500px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={chartData} margin={{ top: 4, right: 16, left: 16, bottom: 4 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                          <XAxis
+                            dataKey="n"
+                            label={{ value: 'Cuota N°', position: 'insideBottom', offset: -2, fontSize: 11 }}
+                            tick={{ fontSize: 10 }}
+                          />
+                          <YAxis
+                            tickFormatter={(v) => `$${v}`}
+                            tick={{ fontSize: 10 }}
+                            width={70}
+                          />
+                          <Tooltip
+                            formatter={(value: number, name: string) => [fmtNum(value), name]}
+                            labelFormatter={(label) => `Cuota N° ${label}`}
+                          />
+                          <Legend wrapperStyle={{ fontSize: 12 }} />
+                          <Bar dataKey="Capital" stackId="a" fill="hsl(142 76% 36%)"  radius={[0, 0, 0, 0]} />
+                          <Bar dataKey="Interés" stackId="a" fill="hsl(24 95% 53%)"   radius={[0, 0, 0, 0]} />
+                          {hasSeguro && (
+                            <Bar dataKey="Seguro"  stackId="a" fill="hsl(220 90% 56%)" radius={[2, 2, 0, 0]} />
+                          )}
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </>
@@ -378,7 +661,7 @@ export function SimuladorPage() {
   )
 }
 
-// ─── Summary card ─────────────────────────────────────────────────────────────
+// ─── SummaryCard ─────────────────────────────────────────────────────────────
 
 function SummaryCard({
   label, value, sub, highlight,

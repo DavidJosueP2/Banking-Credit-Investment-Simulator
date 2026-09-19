@@ -8,6 +8,14 @@ export interface SimulacionRequest {
   tasaEfectiva: number
   sistema: SistemaAmortizacion
   tipoTasaUsada?: string
+  incluirCargos?: boolean
+  incluirSeguros?: boolean
+  /** Tasa anual del seguro de desgravamen en %, ej: 0.0699 */
+  seguroDesgravamenPct?: number
+  /** Fecha de desembolso en formato ISO-8601, ej: "2025-10-01" */
+  fechaDesembolso?: string
+  /** Segmento BCE para auditoría */
+  segmentoBce?: string
 }
 
 export const simuladorService = {

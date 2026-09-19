@@ -13,24 +13,28 @@ import { CargosPage } from '@/pages/admin/creditos/cargos-page'
 import { SegurosPage } from '@/pages/admin/creditos/seguros-page'
 import { AppLayout } from '@/components/shared/layout'
 import { ProtectedRoute } from '@/features/auth/components/protected-route'
+import { RouteErrorBoundary } from '@/components/shared/error-boundary'
 
 export const router = createBrowserRouter([
   // ── Pública / Landing ──────────────────────────────────────────────────────
   {
     path: '/',
     element: <LandingPage />,
+    errorElement: <RouteErrorBoundary />,
   },
 
   // ── Autenticación ──────────────────────────────────────────────────────────
   {
     path: '/auth/login',
     element: <LoginPage />,
+    errorElement: <RouteErrorBoundary />,
   },
 
   // ── Créditos (público con layout) ──────────────────────────────────────────
   {
     path: '/creditos',
     element: <AppLayout />,
+    errorElement: <RouteErrorBoundary />,
     children: [
       {
         index: true,
@@ -47,6 +51,7 @@ export const router = createBrowserRouter([
   {
     path: '/admin',
     element: <ProtectedRoute roles={['ADMIN', 'ASESOR']} />,
+    errorElement: <RouteErrorBoundary />,
     children: [
       {
         element: <AppLayout />,
@@ -86,5 +91,10 @@ export const router = createBrowserRouter([
         ],
       },
     ],
+  },
+  // ── 404 Catch-All ─────────────────────────────────────────────────────────
+  {
+    path: '*',
+    element: <RouteErrorBoundary />,
   },
 ])
