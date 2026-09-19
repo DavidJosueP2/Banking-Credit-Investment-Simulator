@@ -196,8 +196,15 @@ export function SimuladorPage() {
 
   const mutation = useMutation({
     mutationFn: simuladorService.simular,
-    onSuccess: (data) => { setResult(data); setVistaTabla('tabla') },
-    onError:   () => toast.error('Error al calcular la simulación'),
+    onSuccess: (data) => {
+      setResult(data)
+      setVistaTabla('tabla')
+      toast.success('Simulación calculada exitosamente')
+    },
+    onError: (err: any) => {
+      const msg = err.response?.data?.message || err.message || 'Error al conectar con el servidor backend'
+      toast.error(`Error: ${msg}`)
+    },
   })
 
   const onSubmit = useCallback((dto: FormData) => {
@@ -336,13 +343,13 @@ export function SimuladorPage() {
                     <SelectContent>
                       {tasasDelSegmento.map(t => (
                         <SelectItem key={t.label + t.valor} value={String(t.valor)}>
-                          {/* div evita span>div (Badge) que rompe el DOM */}
-                          <div className="flex items-center gap-2">
+                          {/* span inline para evitar invalid DOM nesting en SelectItem (ItemText es un span) */}
+                          <span className="inline-flex items-center gap-2">
                             <Badge variant={t.tipo === 'MAXIMUM' ? 'destructive' : 'secondary'} className="text-[10px] px-1 py-0">
                               {t.tipo === 'MAXIMUM' ? 'MÁX' : 'REF'}
                             </Badge>
                             <span>{t.label} — {t.valor}%</span>
-                          </div>
+                          </span>
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -480,8 +487,44 @@ export function SimuladorPage() {
 
         {/* ── Panel de resultados ──────────────────────────────────────────── */}
         <div className="lg:col-span-2 space-y-4">
-          {result ? (
-            <>
+          {mutation.isPending ? (
+            <div
+              key="state-loading"
+              className="flex flex-col items-center justify-center h-80 border border-border rounded-xl bg-card text-muted-foreground p-6 text-center space-y-3"
+            >
+              <div className="w-9 h-9 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+              <div>
+                <p className="font-semibold text-foreground">Calculando simulación de crédito...</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Consultando tasas bancarias y generando tabla de amortización
+                </p>
+              </div>
+            </div>
+          ) : mutation.isError ? (
+            <div
+              key="state-error"
+              className="flex flex-col items-center justify-center h-80 border border-destructive/30 bg-destructive/5 rounded-xl p-6 text-center space-y-3"
+            >
+              <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center text-destructive">
+                <Info className="w-6 h-6" />
+              </div>
+              <h3 className="font-semibold text-destructive text-base">Error al procesar la simulación</h3>
+              <p className="text-sm text-muted-foreground max-w-md">
+                {(mutation.error as any)?.response?.data?.message ||
+                  (mutation.error as any)?.message ||
+                  'No se pudo conectar con el servidor en http://localhost:8080. Verifica que el backend esté en ejecución.'}
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-2"
+                onClick={() => handleSubmit(onSubmit)()}
+              >
+                Reintentar cálculo
+              </Button>
+            </div>
+          ) : result ? (
+            <div key="state-result" className="space-y-4">
               {/* Tarjetas resumen */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <SummaryCard
@@ -651,12 +694,15 @@ export function SimuladorPage() {
                   )}
                 </CardContent>
               </Card>
-            </>
+            </div>
           ) : (
-            <div className="flex flex-col items-center justify-center h-72 border-2 border-dashed border-border rounded-xl text-muted-foreground">
-              <Calculator className="w-12 h-12 mb-3 opacity-30" />
-              <p className="font-medium">Ingresa los parámetros y presiona Calcular</p>
-              <p className="text-xs mt-1 opacity-70">La tabla de amortización aparecerá aquí</p>
+            <div
+              key="state-empty"
+              className="flex flex-col items-center justify-center h-80 border-2 border-dashed border-border rounded-xl text-muted-foreground p-6 text-center space-y-2"
+            >
+              <Calculator className="w-12 h-12 mb-2 opacity-30" />
+              <p className="font-medium text-foreground">Ingresa los parámetros y presiona Calcular</p>
+              <p className="text-xs opacity-70">La tabla de amortización y el desglose bancario aparecerán aquí</p>
             </div>
           )}
         </div>

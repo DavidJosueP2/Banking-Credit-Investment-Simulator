@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -19,6 +20,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import java.util.List;
 
 @Configuration
+@EnableWebSecurity
 @EnableMethodSecurity
 public class SecurityConfig {
 
@@ -26,7 +28,7 @@ public class SecurityConfig {
     private final String frontendUrl;
 
     public SecurityConfig(JwtAuthFilter jwtAuthFilter,
-                          @Value("${app.cors.allowed-origin}") String frontendUrl) {
+                          @Value("${app.cors.allowed-origin:http://localhost:5173}") String frontendUrl) {
         this.jwtAuthFilter = jwtAuthFilter;
         this.frontendUrl   = frontendUrl;
     }
@@ -43,14 +45,17 @@ public class SecurityConfig {
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                // Endpoints públicos
+                // Permitir peticiones preflight CORS (OPTIONS)
+                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                // Endpoints públicos del simulador y autenticación
                 .requestMatchers("/api/health").permitAll()
                 .requestMatchers("/api/auth/**").permitAll()
-                .requestMatchers(HttpMethod.GET,  "/api/institucion").permitAll()
+                .requestMatchers("/api/simulador/**").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/creditos/simular/**").permitAll()
                 .requestMatchers(HttpMethod.GET,  "/api/creditos/**").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/creditos/simular").permitAll()
-                // Configuración de créditos — solo ADMIN o ASESOR
-                .requestMatchers(HttpMethod.PUT,    "/api/institucion").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.GET,  "/api/institucion/**").permitAll()
+                // Configuración y administración de créditos — solo ADMIN o ASESOR
+                .requestMatchers(HttpMethod.PUT,    "/api/institucion/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.PATCH,  "/api/institucion/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.POST,   "/api/creditos/**").hasAnyRole("ADMIN", "ASESOR")
                 .requestMatchers(HttpMethod.PUT,    "/api/creditos/**").hasAnyRole("ADMIN", "ASESOR")
@@ -67,14 +72,15 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of(frontendUrl));
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("*"));
-        configuration.setAllowCredentials(false);
+        // Habilitar de forma global http://localhost:5173
+        configuration.setAllowedOrigins(List.of("http://localhost:5173", frontendUrl));
+        configuration.setAllowedMethods(List.of("GET", "POST", "OPTIONS", "PUT", "PATCH", "DELETE"));
+        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"));
+        configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/api/**", configuration);
+        source.registerCorsConfiguration("/**", configuration);
         return source;
     }
 }
