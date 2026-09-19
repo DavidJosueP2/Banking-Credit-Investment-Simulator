@@ -2,6 +2,7 @@ package com.edu.uta.backend.investment;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -33,26 +34,33 @@ public class InvestmentService {
     }
 
     public record RateTier(Long id, String label, BigDecimal minimumAmount, BigDecimal maximumAmount,
-            int minimumTermDays, int maximumTermDays, BigDecimal annualRate, int position) {}
+            int minimumTermDays, int maximumTermDays, int minimumTermValue, int maximumTermValue,
+            BigDecimal annualRate, int position) {}
+    public record TaxRule(Long id, String name, String ruleType, BigDecimal value, String base, boolean active, int position) {}
 
     public record Product(Long id, String name, String description, String currency,
             BigDecimal minimumAmount, BigDecimal maximumAmount, int minimumTermDays, int maximumTermDays,
-            String calculationMethod, String rateType, String capitalizationFrequency, int dayCountBasis,
+            String termUnit, String termSelection, int minimumTermValue, int maximumTermValue, int termIncrement,
+            String calculationMethod, String rateType, String capitalizationFrequency, String calendarMode, int dayCountBasis,
             BigDecimal withholdingRate, boolean active, OffsetDateTime createdAt, OffsetDateTime updatedAt,
-            List<Integer> terms, List<String> payoutFrequencies, List<RateTier> rates) {}
+            List<Integer> terms, List<String> payoutFrequencies, List<RateTier> rates, List<TaxRule> taxRules) {}
 
     public record RateInput(String label, BigDecimal minimumAmount, BigDecimal maximumAmount,
-            int minimumTermDays, int maximumTermDays, BigDecimal annualRate) {}
+            int minimumTermDays, int maximumTermDays, int minimumTermValue, int maximumTermValue,
+            BigDecimal annualRate) {}
 
     public record ProductInput(String name, String description, BigDecimal minimumAmount,
             BigDecimal maximumAmount, int minimumTermDays, int maximumTermDays, String calculationMethod,
-            String rateType, String capitalizationFrequency, int dayCountBasis, BigDecimal withholdingRate,
-            boolean active, List<Integer> terms, List<String> payoutFrequencies, List<RateInput> rates) {}
+            String rateType, String capitalizationFrequency, String calendarMode, int dayCountBasis, BigDecimal withholdingRate,
+            boolean active, List<Integer> terms, List<String> payoutFrequencies, List<RateInput> rates,
+            String termUnit, String termSelection, Integer minimumTermValue, Integer maximumTermValue,
+            Integer termIncrement, List<TaxRule> taxRules) {}
 
     public record SimulationRequest(long productId, BigDecimal amount, int termDays, String payoutFrequency) {}
 
     public record SimulationResult(String reference, LocalDate simulationDate, long productId,
             String productName, String currency, BigDecimal amount, int termDays, String rateLabel,
+            int termValue, String termUnit,
             BigDecimal annualRate, String calculationMethod, String rateType, String payoutFrequency,
             String capitalizationFrequency, int dayCountBasis, BigDecimal withholdingRate,
             BigDecimal grossInterest, BigDecimal withholding, BigDecimal netInterest,
@@ -64,8 +72,9 @@ public class InvestmentService {
     private List<Product> loadProducts(boolean activeOnly) {
         String sql = """
                 SELECT id, name, description, currency, minimum_amount, maximum_amount,
-                       minimum_term_days, maximum_term_days, calculation_method, rate_type,
-                       capitalization_frequency, day_count_basis, withholding_rate, active,
+                       minimum_term_days, maximum_term_days, term_unit, term_selection,
+                       minimum_term_value, maximum_term_value, term_increment, calculation_method, rate_type,
+                       capitalization_frequency, calendar_mode, day_count_basis, withholding_rate, active,
                        created_at, updated_at
                 FROM investment_products
                 """ + (activeOnly ? " WHERE active = TRUE " : " ") + " ORDER BY name, id";
@@ -76,15 +85,17 @@ public class InvestmentService {
         return new Product(id, rs.getString("name"), rs.getString("description"), rs.getString("currency"),
                 rs.getBigDecimal("minimum_amount"), rs.getBigDecimal("maximum_amount"),
                 rs.getInt("minimum_term_days"), rs.getInt("maximum_term_days"),
+                rs.getString("term_unit"), rs.getString("term_selection"),
+                rs.getInt("minimum_term_value"), rs.getInt("maximum_term_value"), rs.getInt("term_increment"),
                 rs.getString("calculation_method"), rs.getString("rate_type"),
-                rs.getString("capitalization_frequency"), rs.getInt("day_count_basis"),
+                rs.getString("capitalization_frequency"), rs.getString("calendar_mode"), rs.getInt("day_count_basis"),
                 rs.getBigDecimal("withholding_rate"), rs.getBoolean("active"),
                 rs.getObject("created_at", OffsetDateTime.class), rs.getObject("updated_at", OffsetDateTime.class),
-                termsFor(id), payoutFrequenciesFor(id), ratesFor(id));
+                termsFor(id), payoutFrequenciesFor(id), ratesFor(id), taxRulesFor(id));
     }
 
     private List<Integer> termsFor(long productId) {
-        return jdbc.queryForList("SELECT term_days FROM investment_product_terms WHERE product_id = ? ORDER BY position, term_days",
+        return jdbc.queryForList("SELECT term_value FROM investment_product_terms WHERE product_id = ? ORDER BY position, term_value",
                 Integer.class, productId);
     }
 
@@ -96,12 +107,22 @@ public class InvestmentService {
     private List<RateTier> ratesFor(long productId) {
         return jdbc.query("""
                 SELECT id, label, minimum_amount, maximum_amount, minimum_term_days,
-                       maximum_term_days, annual_rate, position
+                       maximum_term_days, minimum_term_value, maximum_term_value, annual_rate, position
                 FROM investment_product_rates WHERE product_id = ? ORDER BY position, id
                 """, (rs, row) -> new RateTier(rs.getLong("id"), rs.getString("label"),
                 rs.getBigDecimal("minimum_amount"), rs.getBigDecimal("maximum_amount"),
                 rs.getInt("minimum_term_days"), rs.getInt("maximum_term_days"),
+                rs.getInt("minimum_term_value"), rs.getInt("maximum_term_value"),
                 rs.getBigDecimal("annual_rate"), rs.getInt("position")), productId);
+    }
+
+    private List<TaxRule> taxRulesFor(long productId) {
+        return jdbc.query("""
+                SELECT id, name, rule_type, value, base, active, position
+                FROM investment_product_tax_rules WHERE product_id = ? ORDER BY position, id
+                """, (rs, row) -> new TaxRule(rs.getLong("id"), rs.getString("name"),
+                rs.getString("rule_type"), rs.getBigDecimal("value"), rs.getString("base"),
+                rs.getBoolean("active"), rs.getInt("position")), productId);
     }
 
     @Transactional
@@ -110,13 +131,16 @@ public class InvestmentService {
         Long id = jdbc.queryForObject("""
                 INSERT INTO investment_products (
                     name, description, currency, minimum_amount, maximum_amount, minimum_term_days,
-                    maximum_term_days, calculation_method, rate_type, capitalization_frequency,
-                    day_count_basis, withholding_rate, active, updated_by
-                ) VALUES (?, ?, 'USD', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
+                    maximum_term_days, term_unit, term_selection, minimum_term_value, maximum_term_value,
+                    term_increment, calculation_method, rate_type, capitalization_frequency,
+                    calendar_mode, day_count_basis, withholding_rate, active, updated_by
+                ) VALUES (?, ?, 'USD', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
                 """, Long.class, input.name().trim(), normalizedDescription(input.description()),
                 input.minimumAmount(), input.maximumAmount(), input.minimumTermDays(), input.maximumTermDays(),
-                input.calculationMethod(), input.rateType(), input.capitalizationFrequency(), input.dayCountBasis(),
-                input.withholdingRate(), input.active(), userId);
+                input.termUnit(), input.termSelection(), input.minimumTermValue(), input.maximumTermValue(),
+                input.termIncrement(),
+                input.calculationMethod(), input.rateType(), input.capitalizationFrequency(), input.calendarMode(), input.dayCountBasis(),
+                BigDecimal.ZERO, input.active(), userId);
         replaceChildren(id, input);
         return productById(id, false);
     }
@@ -126,12 +150,14 @@ public class InvestmentService {
         validate(input);
         int changed = jdbc.update("""
                 UPDATE investment_products SET name = ?, description = ?, minimum_amount = ?, maximum_amount = ?,
-                    minimum_term_days = ?, maximum_term_days = ?, calculation_method = ?, rate_type = ?,
-                    capitalization_frequency = ?, day_count_basis = ?, withholding_rate = ?, active = ?,
+                    minimum_term_days = ?, maximum_term_days = ?, term_unit = ?, term_selection = ?,
+                    minimum_term_value = ?, maximum_term_value = ?, term_increment = ?, calculation_method = ?, rate_type = ?,
+                    capitalization_frequency = ?, calendar_mode = ?, day_count_basis = ?, withholding_rate = ?, active = ?,
                     updated_at = CURRENT_TIMESTAMP, updated_by = ? WHERE id = ?
                 """, input.name().trim(), normalizedDescription(input.description()), input.minimumAmount(),
-                input.maximumAmount(), input.minimumTermDays(), input.maximumTermDays(), input.calculationMethod(),
-                input.rateType(), input.capitalizationFrequency(), input.dayCountBasis(), input.withholdingRate(),
+                input.maximumAmount(), input.minimumTermDays(), input.maximumTermDays(), input.termUnit(),
+                input.termSelection(), input.minimumTermValue(), input.maximumTermValue(), input.termIncrement(),
+                input.calculationMethod(), input.rateType(), input.capitalizationFrequency(), input.calendarMode(), input.dayCountBasis(), BigDecimal.ZERO,
                 input.active(), userId, id);
         if (changed == 0) throw new NoSuchElementException("No se encontró el producto de inversión.");
         replaceChildren(id, input);
@@ -152,7 +178,13 @@ public class InvestmentService {
                 || request.amount().compareTo(product.maximumAmount()) > 0) {
             throw new IllegalArgumentException("El monto está fuera del rango permitido para el producto.");
         }
-        if (!product.terms().contains(request.termDays())) {
+        int termDays = termDays(request.termDays(), product.termUnit());
+        boolean validTerm = product.termSelection().equals("RANGE")
+                ? request.termDays() >= product.minimumTermValue()
+                    && request.termDays() <= product.maximumTermValue()
+                    && (request.termDays() - product.minimumTermValue()) % product.termIncrement() == 0
+                : product.terms().contains(request.termDays());
+        if (!validTerm) {
             throw new IllegalArgumentException("Selecciona uno de los plazos disponibles para el producto.");
         }
         if (!product.payoutFrequencies().contains(request.payoutFrequency())) {
@@ -161,27 +193,42 @@ public class InvestmentService {
         RateTier rate = product.rates().stream()
                 .filter(item -> request.amount().compareTo(item.minimumAmount()) >= 0
                         && request.amount().compareTo(item.maximumAmount()) <= 0
-                        && request.termDays() >= item.minimumTermDays()
-                        && request.termDays() <= item.maximumTermDays())
+                        && request.termDays() >= item.minimumTermValue()
+                        && request.termDays() <= item.maximumTermValue())
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("No existe una tasa configurada para la combinación de monto y plazo."));
         LocalDate today = LocalDate.now();
+        List<InvestmentCalculator.TaxRule> taxRules = product.taxRules().stream()
+                .map(rule -> new InvestmentCalculator.TaxRule(rule.ruleType(), rule.value(), rule.base(), rule.active()))
+                .toList();
         InvestmentCalculator.Projection projection = calculator.calculate(request.amount(), rate.annualRate(),
-                request.termDays(), product.dayCountBasis(), product.withholdingRate(), request.payoutFrequency(),
-                product.calculationMethod(), product.rateType(), product.capitalizationFrequency(), today);
+                termDays, product.dayCountBasis(), product.withholdingRate(), request.payoutFrequency(),
+                product.calculationMethod(), product.rateType(), product.capitalizationFrequency(), today, taxRules,
+                product.calendarMode());
         String reference = "INV-" + today.toString().replace("-", "") + "-" + product.id() + "-" + request.termDays();
         return new SimulationResult(reference, today, product.id(), product.name(), product.currency(), request.amount(),
-                request.termDays(), rate.label(), rate.annualRate(), product.calculationMethod(), product.rateType(),
+                termDays, rate.label(), request.termDays(), product.termUnit(), rate.annualRate(), product.calculationMethod(), product.rateType(),
                 request.payoutFrequency(), product.capitalizationFrequency(), product.dayCountBasis(),
                 product.withholdingRate(), projection.grossInterest(), projection.withholding(),
                 projection.netInterest(), projection.maturityValue(), projection.maturityDate(), projection.payments());
     }
 
+    private int termDays(int value, String unit) {
+        if (value <= 0) throw new IllegalArgumentException("El plazo debe ser mayor que cero.");
+        LocalDate start = LocalDate.now();
+        return switch (unit) {
+            case "MONTHS" -> Math.toIntExact(ChronoUnit.DAYS.between(start, start.plusMonths(value)));
+            case "YEARS" -> Math.toIntExact(ChronoUnit.DAYS.between(start, start.plusYears(value)));
+            default -> value;
+        };
+    }
+
     private Product productById(long id, boolean activeOnly) {
         String sql = """
                 SELECT id, name, description, currency, minimum_amount, maximum_amount,
-                       minimum_term_days, maximum_term_days, calculation_method, rate_type,
-                       capitalization_frequency, day_count_basis, withholding_rate, active,
+                       minimum_term_days, maximum_term_days, term_unit, term_selection,
+                       minimum_term_value, maximum_term_value, term_increment, calculation_method, rate_type,
+                       capitalization_frequency, calendar_mode, day_count_basis, withholding_rate, active,
                        created_at, updated_at
                 FROM investment_products WHERE id = ?
                 """ + (activeOnly ? " AND active = TRUE" : "");
@@ -193,8 +240,9 @@ public class InvestmentService {
     private void replaceChildren(long productId, ProductInput input) {
         jdbc.update("DELETE FROM investment_product_terms WHERE product_id = ?", productId);
         for (int index = 0; index < input.terms().size(); index++) {
-            jdbc.update("INSERT INTO investment_product_terms (product_id, term_days, position) VALUES (?, ?, ?)",
-                    productId, input.terms().get(index), index);
+            int visibleTerm = input.terms().get(index);
+            jdbc.update("INSERT INTO investment_product_terms (product_id, term_days, term_value, position) VALUES (?, ?, ?, ?)",
+                    productId, termDays(visibleTerm, input.termUnit()), visibleTerm, index);
         }
         jdbc.update("DELETE FROM investment_product_payout_frequencies WHERE product_id = ?", productId);
         for (int index = 0; index < input.payoutFrequencies().size(); index++) {
@@ -207,10 +255,24 @@ public class InvestmentService {
             jdbc.update("""
                     INSERT INTO investment_product_rates (
                         product_id, label, minimum_amount, maximum_amount,
-                        minimum_term_days, maximum_term_days, annual_rate, position
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        minimum_term_days, maximum_term_days, minimum_term_value,
+                        maximum_term_value, annual_rate, position
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, productId, rate.label().trim(), rate.minimumAmount(), rate.maximumAmount(),
-                    rate.minimumTermDays(), rate.maximumTermDays(), rate.annualRate(), index);
+                    termDays(rate.minimumTermValue(), input.termUnit()), termDays(rate.maximumTermValue(), input.termUnit()),
+                    rate.minimumTermValue(), rate.maximumTermValue(), rate.annualRate(), index);
+        }
+        jdbc.update("DELETE FROM investment_product_tax_rules WHERE product_id = ?", productId);
+        if (input.taxRules() != null) {
+            for (int index = 0; index < input.taxRules().size(); index++) {
+                TaxRule rule = input.taxRules().get(index);
+                jdbc.update("""
+                        INSERT INTO investment_product_tax_rules
+                        (product_id, name, rule_type, value, base, active, position)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """, productId, rule.name().trim(), rule.ruleType(), rule.value(),
+                        rule.base(), rule.active(), index);
+            }
         }
     }
 
@@ -222,13 +284,29 @@ public class InvestmentService {
         if (input.minimumAmount() == null || input.maximumAmount() == null || input.minimumAmount().signum() <= 0
                 || input.maximumAmount().compareTo(input.minimumAmount()) < 0)
             throw new IllegalArgumentException("El rango de montos no es válido.");
-        if (input.terms() == null || input.terms().isEmpty() || input.terms().stream().anyMatch(term -> term == null || term <= 0)
-                || input.terms().stream().distinct().count() != input.terms().size())
+        if (!Set.of("DAYS", "MONTHS", "YEARS").contains(input.termUnit())
+                || !Set.of("PREDEFINED", "RANGE").contains(input.termSelection())
+                || input.minimumTermValue() == null || input.maximumTermValue() == null
+                || input.termIncrement() == null || input.minimumTermValue() <= 0
+                || input.maximumTermValue() < input.minimumTermValue() || input.termIncrement() <= 0)
+            throw new IllegalArgumentException("Configura un rango de plazos válido.");
+        if (!Set.of("FIXED_DAYS", "CALENDAR").contains(input.calendarMode()))
+            throw new IllegalArgumentException("Selecciona una modalidad de calendario válida.");
+        List<Integer> terms = input.terms() == null ? List.of() : input.terms();
+        if ("PREDEFINED".equals(input.termSelection())
+                && (terms.isEmpty() || terms.stream().anyMatch(term -> term == null || term <= 0)
+                || terms.stream().distinct().count() != terms.size()))
             throw new IllegalArgumentException("Configura plazos concretos y no repetidos.");
-        int minTerm = input.terms().stream().min(Integer::compareTo).orElseThrow();
-        int maxTerm = input.terms().stream().max(Integer::compareTo).orElseThrow();
-        if (input.minimumTermDays() != minTerm || input.maximumTermDays() != maxTerm)
-            throw new IllegalArgumentException("El rango de plazos debe coincidir con los plazos configurados.");
+        int expectedMinimumDays = termDays(input.minimumTermValue(), input.termUnit());
+        int expectedMaximumDays = termDays(input.maximumTermValue(), input.termUnit());
+        if (input.minimumTermDays() != expectedMinimumDays || input.maximumTermDays() != expectedMaximumDays)
+            throw new IllegalArgumentException("El rango de plazos no coincide con la unidad seleccionada.");
+        if ("PREDEFINED".equals(input.termSelection())) {
+            int minTerm = terms.stream().min(Integer::compareTo).orElseThrow();
+            int maxTerm = terms.stream().max(Integer::compareTo).orElseThrow();
+            if (input.minimumTermValue() != minTerm || input.maximumTermValue() != maxTerm)
+                throw new IllegalArgumentException("El rango de plazos debe coincidir con los plazos configurados.");
+        }
         if (!CALCULATION_METHODS.contains(input.calculationMethod()) || !RATE_TYPES.contains(input.rateType()))
             throw new IllegalArgumentException("El método o tipo de tasa no es válido.");
         if ("COMPOUND".equals(input.calculationMethod())
@@ -258,8 +336,11 @@ public class InvestmentService {
                     || rate.minimumAmount().compareTo(input.minimumAmount()) < 0
                     || rate.maximumAmount().compareTo(input.maximumAmount()) > 0
                     || rate.maximumAmount().compareTo(rate.minimumAmount()) < 0
-                    || rate.minimumTermDays() != rate.maximumTermDays()
-                    || !input.terms().contains(rate.minimumTermDays())
+                    || rate.minimumTermValue() <= 0 || rate.maximumTermValue() < rate.minimumTermValue()
+                    || rate.minimumTermValue() < input.minimumTermValue() || rate.maximumTermValue() > input.maximumTermValue()
+                    || ("PREDEFINED".equals(input.termSelection())
+                        && (rate.minimumTermValue() != rate.maximumTermValue()
+                            || !terms.contains(rate.minimumTermValue())))
                     || rate.annualRate() == null || rate.annualRate().signum() <= 0
                     || rate.annualRate().compareTo(BigDecimal.ONE) > 0)
                 throw new IllegalArgumentException("Cada tasa debe corresponder a un plazo y rango válido.");
@@ -268,10 +349,22 @@ public class InvestmentService {
             for (RateInput previous : checked) {
                 boolean amountsOverlap = rate.minimumAmount().compareTo(previous.maximumAmount()) <= 0
                         && previous.minimumAmount().compareTo(rate.maximumAmount()) <= 0;
-                if (rate.minimumTermDays() == previous.minimumTermDays() && amountsOverlap)
+                boolean termsOverlap = rate.minimumTermValue() <= previous.maximumTermValue()
+                        && previous.minimumTermValue() <= rate.maximumTermValue();
+                if (termsOverlap && amountsOverlap)
                     throw new IllegalArgumentException("Existen rangos de tasa superpuestos.");
             }
             checked.add(rate);
+        }
+        if (input.taxRules() != null) {
+            for (TaxRule rule : input.taxRules()) {
+                if (rule == null || rule.name() == null || rule.name().isBlank() || rule.value() == null
+                        || rule.value().signum() < 0 || !Set.of("PERCENTAGE", "FIXED").contains(rule.ruleType())
+                        || !Set.of("GROSS_INTEREST", "CAPITAL", "TOTAL").contains(rule.base()))
+                    throw new IllegalArgumentException("Revisa las reglas fiscales configuradas.");
+                if ("PERCENTAGE".equals(rule.ruleType()) && rule.value().compareTo(BigDecimal.valueOf(100)) > 0)
+                    throw new IllegalArgumentException("Una regla porcentual no puede superar el 100 %.");
+            }
         }
     }
 

@@ -9,7 +9,7 @@ import { AccountPage } from '@/pages/account-page'
 import { DevTablePage } from '@/pages/dev-table-page'
 import { HomePage } from '@/pages/home-page'
 import { InstitutionSettingsPage } from '@/pages/institution-settings-page'
-import { InvestmentAdminPage } from '@/pages/investment-admin-page'
+import { InvestmentAdminPage, InvestmentProductEditorPage } from '@/pages/investment-admin-page'
 import { InvestmentSimulatorPage } from '@/pages/investment-simulator-page'
 import { LoginPage } from '@/pages/login-page'
 import { PlaceholderPage } from '@/pages/placeholder-page'
@@ -78,6 +78,22 @@ export const router = createBrowserRouter([
         element: (
           <PermissionGate permission="investment.products.manage">
             <InvestmentAdminPage />
+          </PermissionGate>
+        ),
+      },
+      {
+        path: 'inversiones/nuevo',
+        element: (
+          <PermissionGate permission="investment.products.manage">
+            <InvestmentProductEditorPage />
+          </PermissionGate>
+        ),
+      },
+      {
+        path: 'inversiones/:productId/editar',
+        element: (
+          <PermissionGate permission="investment.products.manage">
+            <InvestmentProductEditorPage />
           </PermissionGate>
         ),
       },
