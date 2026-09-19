@@ -342,8 +342,12 @@ export function SimuladorPage() {
                     </SelectTrigger>
                     <SelectContent>
                       {tasasDelSegmento.map(t => (
-                        <SelectItem key={t.label + t.valor} value={String(t.valor)}>
-                          {/* span inline para evitar invalid DOM nesting en SelectItem (ItemText es un span) */}
+                        <SelectItem
+                          key={`${t.segmento}-${t.tipo}-${t.valor}`}
+                          value={String(t.valor)}
+                          textValue={`${t.tipo === 'MAXIMUM' ? '[MÁX]' : '[REF]'} ${t.label} — ${t.valor}%`}
+                        >
+                          {/* Contenedor inline con textValue explícito en SelectItem para que Radix no clone subárboles DOM complejos al trigger */}
                           <span className="inline-flex items-center gap-2">
                             <Badge variant={t.tipo === 'MAXIMUM' ? 'destructive' : 'secondary'} className="text-[10px] px-1 py-0">
                               {t.tipo === 'MAXIMUM' ? 'MÁX' : 'REF'}
@@ -368,13 +372,15 @@ export function SimuladorPage() {
                       {...register('tasaEfectiva', { valueAsNumber: true })}
                     />
                   </div>
-                  {superaTasaMax && (
-                    <p className="text-xs text-destructive flex items-center gap-1">
+                  {superaTasaMax ? (
+                    <p key="err-tasa-max" className="text-xs text-destructive flex items-center gap-1">
                       <ChevronDown className="w-3 h-3" />
                       Supera la tasa máxima BCE ({tasaMaxPermitida}%) para este segmento
                     </p>
-                  )}
-                  {errors.tasaEfectiva && <p className="text-xs text-destructive">{errors.tasaEfectiva.message}</p>}
+                  ) : null}
+                  {errors.tasaEfectiva ? (
+                    <p key="err-tasa-val" className="text-xs text-destructive">{errors.tasaEfectiva.message}</p>
+                  ) : null}
                 </div>
 
                 {/* Sistema de amortización */}
@@ -420,8 +426,8 @@ export function SimuladorPage() {
                       Seguro de Desgravamen
                     </Label>
                   </div>
-                  {incluirDesgravamen && (
-                    <div className="space-y-1">
+                  {incluirDesgravamen ? (
+                    <div key="desgravamen-config" className="space-y-1">
                       <p className="text-xs text-muted-foreground">
                         Tasa anual del seguro (% sobre saldo deudor)
                       </p>
@@ -439,28 +445,30 @@ export function SimuladorPage() {
                       <p className="text-xs text-muted-foreground">
                         Valor de referencia mercado: <strong>0.0699% anual</strong>
                       </p>
-                      {errors.seguroDesgravamenPct && (
-                        <p className="text-xs text-destructive">{errors.seguroDesgravamenPct.message}</p>
-                      )}
+                      {errors.seguroDesgravamenPct ? (
+                        <p key="err-desgravamen" className="text-xs text-destructive">{errors.seguroDesgravamenPct.message}</p>
+                      ) : null}
                     </div>
-                  )}
+                  ) : null}
                 </div>
 
                 <Separator />
 
                 <div className="flex gap-2">
                   <Button type="submit" className="flex-1" disabled={mutation.isPending}>
-                    {mutation.isPending ? (
-                      <span className="flex items-center gap-2">
-                        <span className="w-4 h-4 border-2 border-primary-foreground/50 border-t-primary-foreground rounded-full animate-spin" />
-                        Calculando…
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-2">
-                        <Calculator className="w-4 h-4" />
-                        Calcular
-                      </span>
-                    )}
+                    <div className="flex items-center justify-center gap-2">
+                      {mutation.isPending ? (
+                        <>
+                          <span className="w-4 h-4 border-2 border-primary-foreground/50 border-t-primary-foreground rounded-full animate-spin" />
+                          <span>Calculando…</span>
+                        </>
+                      ) : (
+                        <>
+                          <Calculator className="w-4 h-4" />
+                          <span>Calcular</span>
+                        </>
+                      )}
+                    </div>
                   </Button>
                   <Button type="button" variant="outline" size="icon" onClick={handleReset}>
                     <RotateCcw className="w-4 h-4" />
@@ -525,43 +533,49 @@ export function SimuladorPage() {
             </div>
           ) : result ? (
             <div key="state-result" className="space-y-4">
-              {/* Tarjetas resumen */}
+              {/* Tarjetas resumen con keys fijas para evitar desincronización de nodos */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <SummaryCard
+                  key="card-cuota"
                   label="Cuota mensual"
                   value={fmtNum(result.cuotaMensual)}
                   sub={result.sistema === 'FRANCES' ? 'Primera cuota' : 'Primera cuota'}
                   highlight
                 />
                 <SummaryCard
+                  key="card-intereses"
                   label="Total intereses"
                   value={fmtNum(result.totalIntereses)}
                   sub="Costo financiero"
                 />
-                {hasSeguro && (
+                {hasSeguro ? (
                   <SummaryCard
+                    key="card-seguro"
                     label="Total seguros"
                     value={fmtNum(result.totalSeguros)}
                     sub="Desgravamen acum."
                   />
-                )}
+                ) : null}
                 <SummaryCard
+                  key="card-total"
                   label="Total a pagar"
                   value={fmtNum(result.totalPagar)}
                   sub={`${result.plazoMeses} cuotas`}
                 />
                 <SummaryCard
+                  key="card-tasa"
                   label="Tasa efectiva"
                   value={`${result.tasaEfectivaAnual}%`}
                   sub={`Tasa mensual: ${fmtPct(result.tasaMensual)}`}
                 />
-                {result.fechaDesembolso && (
+                {result.fechaDesembolso ? (
                   <SummaryCard
+                    key="card-desembolso"
                     label="Desembolso"
                     value={fmtDate(result.fechaDesembolso)}
                     sub={`Última cuota: ${fmtDate(result.tablaCuotas.at(-1)?.fechaVencimiento)}`}
                   />
-                )}
+                ) : null}
               </div>
 
               {/* Tabla / Gráfico tabs */}
@@ -613,49 +627,49 @@ export function SimuladorPage() {
 
                 <CardContent className="p-0">
                   {vistaTabla === 'tabla' ? (
-                    <div className="overflow-auto max-h-[500px] rounded-b-lg">
+                    <div key="view-tabla" className="overflow-auto max-h-[500px] rounded-b-lg">
                       <Table>
                         <TableHeader className="sticky top-0 bg-muted/80 backdrop-blur-sm">
                           <TableRow>
-                            <TableHead className="w-10 text-center">N°</TableHead>
-                            {hasDate && <TableHead>Fecha Vcto.</TableHead>}
-                            <TableHead className="text-right">Saldo Inicial</TableHead>
-                            <TableHead className="text-right">Capital</TableHead>
-                            <TableHead className="text-right">Interés</TableHead>
-                            {hasSeguro && <TableHead className="text-right">Seguro</TableHead>}
-                            <TableHead className="text-right font-semibold">Cuota Total</TableHead>
-                            <TableHead className="text-right">Saldo Final</TableHead>
+                            <TableHead key="th-num" className="w-10 text-center">N°</TableHead>
+                            {hasDate ? <TableHead key="th-date">Fecha Vcto.</TableHead> : null}
+                            <TableHead key="th-ini" className="text-right">Saldo Inicial</TableHead>
+                            <TableHead key="th-cap" className="text-right">Capital</TableHead>
+                            <TableHead key="th-int" className="text-right">Interés</TableHead>
+                            {hasSeguro ? <TableHead key="th-seg" className="text-right">Seguro</TableHead> : null}
+                            <TableHead key="th-cuota" className="text-right font-semibold">Cuota Total</TableHead>
+                            <TableHead key="th-fin" className="text-right">Saldo Final</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {result.tablaCuotas.map((c) => (
-                            <TableRow key={c.numeroCuota} className="hover:bg-muted/50 transition-colors">
-                              <TableCell className="text-center text-muted-foreground text-xs font-mono">
+                            <TableRow key={`cuota-row-${c.numeroCuota}`} className="hover:bg-muted/50 transition-colors">
+                              <TableCell key="td-num" className="text-center text-muted-foreground text-xs font-mono">
                                 {c.numeroCuota}
                               </TableCell>
-                              {hasDate && (
-                                <TableCell className="text-xs font-mono">
+                              {hasDate ? (
+                                <TableCell key="td-date" className="text-xs font-mono">
                                   {fmtDate(c.fechaVencimiento)}
                                 </TableCell>
-                              )}
-                              <TableCell className="text-right text-xs font-mono">
+                              ) : null}
+                              <TableCell key="td-ini" className="text-right text-xs font-mono">
                                 {fmtNum(c.saldoInicial)}
                               </TableCell>
-                              <TableCell className="text-right text-xs font-mono text-green-600 dark:text-green-400">
+                              <TableCell key="td-cap" className="text-right text-xs font-mono text-green-600 dark:text-green-400">
                                 {fmtNum(c.capital)}
                               </TableCell>
-                              <TableCell className="text-right text-xs font-mono text-orange-600 dark:text-orange-400">
+                              <TableCell key="td-int" className="text-right text-xs font-mono text-orange-600 dark:text-orange-400">
                                 {fmtNum(c.interes)}
                               </TableCell>
-                              {hasSeguro && (
-                                <TableCell className="text-right text-xs font-mono text-blue-600 dark:text-blue-400">
+                              {hasSeguro ? (
+                                <TableCell key="td-seg" className="text-right text-xs font-mono text-blue-600 dark:text-blue-400">
                                   {fmtNum(c.seguro)}
                                 </TableCell>
-                              )}
-                              <TableCell className="text-right text-xs font-mono font-semibold">
+                              ) : null}
+                              <TableCell key="td-cuota" className="text-right text-xs font-mono font-semibold">
                                 {fmtNum(c.cuotaTotal)}
                               </TableCell>
-                              <TableCell className="text-right text-xs font-mono text-muted-foreground">
+                              <TableCell key="td-fin" className="text-right text-xs font-mono text-muted-foreground">
                                 {fmtNum(c.saldoFinal)}
                               </TableCell>
                             </TableRow>
@@ -664,9 +678,13 @@ export function SimuladorPage() {
                       </Table>
                     </div>
                   ) : (
-                    <div className="p-4 h-[500px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={chartData} margin={{ top: 4, right: 16, left: 16, bottom: 4 }}>
+                    <div key="view-grafico" className="p-4 h-[500px] notranslate" translate="no">
+                      <ResponsiveContainer width="100%" height="100%" debounce={50}>
+                        <BarChart
+                          key={`barchart-${result.sistema}-${result.plazoMeses}`}
+                          data={chartData}
+                          margin={{ top: 4, right: 16, left: 16, bottom: 4 }}
+                        >
                           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                           <XAxis
                             dataKey="n"
@@ -679,15 +697,15 @@ export function SimuladorPage() {
                             width={70}
                           />
                           <Tooltip
-                            formatter={(value: number, name: string) => [fmtNum(value), name]}
+                            formatter={(value: any, name: any) => [fmtNum(Number(value) || 0), String(name)]}
                             labelFormatter={(label) => `Cuota N° ${label}`}
                           />
                           <Legend wrapperStyle={{ fontSize: 12 }} />
-                          <Bar dataKey="Capital" stackId="a" fill="hsl(142 76% 36%)"  radius={[0, 0, 0, 0]} />
-                          <Bar dataKey="Interés" stackId="a" fill="hsl(24 95% 53%)"   radius={[0, 0, 0, 0]} />
-                          {hasSeguro && (
-                            <Bar dataKey="Seguro"  stackId="a" fill="hsl(220 90% 56%)" radius={[2, 2, 0, 0]} />
-                          )}
+                          <Bar key="bar-capital" dataKey="Capital" stackId="a" fill="hsl(142 76% 36%)" isAnimationActive={false} />
+                          <Bar key="bar-interes" dataKey="Interés" stackId="a" fill="hsl(24 95% 53%)" isAnimationActive={false} />
+                          {hasSeguro ? (
+                            <Bar key="bar-seguro" dataKey="Seguro" stackId="a" fill="hsl(220 90% 56%)" radius={[2, 2, 0, 0]} isAnimationActive={false} />
+                          ) : null}
                         </BarChart>
                       </ResponsiveContainer>
                     </div>

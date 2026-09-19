@@ -21,7 +21,7 @@ export function RouteErrorBoundary() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background px-4">
+    <div key="route-error-boundary-root" className="min-h-screen flex items-center justify-center bg-background px-4">
       <div className="w-full max-w-md text-center space-y-5 p-8 rounded-2xl border bg-card shadow-lg">
         <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-destructive/10 text-destructive mb-2">
           <AlertTriangle className="w-8 h-8" />
