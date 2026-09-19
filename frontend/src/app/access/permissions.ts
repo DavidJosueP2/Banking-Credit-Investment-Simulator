@@ -5,3 +5,4 @@ export type Permission =
   | 'investment.products.manage'
   | 'institution.manage'
   | 'users.roles.manage'
+  | 'identity.verification.start'

@@ -1,3 +1,4 @@
+import { Suspense, lazy } from 'react'
 import { createBrowserRouter } from 'react-router-dom'
 
 import { AdminLayout } from '@/components/layout/admin-layout'
@@ -12,7 +13,12 @@ import { InvestmentAdminPage, InvestmentProductEditorPage } from '@/pages/invest
 import { InvestmentSimulatorPage } from '@/pages/investment-simulator-page'
 import { LoginPage } from '@/pages/login-page'
 import { PlaceholderPage } from '@/pages/placeholder-page'
+import { ProfilePage } from '@/pages/profile-page'
+import { RegistrationPage } from '@/pages/registration-page'
 import { RolePermissionsPage } from '@/pages/role-permissions-page'
+
+const LivenessDevPage = lazy(() => import('@/pages/liveness-dev-page')
+  .then((module) => ({ default: module.LivenessDevPage })))
 
 export const router = createBrowserRouter([
   {
@@ -21,7 +27,26 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <HomePage /> },
       { path: 'login', element: <LoginPage /> },
+      { path: 'registro', element: <RegistrationPage /> },
       { path: 'cuenta', element: <AccountPage /> },
+      {
+        path: 'perfil',
+        element: (
+          <PermissionGate permission="identity.verification.start">
+            <ProfilePage />
+          </PermissionGate>
+        ),
+      },
+      {
+        path: 'dev/liveness',
+        element: (
+          <PermissionGate permission="identity.verification.start">
+            <Suspense fallback={<div className="px-5 py-16 text-sm text-muted-foreground">Cargando prueba de vida…</div>}>
+              <LivenessDevPage />
+            </Suspense>
+          </PermissionGate>
+        ),
+      },
       { path: 'inversiones/simulador', element: <InvestmentSimulatorPage /> },
     ],
   },

@@ -1,5 +1,6 @@
 package com.edu.uta.backend.config;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import com.edu.uta.backend.identity.AuthorityRefreshFilter;
@@ -9,6 +10,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.security.authentication.LockedException;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -32,17 +35,29 @@ public class SecurityConfig {
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("/api/health", "/api/auth/csrf", "/api/auth/login", "/api/public/settings/**", "/api/public/investments/**").permitAll()
+                        .requestMatchers("/api/health", "/api/auth/csrf", "/api/auth/login", "/api/public/settings/**", "/api/public/investments/**", "/api/public/registration/**").permitAll()
                         .requestMatchers("/api/auth/me", "/api/auth/logout").authenticated()
+                        .requestMatchers("/api/profile/**", "/api/dev/liveness/**")
+                            .hasAuthority("identity.verification.start")
                         .requestMatchers("/api/admin/settings/**").hasAuthority("institution.manage")
                         .requestMatchers("/api/admin/investments/**").hasAuthority("investment.products.manage")
                         .requestMatchers("/api/admin/**").hasAuthority("users.roles.manage")
                         .anyRequest().denyAll())
                 .formLogin(form -> form
                         .loginProcessingUrl("/api/auth/login")
-                        .usernameParameter("email")
+                        .usernameParameter("username")
                         .successHandler((request, response, authentication) -> response.setStatus(HttpStatus.NO_CONTENT.value()))
-                        .failureHandler((request, response, exception) -> response.sendError(HttpStatus.UNAUTHORIZED.value())))
+                        .failureHandler((request, response, exception) -> {
+                            if (exception instanceof LockedException) {
+                                response.setStatus(HttpStatus.FORBIDDEN.value());
+                                response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                                response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+                                response.getWriter().write(
+                                        "{\"message\":\"Verifica tu correo antes de ingresar\"}");
+                                return;
+                            }
+                            response.sendError(HttpStatus.UNAUTHORIZED.value());
+                        }))
                 .logout(logout -> logout
                         .logoutUrl("/api/auth/logout")
                         .logoutSuccessHandler((request, response, authentication) -> response.setStatus(HttpStatus.NO_CONTENT.value()))
