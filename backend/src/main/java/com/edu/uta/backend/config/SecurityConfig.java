@@ -17,6 +17,8 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 @Configuration
@@ -47,16 +49,17 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 // Permitir peticiones preflight CORS (OPTIONS)
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                // Endpoints públicos del simulador y autenticación
+                // Endpoints públicos del sistema, simulador y autenticación
                 .requestMatchers("/api/health").permitAll()
+                .requestMatchers("/actuator/**").permitAll()
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/api/simulador/**").permitAll()
+                .requestMatchers(HttpMethod.GET,  "/api/institucion", "/api/institucion/**").permitAll()
+                .requestMatchers(HttpMethod.GET,  "/api/creditos", "/api/creditos/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/creditos/simular/**").permitAll()
-                .requestMatchers(HttpMethod.GET,  "/api/creditos/**").permitAll()
-                .requestMatchers(HttpMethod.GET,  "/api/institucion/**").permitAll()
-                // Configuración y administración de créditos — solo ADMIN o ASESOR
-                .requestMatchers(HttpMethod.PUT,    "/api/institucion/**").hasRole("ADMIN")
-                .requestMatchers(HttpMethod.PATCH,  "/api/institucion/**").hasRole("ADMIN")
+                // Configuración y administración de institución y créditos — solo ADMIN o ASESOR
+                .requestMatchers(HttpMethod.PUT,    "/api/institucion", "/api/institucion/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PATCH,  "/api/institucion", "/api/institucion/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.POST,   "/api/creditos/**").hasAnyRole("ADMIN", "ASESOR")
                 .requestMatchers(HttpMethod.PUT,    "/api/creditos/**").hasAnyRole("ADMIN", "ASESOR")
                 .requestMatchers(HttpMethod.PATCH,  "/api/creditos/**").hasAnyRole("ADMIN", "ASESOR")
@@ -72,10 +75,31 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        // Habilitar de forma global http://localhost:5173
-        configuration.setAllowedOrigins(List.of("http://localhost:5173", frontendUrl));
-        configuration.setAllowedMethods(List.of("GET", "POST", "OPTIONS", "PUT", "PATCH", "DELETE"));
-        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"));
+
+        // Lista de orígenes y patrones de desarrollo permitidos
+        List<String> allowedPatterns = new ArrayList<>(Arrays.asList(
+                "http://localhost:5173",
+                "http://localhost:5174",
+                "http://localhost:*",
+                "http://127.0.0.1:*",
+                "http://localhost:[*]",
+                "http://127.0.0.1:[*]"
+        ));
+
+        if (frontendUrl != null && !frontendUrl.isBlank() && !allowedPatterns.contains(frontendUrl)) {
+            allowedPatterns.add(frontendUrl);
+        }
+
+        configuration.setAllowedOriginPatterns(allowedPatterns);
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"));
+        configuration.setAllowedHeaders(List.of("*"));
+        configuration.setExposedHeaders(List.of(
+                "Authorization",
+                "Content-Type",
+                "Content-Disposition",
+                "Access-Control-Allow-Origin",
+                "Access-Control-Allow-Credentials"
+        ));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
 
