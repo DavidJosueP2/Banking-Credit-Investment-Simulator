@@ -1,3 +1,4 @@
+import { Suspense, lazy } from 'react'
 import { createBrowserRouter } from 'react-router-dom'
 import { LandingPage } from '@/pages/home-page'
 import { LoginPage } from '@/pages/auth/login-page'
