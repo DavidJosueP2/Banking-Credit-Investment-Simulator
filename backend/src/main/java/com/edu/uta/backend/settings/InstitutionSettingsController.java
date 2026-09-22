@@ -70,7 +70,7 @@ public class InstitutionSettingsController {
     @PreAuthorize("hasAuthority('institution.manage')")
     public InstitutionSettingsService.SettingsView update(@PathVariable String category,
             @RequestBody UpdateSettings request, Authentication authentication) {
-        long userId = identity.accountByEmail(authentication.getName()).id();
+        long userId = identity.accountByUsername(authentication.getName()).id();
         return settings.updateSection(category, request.values(), userId);
     }
 
@@ -91,7 +91,7 @@ public class InstitutionSettingsController {
     @PreAuthorize("hasAuthority('institution.manage')")
     public InstitutionSettingsService.SettingsView upload(@PathVariable String key,
             @RequestParam("file") MultipartFile file, Authentication authentication) {
-        long userId = identity.accountByEmail(authentication.getName()).id();
+        long userId = identity.accountByUsername(authentication.getName()).id();
         return settings.saveAsset(key, file, userId);
     }
 

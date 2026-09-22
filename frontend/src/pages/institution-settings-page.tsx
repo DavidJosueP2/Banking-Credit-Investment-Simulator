@@ -48,7 +48,7 @@ import { api } from '@/lib/api'
 
 type SettingsTab = SettingsSection | 'media'
 
-const fontOptions = ['Libre Baskerville', 'Inter', 'Georgia', 'Times New Roman', 'Arial', 'system-ui']
+const fontOptions = ['Axiforma', 'Plus Jakarta Sans', 'Libre Baskerville', 'SF Pro Display', 'Inter', 'Georgia', 'Times New Roman', 'Arial', 'system-ui']
 const iconOptions = [
   ['wallet-cards', 'Tarjetas'],
   ['bar-chart', 'Gráfico'],

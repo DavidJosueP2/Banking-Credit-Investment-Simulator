@@ -21,7 +21,6 @@ import carouselIdentityImage from '@/assets/landing/carrusel/debashis-rc-biswas-
 import carouselPerspectiveImage from '@/assets/landing/carrusel/zalfa-imani-1xp5VxvyKL0-unsplash.jpg'
 import { useAuth } from '@/app/providers/auth-provider'
 import { useInstitutionSettings } from '@/app/providers/settings-provider'
-import { BrandLogo } from '@/components/shared/brand-logo'
 import { Button } from '@/components/ui/button'
 import {
   Carousel,
@@ -166,13 +165,13 @@ export function HomePage() {
 
   return (
     <main id="contenido">
-      <section className="bg-muted/25 px-5 py-16 sm:px-8 sm:py-20 lg:py-24" aria-labelledby="landing-intro-title">
-        <div className="mx-auto max-w-5xl text-center">
-          <BrandLogo variant="mark" className="mx-auto mb-8 size-20 sm:size-24" />
-          <h1 id="landing-intro-title" className="mx-auto max-w-[18ch] text-4xl font-bold leading-[1.12] tracking-[-0.03em] sm:text-5xl lg:text-6xl">
-            {landing.heroTitle} <span className="text-brand-teal">{landing.heroHighlight}</span>
+      <section className="bg-background px-5 py-14 sm:px-8 sm:py-16 lg:py-20" aria-labelledby="landing-intro-title">
+        <div className="mx-auto max-w-7xl text-center">
+          <h1 id="landing-intro-title" className="mx-auto max-w-[24ch] text-[2.5rem] font-normal leading-[1.1] tracking-[-0.01em] sm:text-[3.25rem] lg:text-[4.25rem] lg:leading-[1.08]">
+            <span className="block lg:whitespace-nowrap">{landing.heroTitle}</span>
+            <span className="block text-brand-teal lg:whitespace-nowrap">{landing.heroHighlight}</span>
           </h1>
-          <p className="mx-auto mt-6 max-w-[68ch] text-base leading-7 text-muted-foreground sm:text-lg sm:leading-8">
+          <p className="mx-auto mt-5 max-w-[60ch] text-balance text-sm leading-6 text-muted-foreground sm:text-base sm:leading-7">
             {landing.heroDescription}
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
@@ -293,7 +292,7 @@ export function HomePage() {
         </section>
       )}
 
-      {creditVisible && <section id="creditos" className="scroll-mt-24 border-t bg-muted/40 px-5 py-20 sm:px-8 lg:py-28">
+      {creditVisible && <section id="creditos" className="scroll-mt-24 border-t bg-muted/40 px-5 pt-20 pb-10 sm:px-8 lg:pt-28 lg:pb-12">
         <div className="mx-auto grid max-w-7xl gap-12 lg:grid-cols-2 lg:items-center lg:gap-20">
           <figure>
             <img
@@ -321,7 +320,7 @@ export function HomePage() {
         </div>
       </section>}
 
-      {investmentVisible && <section id="inversiones" className="scroll-mt-24 px-5 py-20 sm:px-8 lg:py-28">
+      {investmentVisible && <section id="inversiones" className="scroll-mt-24 px-5 pt-10 pb-20 sm:px-8 lg:pt-12 lg:pb-28">
         <div className="mx-auto grid max-w-7xl gap-12 lg:grid-cols-2 lg:items-center lg:gap-20">
           <div className="max-w-xl lg:order-1">
             <InvestmentSectionIcon className="size-7 text-brand-gold" aria-hidden="true" />
