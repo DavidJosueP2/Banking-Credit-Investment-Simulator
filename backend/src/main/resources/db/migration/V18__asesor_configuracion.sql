@@ -14,17 +14,24 @@ COMMENT ON COLUMN "${app-schema}".producto_credito.sistemas_permitidos IS 'Siste
 COMMENT ON COLUMN "${app-schema}".producto_credito.tasa_desgravamen_mensual IS 'Porcentaje mensual del seguro de desgravamen sobre el saldo deudor';
 COMMENT ON COLUMN "${app-schema}".producto_credito.segmento_bce IS 'Segmento regulatorio del BCE';
 
--- 2. Crear usuario ASESOR para pruebas si la tabla usuario existe
+-- 2. Crear usuario ASESOR para pruebas si la tabla app_users existe
 DO $$
+DECLARE
+    v_user_id BIGINT;
 BEGIN
-    IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = '${app-schema}' AND table_name = 'usuario') THEN
-        INSERT INTO "${app-schema}".usuario (email, password_hash, nombre, apellido, rol, activo)
-        SELECT 'asesor@financiero.ec',
-               '$2a$12$9F34m0a7XhD7YqR5P8V3xOeLzZ1K9Yx5I8UvYgWjW2K6I8YqW5P8V', -- Hash BCrypt
-               'Carlos', 'Asesor Bancario', 'ASESOR', TRUE
-        WHERE NOT EXISTS (
-            SELECT 1 FROM "${app-schema}".usuario WHERE email = 'asesor@financiero.ec'
-        );
+    IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = '${app-schema}' AND table_name = 'app_users') THEN
+        IF NOT EXISTS (SELECT 1 FROM "${app-schema}".app_users WHERE email = 'asesor@financiero.ec') THEN
+            INSERT INTO "${app-schema}".app_users (username, email, full_name, password_hash, enabled)
+            VALUES ('asesor', 'asesor@financiero.ec', 'Carlos Asesor Bancario',
+                    '$2a$12$9F34m0a7XhD7YqR5P8V3xOeLzZ1K9Yx5I8UvYgWjW2K6I8YqW5P8V', TRUE)
+            RETURNING id INTO v_user_id;
+
+            IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = '${app-schema}' AND table_name = 'app_user_roles') THEN
+                INSERT INTO "${app-schema}".app_user_roles (user_id, role_code)
+                VALUES (v_user_id, 'credit_advisor')
+                ON CONFLICT DO NOTHING;
+            END IF;
+        END IF;
     END IF;
 END $$;
 

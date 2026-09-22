@@ -10,7 +10,7 @@ import {
   Upload,
   WalletCards,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { createElement, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 
@@ -45,6 +45,20 @@ const iconRegistry = {
 
 function serviceIcon(name: string, fallback: keyof typeof iconRegistry) {
   return iconRegistry[name as keyof typeof iconRegistry] ?? iconRegistry[fallback]
+}
+
+function ServiceIcon({
+  name,
+  fallback,
+  className,
+  ariaHidden = true,
+}: {
+  name: string
+  fallback: keyof typeof iconRegistry
+  className?: string
+  ariaHidden?: boolean
+}) {
+  return createElement(serviceIcon(name, fallback), { className, 'aria-hidden': ariaHidden })
 }
 
 function landingText(value: string, shortName: string, description: string) {
@@ -142,10 +156,6 @@ export function HomePage() {
     (service.area === 'credit' ? creditVisible : investmentVisible)
     && (service.href !== '#proceso' || landing.processEnabled === 'true'),
   )
-  const CreditSectionIcon = serviceIcon(landing.creditSectionIcon, 'landmark')
-  const InvestmentSectionIcon = serviceIcon(landing.investmentSectionIcon, 'trending-up')
-  const InvestmentFeatureOneIcon = serviceIcon(landing.investmentFeatureOneIcon, 'sliders')
-  const InvestmentFeatureTwoIcon = serviceIcon(landing.investmentFeatureTwoIcon, 'shield')
   const closingAccessLabel = account
     ? account.permissions?.includes('admin.dashboard.view') ? 'Ir al panel' : 'Mi cuenta'
     : landingText(landing.closingButton, institution.shortName, institution.description)
@@ -306,7 +316,7 @@ export function HomePage() {
           </figure>
 
           <div className="max-w-xl">
-            <CreditSectionIcon className="size-7 text-brand-teal" aria-hidden="true" />
+            <ServiceIcon name={landing.creditSectionIcon} fallback="landmark" className="size-7 text-brand-teal" />
             <h2 className="mt-6 text-3xl tracking-tight sm:text-4xl">{landing.creditTitle}</h2>
             <p className="mt-5 leading-7 text-muted-foreground">
               {landing.creditDescription}
@@ -329,18 +339,18 @@ export function HomePage() {
       {investmentVisible && <section id="inversiones" className="scroll-mt-24 px-5 py-20 sm:px-8 lg:py-28">
         <div className="mx-auto grid max-w-7xl gap-12 lg:grid-cols-2 lg:items-center lg:gap-20">
           <div className="max-w-xl lg:order-1">
-            <InvestmentSectionIcon className="size-7 text-brand-gold" aria-hidden="true" />
+            <ServiceIcon name={landing.investmentSectionIcon} fallback="trending-up" className="size-7 text-brand-gold" />
             <h2 className="mt-6 text-3xl tracking-tight sm:text-4xl">{landing.investmentTitle}</h2>
             <p className="mt-5 leading-7 text-muted-foreground">
               {landing.investmentDescription} {landing.investmentDetail}
             </p>
             <div className="mt-8 divide-y border-y">
               <div className="flex gap-4 py-5">
-                <InvestmentFeatureOneIcon className="mt-0.5 size-5 shrink-0 text-brand-teal" aria-hidden="true" />
+                <ServiceIcon name={landing.investmentFeatureOneIcon} fallback="sliders" className="mt-0.5 size-5 shrink-0 text-brand-teal" />
                 <div><h3 className="text-base">{landing.investmentFeatureOneTitle}</h3><p className="mt-1 text-sm leading-6 text-muted-foreground">{landing.investmentFeatureOneDescription}</p></div>
               </div>
               <div className="flex gap-4 py-5">
-                <InvestmentFeatureTwoIcon className="mt-0.5 size-5 shrink-0 text-brand-teal" aria-hidden="true" />
+                <ServiceIcon name={landing.investmentFeatureTwoIcon} fallback="shield" className="mt-0.5 size-5 shrink-0 text-brand-teal" />
                 <div><h3 className="text-base">{landing.investmentFeatureTwoTitle}</h3><p className="mt-1 text-sm leading-6 text-muted-foreground">{landing.investmentFeatureTwoDescription}</p></div>
               </div>
             </div>

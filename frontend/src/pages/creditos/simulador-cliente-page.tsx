@@ -184,13 +184,6 @@ export function SimuladorClientePage() {
   const isAsesor = hasPermission('credit.products.manage') || (account?.roles?.includes('credit_advisor') ?? false)
   const usuario = account ? { nombre: account.fullName || account.username } : null
 
-  if (isPending) {
-    return <main className="mx-auto max-w-xl px-6 py-24 text-center text-sm text-muted-foreground">Comprobando sesión…</main>
-  }
-  if (!account) {
-    return <Navigate to="/registro?next=%2Fsimulador" replace />
-  }
-
   const [resultado, setResultado] = useState<SimulacionClienteResponse | null>(null)
 
   const {
@@ -233,6 +226,13 @@ export function SimuladorClientePage() {
     mutation.mutate(data)
   }
 
+  if (isPending) {
+    return <main className="mx-auto max-w-xl px-6 py-24 text-center text-sm text-muted-foreground">Comprobando sesión…</main>
+  }
+  if (!account) {
+    return <Navigate to="/registro?next=%2Fsimulador" replace />
+  }
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 space-y-8 sm:px-6 lg:px-8">
       {/* ── Banner condicional para Asesor ─────────────────────────────── */}
@@ -245,7 +245,7 @@ export function SimuladorClientePage() {
             </span>
           </div>
           <Button asChild size="sm" variant="outline" className="text-xs border-brand-teal/40 hover:bg-brand-teal/10 gap-1.5 shrink-0">
-            <Link to="/admin/configuracion">
+            <Link to="/admin/creditos">
               Ir a Configuración de Créditos
               <ArrowRight className="w-3.5 h-3.5" />
             </Link>
