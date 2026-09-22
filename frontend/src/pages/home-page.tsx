@@ -21,7 +21,7 @@ import carouselIdentityImage from '@/assets/landing/carrusel/debashis-rc-biswas-
 import carouselPerspectiveImage from '@/assets/landing/carrusel/zalfa-imani-1xp5VxvyKL0-unsplash.jpg'
 import { useAuth } from '@/app/providers/auth-provider'
 import { useInstitutionSettings } from '@/app/providers/settings-provider'
-import { HeroIllustrations, LandingCharacter } from '@/components/landing/landing-illustrations'
+import { HeroIllustration, LandingAccent } from '@/components/landing/landing-illustrations'
 import { Button } from '@/components/ui/button'
 import {
   Carousel,
@@ -166,12 +166,12 @@ export function HomePage() {
 
   return (
     <main id="contenido">
-      <section className="relative isolate flex min-h-[calc(100svh-4.5rem)] items-center overflow-hidden bg-background px-5 py-14 sm:px-8 sm:py-16 lg:py-20" aria-labelledby="landing-intro-title">
-        <HeroIllustrations />
-        <div className="relative z-10 mx-auto w-full max-w-7xl text-center">
-          <h1 id="landing-intro-title" className="mx-auto max-w-[24ch] text-[2.5rem] font-normal leading-[1.1] tracking-[-0.01em] sm:text-[3.25rem] lg:text-[4.25rem] lg:leading-[1.08]">
-            <span className="block lg:whitespace-nowrap">{landing.heroTitle}</span>
-            <span className="block text-brand-teal lg:whitespace-nowrap">{landing.heroHighlight}</span>
+      <section className="relative isolate grid min-h-[calc(100dvh-7.5rem)] w-full items-center overflow-hidden bg-background md:min-h-[calc(100dvh-4.5rem)] 2xl:grid-cols-[minmax(18rem,1fr)_minmax(0,60rem)_minmax(18rem,1fr)]" aria-labelledby="landing-intro-title">
+        <HeroIllustration side="left" />
+        <div className="relative z-10 mx-auto w-full px-5 py-14 text-center sm:px-8 sm:py-16 lg:py-20">
+          <h1 id="landing-intro-title" className="mx-auto text-balance text-[2.5rem] font-normal leading-[1.1] tracking-[-0.01em] sm:text-[3.25rem] lg:text-[3.75rem] lg:leading-[1.08]">
+            <span className="block">{landing.heroTitle}</span>
+            <span className="block text-brand-teal">{landing.heroHighlight}</span>
           </h1>
           <p className="mx-auto mt-5 max-w-[60ch] text-balance text-sm leading-6 text-muted-foreground sm:text-base sm:leading-7">
             {landing.heroDescription}
@@ -185,6 +185,7 @@ export function HomePage() {
             </Button>}
           </div>
         </div>
+        <HeroIllustration side="right" />
       </section>
 
       {landing.bannerEnabled === 'true' && <section>
@@ -249,7 +250,7 @@ export function HomePage() {
       </section>}
 
       {landing.servicesEnabled === 'true' && visibleServices.length > 0 && <section id="servicios" className="relative isolate scroll-mt-24 overflow-hidden px-5 py-20 sm:px-8 lg:py-24">
-        <LandingCharacter variant="green" className="absolute right-0 top-7 hidden 2xl:block" />
+        <LandingAccent variant="services" className="absolute right-0 top-7 hidden 2xl:block" />
         <div className="relative z-10 mx-auto max-w-7xl">
           <div className="grid gap-6 lg:grid-cols-[minmax(0,0.7fr)_minmax(0,1.3fr)] lg:items-end">
             <h2 className="max-w-[14ch] text-3xl tracking-tight sm:text-4xl">{landing.servicesTitle}</h2>
@@ -287,7 +288,7 @@ export function HomePage() {
 
       {landing.perspectiveEnabled === 'true' && (creditVisible || investmentVisible) && (
         <section className="relative isolate overflow-hidden bg-muted/30 px-5 py-16 sm:px-8 lg:py-20" aria-labelledby="landing-perspective-title">
-          <LandingCharacter variant="coin" className="absolute -bottom-5 left-0 hidden 2xl:block" />
+          <LandingAccent variant="perspective" className="absolute bottom-3 left-0 hidden 2xl:block" />
           <div className="relative z-10 mx-auto grid max-w-7xl gap-10 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:gap-20">
             <div>
               <h2 id="landing-perspective-title" className="max-w-[20ch] text-3xl tracking-tight sm:text-4xl">{landing.perspectiveTitle}</h2>
@@ -408,7 +409,7 @@ export function HomePage() {
       </section>}
 
       {landing.closingEnabled === 'true' && <section className="relative isolate overflow-hidden px-5 py-20 sm:px-8 lg:py-24">
-        <LandingCharacter variant="orange" className="absolute right-0 top-1/2 hidden -translate-y-1/2 2xl:block" />
+        <LandingAccent variant="access" className="absolute right-0 top-1/2 hidden -translate-y-1/2 2xl:block" />
         <div className="relative z-10 mx-auto grid max-w-6xl gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,0.8fr)] lg:items-center">
           <div className="max-w-2xl">
             <h2 className="max-w-[22ch] text-3xl tracking-[-0.02em] sm:text-4xl">
