@@ -258,16 +258,27 @@ export function HomePage() {
             </p>
           </div>
 
-          <div className="mt-12 divide-y border-y lg:grid lg:grid-cols-4 lg:divide-x lg:divide-y-0">
+          <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {visibleServices.map((service) => (
-              <article key={service.title} className="group px-1 py-8 lg:px-6 lg:first:pl-0 lg:last:pr-0">
-                <service.icon className="size-6 text-brand-teal" aria-hidden="true" />
-                <h3 className="mt-6 text-xl">{service.title}</h3>
-                <p className="mt-3 min-h-18 text-sm leading-6 text-muted-foreground">{service.description}</p>
-                <a href={service.href} className="mt-5 inline-flex items-center gap-2 text-sm font-medium text-brand-gold hover:text-foreground">
-                  {service.linkLabel}
-                  <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
-                </a>
+              <article
+                key={service.title}
+                className="group flex flex-col items-center justify-between rounded-2xl bg-card p-6 text-center sm:p-8"
+              >
+                <div className="flex flex-col items-center">
+                  <div className="flex size-14 items-center justify-center rounded-full bg-muted/80 text-foreground transition-colors group-hover:bg-muted">
+                    <service.icon className="size-6 text-brand-teal" aria-hidden="true" />
+                  </div>
+                  <h3 className="mt-5 text-lg font-medium text-foreground">{service.title}</h3>
+                  <p className="mt-2.5 text-sm leading-relaxed text-muted-foreground">{service.description}</p>
+                </div>
+                <div className="mt-6 pt-2">
+                  <a
+                    href={service.href}
+                    className="inline-flex items-center justify-center text-sm font-medium text-brand-teal transition-colors hover:underline hover:text-brand-teal/80"
+                  >
+                    {service.linkLabel}
+                  </a>
+                </div>
               </article>
             ))}
           </div>
