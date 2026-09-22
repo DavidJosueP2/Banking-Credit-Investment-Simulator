@@ -39,7 +39,7 @@ import {
 
 const navigationItems = [
   { title: 'Inicio', url: '/admin', icon: LayoutDashboard, exact: true, permission: 'admin.dashboard.view' },
-  { title: 'Créditos', url: '/admin/creditos', icon: Landmark, permission: 'credit.products.manage' },
+  { title: 'Configuración de Créditos', url: '/admin/creditos', icon: Landmark, permission: 'credit.products.manage' },
   { title: 'Inversiones', url: '/admin/inversiones', icon: ChartNoAxesCombined, permission: 'investment.products.manage' },
   { title: 'Configuración', url: '/admin/configuracion', icon: Settings2, permission: 'institution.manage' },
   { title: 'Roles y permisos', url: '/admin/roles', icon: UsersRound, permission: 'users.roles.manage' },

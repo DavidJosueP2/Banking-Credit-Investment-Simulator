@@ -35,10 +35,11 @@ public class SecurityConfig {
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("/api/health", "/api/auth/csrf", "/api/auth/login", "/api/public/settings/**", "/api/public/investments/**", "/api/public/registration/**").permitAll()
-                        .requestMatchers("/api/auth/me", "/api/auth/logout").authenticated()
+                        .requestMatchers("/api/health", "/api/auth/csrf", "/api/auth/login", "/api/public/settings/**", "/api/public/investments/**", "/api/public/registration/**", "/api/creditos/**").permitAll()
+                        .requestMatchers("/api/auth/me", "/api/auth/logout", "/api/simulador/**", "/api/creditos/simular/**").authenticated()
                         .requestMatchers("/api/profile/**", "/api/dev/liveness/**")
                             .hasAuthority("identity.verification.start")
+                        .requestMatchers("/api/admin/creditos/**").hasAnyAuthority("credit.products.manage", "ROLE_ASESOR", "credit_advisor")
                         .requestMatchers("/api/admin/settings/**").hasAuthority("institution.manage")
                         .requestMatchers("/api/admin/investments/**").hasAuthority("investment.products.manage")
                         .requestMatchers("/api/admin/**").hasAuthority("users.roles.manage")

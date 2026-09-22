@@ -12,10 +12,11 @@ import { InstitutionSettingsPage } from '@/pages/institution-settings-page'
 import { InvestmentAdminPage, InvestmentProductEditorPage } from '@/pages/investment-admin-page'
 import { InvestmentSimulatorPage } from '@/pages/investment-simulator-page'
 import { LoginPage } from '@/pages/login-page'
-import { PlaceholderPage } from '@/pages/placeholder-page'
 import { ProfilePage } from '@/pages/profile-page'
 import { RegistrationPage } from '@/pages/registration-page'
 import { RolePermissionsPage } from '@/pages/role-permissions-page'
+import { SimuladorClientePage } from '@/pages/creditos/simulador-cliente-page'
+import { ConfiguradorCreditoPage } from '@/pages/admin/creditos/configurador-credito-page'
 
 const LivenessDevPage = lazy(() => import('@/pages/liveness-dev-page')
   .then((module) => ({ default: module.LivenessDevPage })))
@@ -48,6 +49,7 @@ export const router = createBrowserRouter([
         ),
       },
       { path: 'inversiones/simulador', element: <InvestmentSimulatorPage /> },
+      { path: 'simulador', element: <SimuladorClientePage /> },
     ],
   },
   {
@@ -66,10 +68,15 @@ export const router = createBrowserRouter([
         path: 'creditos',
         element: (
           <PermissionGate permission="credit.products.manage">
-            <PlaceholderPage
-              title="Créditos"
-              description="Espacio reservado para la futura administración de productos de crédito."
-            />
+            <ConfiguradorCreditoPage />
+          </PermissionGate>
+        ),
+      },
+      {
+        path: 'configuracion-creditos',
+        element: (
+          <PermissionGate permission="credit.products.manage">
+            <ConfiguradorCreditoPage />
           </PermissionGate>
         ),
       },

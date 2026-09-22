@@ -147,7 +147,7 @@ export function HomePage() {
   const InvestmentFeatureOneIcon = serviceIcon(landing.investmentFeatureOneIcon, 'sliders')
   const InvestmentFeatureTwoIcon = serviceIcon(landing.investmentFeatureTwoIcon, 'shield')
   const closingAccessLabel = account
-    ? account.permissions.includes('admin.dashboard.view') ? 'Ir al panel' : 'Mi cuenta'
+    ? account.permissions?.includes('admin.dashboard.view') ? 'Ir al panel' : 'Mi cuenta'
     : landingText(landing.closingButton, institution.shortName, institution.description)
 
   async function openAccount() {
@@ -155,7 +155,7 @@ export function HomePage() {
     setCheckingAccess(true)
     try {
       const current = await refreshAccount()
-      const destination = !current ? '/login' : current.permissions.includes('admin.dashboard.view') ? '/admin' : '/cuenta'
+      const destination = !current ? '/login' : current.permissions?.includes('admin.dashboard.view') ? '/admin' : '/cuenta'
       navigate(destination)
     } catch {
       toast.error('No se pudo comprobar tu sesión. Inténtalo de nuevo.')
@@ -317,6 +317,11 @@ export function HomePage() {
               ))}
             </ul>
             <p className="mt-8 text-sm font-medium text-brand-gold">{landing.creditStatusLabel}</p>
+            <Button asChild size="lg" variant="gold" className="mt-5">
+              <Link to="/simulador">
+                Simular mi crédito <ArrowRight aria-hidden="true" />
+              </Link>
+            </Button>
           </div>
         </div>
       </section>}
