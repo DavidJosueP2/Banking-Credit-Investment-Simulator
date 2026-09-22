@@ -22,5 +22,24 @@ public record SimulacionRequestDto(
         /** Segmento BCE para auditoría, ej: "CONSUMO", "VIVIENDA", "MICROCREDITO", "PYMES" */
         String segmentoBce,
         /** Entidad solicitada para validar aislamiento, ej: "BANCO" o "COOPERATIVA" */
-        String entidad
-) {}
+        String entidad,
+        /** Usuario opcional al que pertenece la simulación */
+        String usuario
+) {
+    public SimulacionRequestDto(
+            Long productoId,
+            BigDecimal monto,
+            Integer plazoMeses,
+            BigDecimal tasaEfectiva,
+            SistemaAmortizacion sistema,
+            String tipoTasaUsada,
+            Boolean incluirCargos,
+            Boolean incluirSeguros,
+            BigDecimal seguroDesgravamenPct,
+            String fechaDesembolso,
+            String segmentoBce,
+            String entidad
+    ) {
+        this(productoId, monto, plazoMeses, tasaEfectiva, sistema, tipoTasaUsada, incluirCargos, incluirSeguros, seguroDesgravamenPct, fechaDesembolso, segmentoBce, entidad, null);
+    }
+}

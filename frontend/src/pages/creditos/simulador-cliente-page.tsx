@@ -4,7 +4,7 @@ import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Link, Navigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import {
   Calculator,
   Download,
@@ -66,7 +66,7 @@ const fmt = (n: number | undefined) => fmtCurrency.format(n || 0)
 
 // ─── Función de Generación de PDF con Paleta Institucional ───────────────────
 
-function exportarSimulacionPdf(data: SimulacionClienteResponse) {
+function exportarSimulacionPdf(data: SimulacionClienteResponse, clienteNombre?: string | null) {
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
 
   // Color primario corporativo: Brand Teal [8, 116, 123] (#08747b)
@@ -87,7 +87,7 @@ function exportarSimulacionPdf(data: SimulacionClienteResponse) {
   doc.setTextColor(32, 37, 39)
   doc.setFontSize(9.5)
   doc.setFont('helvetica', 'bold')
-  doc.text('CONDICIONES GENERALES DEL CRÉDITO', 14, 32)
+  doc.text('CONDICIONES GENERALES DEL CRÉDITO' + (clienteNombre ? ` — Solicitante: ${clienteNombre}` : ''), 14, 32)
 
   doc.setFontSize(8.5)
   doc.setFont('helvetica', 'normal')
@@ -180,7 +180,7 @@ function exportarSimulacionPdf(data: SimulacionClienteResponse) {
 // ─── Componente Principal de la Vista Usuario ────────────────────────────────
 
 export function SimuladorClientePage() {
-  const { account, isPending, hasPermission } = useAuth()
+  const { account, hasPermission } = useAuth()
   const isAsesor = hasPermission('credit.products.manage') || (account?.roles?.includes('credit_advisor') ?? false)
   const usuario = account ? { nombre: account.fullName || account.username } : null
 
@@ -209,7 +209,11 @@ export function SimuladorClientePage() {
   const montoActual = watch('monto')
 
   const mutation = useMutation({
-    mutationFn: (data: ClienteFormData) => simuladorService.calcularCliente(data),
+    mutationFn: (data: ClienteFormData) =>
+      simuladorService.calcularCliente({
+        ...data,
+        usuario: usuario?.nombre,
+      }),
     onSuccess: (data) => {
       setResultado(data)
       toast.success('Amortización calculada correctamente', {
@@ -224,13 +228,6 @@ export function SimuladorClientePage() {
 
   const onSubmit = (data: ClienteFormData) => {
     mutation.mutate(data)
-  }
-
-  if (isPending) {
-    return <main className="mx-auto max-w-xl px-6 py-24 text-center text-sm text-muted-foreground">Comprobando sesión…</main>
-  }
-  if (!account) {
-    return <Navigate to="/registro?next=%2Fsimulador" replace />
   }
 
   return (
@@ -542,7 +539,7 @@ export function SimuladorClientePage() {
 
                 {/* Botón de Descargar PDF (Requerimiento 3) */}
                 <Button
-                  onClick={() => exportarSimulacionPdf(resultado)}
+                  onClick={() => exportarSimulacionPdf(resultado, usuario?.nombre)}
                   className="gap-2 bg-brand-teal text-brand-teal-foreground hover:bg-brand-teal/90 font-semibold text-xs shadow-sm shrink-0"
                 >
                   <Download className="w-4 h-4" />

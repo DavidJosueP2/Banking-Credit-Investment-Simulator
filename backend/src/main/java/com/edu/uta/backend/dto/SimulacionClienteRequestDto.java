@@ -22,5 +22,17 @@ public record SimulacionClienteRequestDto(
         SistemaAmortizacion sistema,
 
         String entidad,    // Opcional: Banco o Cooperativa
-        Long productoId    // Opcional: ID de producto específico para validar aislamiento de entidad
-) {}
+        Long productoId,   // Opcional: ID de producto específico para validar aislamiento de entidad
+        String usuario     // Opcional: Usuario al que pertenece la simulación
+) {
+    public SimulacionClienteRequestDto(
+            BigDecimal monto,
+            String frecuencia,
+            Integer plazo,
+            SistemaAmortizacion sistema,
+            String entidad,
+            Long productoId
+    ) {
+        this(monto, frecuencia, plazo, sistema, entidad, productoId, null);
+    }
+}

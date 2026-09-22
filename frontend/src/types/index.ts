@@ -141,6 +141,7 @@ export interface SimulacionClienteRequest {
   plazo: number
   sistema: SistemaAmortizacion
   entidad?: string
+  usuario?: string
 }
 
 export interface SimulacionClienteResponse {
@@ -161,6 +162,7 @@ export interface SimulacionClienteResponse {
   totalDesgravamen: number
   totalPagar: number
   tablaCuotas: CuotaCliente[]
+  usuario?: string
 }
 
 export interface CuotaSimulacion {

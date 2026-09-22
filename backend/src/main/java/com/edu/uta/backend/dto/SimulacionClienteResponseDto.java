@@ -22,8 +22,31 @@ public record SimulacionClienteResponseDto(
         BigDecimal totalIntereses,
         BigDecimal totalDesgravamen,
         BigDecimal totalPagar,
-        List<CuotaClienteDto> tablaCuotas
+        List<CuotaClienteDto> tablaCuotas,
+        String usuario
 ) {
+    public SimulacionClienteResponseDto(
+            Long productoId,
+            String nombreProducto,
+            String entidad,
+            String segmentoBce,
+            BigDecimal monto,
+            String frecuencia,
+            Integer plazoMeses,
+            Integer totalCuotas,
+            BigDecimal tasaInteresAnual,
+            BigDecimal tasaDesgravamenMensual,
+            SistemaAmortizacion sistema,
+            BigDecimal cuotaPeriodica,
+            BigDecimal totalCapital,
+            BigDecimal totalIntereses,
+            BigDecimal totalDesgravamen,
+            BigDecimal totalPagar,
+            List<CuotaClienteDto> tablaCuotas
+    ) {
+        this(productoId, nombreProducto, entidad, segmentoBce, monto, frecuencia, plazoMeses, totalCuotas, tasaInteresAnual, tasaDesgravamenMensual, sistema, cuotaPeriodica, totalCapital, totalIntereses, totalDesgravamen, totalPagar, tablaCuotas, null);
+    }
+
     public record CuotaClienteDto(
             Integer numeroCuota,
             BigDecimal saldoInicial,
