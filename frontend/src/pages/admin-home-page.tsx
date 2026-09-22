@@ -73,7 +73,7 @@ export function AdminHomePage() {
           </div>
           <Link
             to="/admin/roles"
-            className="group flex min-h-20 items-center gap-4 rounded-xl border bg-card px-5 py-4 transition-colors hover:border-brand-teal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="group flex min-h-20 items-center gap-4 rounded-xl bg-muted/50 px-5 py-4 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <UsersRound className="size-5 shrink-0 text-brand-teal" aria-hidden="true" />
             <span className="min-w-0 flex-1">
@@ -92,7 +92,7 @@ export function AdminHomePage() {
             <h2 id="areas-title" className="text-xl text-foreground">Áreas de gestión</h2>
             <p className="mt-2 text-sm text-muted-foreground">Módulos y herramientas disponibles según los permisos de tu perfil.</p>
           </div>
-          <div className="divide-y rounded-xl border bg-card">
+          <div className="divide-y rounded-xl bg-muted/50">
             {visibleAreas.map((area) => {
               const content = <>
                 <area.icon className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" />

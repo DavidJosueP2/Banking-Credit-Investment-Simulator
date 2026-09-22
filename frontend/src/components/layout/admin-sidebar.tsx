@@ -1,12 +1,15 @@
 import {
+  ArrowUpRight,
   ChartNoAxesCombined,
   ChevronsUpDown,
   Landmark,
   LayoutDashboard,
   LogOut,
   Settings2,
+  Sparkles,
   UserRound,
   UsersRound,
+  X,
 } from 'lucide-react'
 import { useState } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
@@ -37,19 +40,24 @@ import {
   SidebarRail,
 } from '@/components/ui/sidebar'
 
-const navigationItems = [
-  { title: 'Inicio', url: '/admin', icon: LayoutDashboard, exact: true, permission: 'admin.dashboard.view' },
-  { title: 'Créditos', url: '/admin/creditos', icon: Landmark, permission: 'credit.products.manage' },
-  { title: 'Inversiones', url: '/admin/inversiones', icon: ChartNoAxesCombined, permission: 'investment.products.manage' },
-  { title: 'Configuración', url: '/admin/configuracion', icon: Settings2, permission: 'institution.manage' },
-  { title: 'Roles y permisos', url: '/admin/roles', icon: UsersRound, permission: 'users.roles.manage' },
-] satisfies Array<{
+type NavItem = {
   title: string
   url: string
   icon: typeof LayoutDashboard
   exact?: boolean
   permission: Permission
-}>
+}
+
+const mainNavItems: NavItem[] = [
+  { title: 'Inicio', url: '/admin', icon: LayoutDashboard, exact: true, permission: 'admin.dashboard.view' },
+  { title: 'Créditos', url: '/admin/creditos', icon: Landmark, permission: 'credit.products.manage' },
+  { title: 'Inversiones', url: '/admin/inversiones', icon: ChartNoAxesCombined, permission: 'investment.products.manage' },
+]
+
+const adminNavItems: NavItem[] = [
+  { title: 'Configuración', url: '/admin/configuracion', icon: Settings2, permission: 'institution.manage' },
+  { title: 'Roles y permisos', url: '/admin/roles', icon: UsersRound, permission: 'users.roles.manage' },
+]
 
 const accountRoleLabels: Record<string, string> = {
   administrator: 'Administrador',
@@ -60,6 +68,81 @@ const accountRoleLabels: Record<string, string> = {
 
 function accountInitials(name: string) {
   return name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toLocaleUpperCase('es-EC')).join('') || 'U'
+}
+
+function SidebarNavGroup({ label, items, location, hasPermission }: {
+  label: string
+  items: NavItem[]
+  location: { pathname: string }
+  hasPermission: (permission: Permission) => boolean
+}) {
+  const visibleItems = items.filter((item) => hasPermission(item.permission))
+  if (visibleItems.length === 0) return null
+
+  return (
+    <SidebarGroup>
+      <SidebarGroupLabel className="text-brand-gold">{label}</SidebarGroupLabel>
+      <SidebarGroupContent>
+        <SidebarMenu>
+          {visibleItems.map((item) => {
+            const isActive = item.exact
+              ? location.pathname === item.url
+              : location.pathname.startsWith(item.url)
+
+            return (
+              <SidebarMenuItem key={item.url}>
+                <SidebarMenuButton
+                  asChild
+                  isActive={isActive}
+                  tooltip={item.title}
+                >
+                  <NavLink to={item.url} end={item.exact}>
+                    <item.icon className="text-brand-teal" />
+                    <span>{item.title}</span>
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )
+          })}
+        </SidebarMenu>
+      </SidebarGroupContent>
+    </SidebarGroup>
+  )
+}
+
+function SidebarPromoCard() {
+  const [dismissed, setDismissed] = useState(false)
+
+  if (dismissed) return null
+
+  return (
+    <div className="mx-2 mb-2 rounded-lg border border-sidebar-border bg-sidebar-accent/50 p-3 group-data-[collapsible=icon]:hidden">
+      <div className="mb-2 flex items-start justify-between">
+        <span className="inline-flex items-center gap-1 rounded-full bg-brand-teal px-2 py-0.5 text-[10px] font-semibold text-brand-teal-foreground">
+          <Sparkles className="size-3" aria-hidden="true" />
+          Nuevo
+        </span>
+        <button
+          type="button"
+          onClick={() => setDismissed(true)}
+          className="rounded-md p-0.5 text-sidebar-foreground/50 hover:text-sidebar-foreground"
+          aria-label="Cerrar"
+        >
+          <X className="size-3.5" />
+        </button>
+      </div>
+      <p className="text-sm font-medium text-sidebar-foreground">Simulador de inversiones</p>
+      <p className="mt-1 text-xs leading-relaxed text-sidebar-foreground/70">
+        Proyecta rendimientos con diferentes plazos y tasas desde tu panel.
+      </p>
+      <Link
+        to="/inversiones/simulador"
+        className="mt-2.5 inline-flex items-center gap-1 rounded-md border border-sidebar-border px-2.5 py-1 text-xs font-medium text-sidebar-foreground hover:bg-sidebar-accent"
+      >
+        Probar <ArrowUpRight className="size-3" aria-hidden="true" />
+      </Link>
+    </div>
+  )
 }
 
 export function AdminSidebar() {
@@ -104,35 +187,21 @@ export function AdminSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-brand-gold">Navegación</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {navigationItems.filter((item) => hasPermission(item.permission)).map((item) => {
-                const isActive = item.exact
-                  ? location.pathname === item.url
-                  : location.pathname.startsWith(item.url)
-
-                return (
-                  <SidebarMenuItem key={item.url}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={isActive}
-                      tooltip={item.title}
-                      className="data-[active=true]:text-brand-teal"
-                    >
-                      <NavLink to={item.url} end={item.exact}>
-                        <item.icon className={isActive ? 'text-brand-gold' : 'text-brand-teal'} />
-                        <span>{item.title}</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        <SidebarNavGroup
+          label="Navegación"
+          items={mainNavItems}
+          location={location}
+          hasPermission={hasPermission}
+        />
+        <SidebarNavGroup
+          label="Administración"
+          items={adminNavItems}
+          location={location}
+          hasPermission={hasPermission}
+        />
       </SidebarContent>
+
+      <SidebarPromoCard />
 
       <SidebarFooter className="border-t border-sidebar-border">
         <SidebarMenu>
