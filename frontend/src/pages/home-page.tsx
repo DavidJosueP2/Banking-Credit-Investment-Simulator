@@ -343,18 +343,28 @@ export function HomePage() {
             <p className="mt-5 leading-7 text-muted-foreground">
               {landing.investmentDescription} {landing.investmentDetail}
             </p>
-            <div className="mt-8 divide-y border-y">
-              <div className="flex gap-4 py-5">
-                <InvestmentFeatureOneIcon className="mt-0.5 size-5 shrink-0 text-brand-teal" aria-hidden="true" />
-                <div><h3 className="text-base">{landing.investmentFeatureOneTitle}</h3><p className="mt-1 text-sm leading-6 text-muted-foreground">{landing.investmentFeatureOneDescription}</p></div>
+            <div className="mt-8 grid gap-4 sm:grid-cols-2">
+              <div className="rounded-2xl bg-card p-5 sm:p-6">
+                <div className="flex size-12 items-center justify-center rounded-full bg-muted/80 text-foreground">
+                  <InvestmentFeatureOneIcon className="size-5 text-brand-teal" aria-hidden="true" />
+                </div>
+                <h3 className="mt-4 text-base font-medium text-foreground">{landing.investmentFeatureOneTitle}</h3>
+                <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{landing.investmentFeatureOneDescription}</p>
               </div>
-              <div className="flex gap-4 py-5">
-                <InvestmentFeatureTwoIcon className="mt-0.5 size-5 shrink-0 text-brand-teal" aria-hidden="true" />
-                <div><h3 className="text-base">{landing.investmentFeatureTwoTitle}</h3><p className="mt-1 text-sm leading-6 text-muted-foreground">{landing.investmentFeatureTwoDescription}</p></div>
+              <div className="rounded-2xl bg-card p-5 sm:p-6">
+                <div className="flex size-12 items-center justify-center rounded-full bg-muted/80 text-foreground">
+                  <InvestmentFeatureTwoIcon className="size-5 text-brand-teal" aria-hidden="true" />
+                </div>
+                <h3 className="mt-4 text-base font-medium text-foreground">{landing.investmentFeatureTwoTitle}</h3>
+                <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{landing.investmentFeatureTwoDescription}</p>
               </div>
             </div>
             <p className="mt-8 text-sm font-medium text-brand-gold">{landing.investmentStatusLabel}</p>
-            {investment.simulatorEnabled === 'true' && <Button asChild size="lg" variant="gold" className="mt-5"><Link to="/inversiones/simulador">Simular mi inversión <ArrowRight aria-hidden="true" /></Link></Button>}
+            {investment.simulatorEnabled === 'true' && (
+              <Button asChild size="lg" variant="gold" className="mt-5">
+                <Link to="/inversiones/simulador">Simular mi inversión <ArrowRight aria-hidden="true" /></Link>
+              </Button>
+            )}
           </div>
 
           <figure className="lg:order-2">
