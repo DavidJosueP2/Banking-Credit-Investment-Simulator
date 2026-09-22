@@ -1,3 +1,4 @@
+import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -48,29 +49,34 @@ interface SegmentoBceInfo {
   id: string
   nombre: string
   tasaMaxima: number
+  tasaSugerida: number
+  montoMinSugerido: number
   montoMaximoLegal?: number
+  plazoMinSugerido: number
   plazoMaximoMeses: number
+  desgravamenSugerido: number
   categoria: 'PRODUCTIVO' | 'CONSUMO' | 'VIVIENDA' | 'MICROCREDITO' | 'EDUCATIVO'
+  entidadesPermitidas: ('Banco' | 'Cooperativa')[]
 }
 
 const SEGMENTOS_BCE: SegmentoBceInfo[] = [
   // Productivo
-  { id: 'PRODUCTIVO_CORPORATIVO', nombre: 'Productivo Corporativo', tasaMaxima: 9.33, plazoMaximoMeses: 180, categoria: 'PRODUCTIVO' },
-  { id: 'PRODUCTIVO_EMPRESARIAL', nombre: 'Productivo Empresarial', tasaMaxima: 10.21, plazoMaximoMeses: 144, categoria: 'PRODUCTIVO' },
-  { id: 'PRODUCTIVO_PYMES',       nombre: 'Productivo PYMES',       tasaMaxima: 11.83, montoMaximoLegal: 1000000, plazoMaximoMeses: 120, categoria: 'PRODUCTIVO' },
+  { id: 'PRODUCTIVO_CORPORATIVO', nombre: 'Productivo Corporativo', tasaMaxima: 9.33, tasaSugerida: 8.50, montoMinSugerido: 100000, montoMaximoLegal: 2000000, plazoMinSugerido: 12, plazoMaximoMeses: 60, desgravamenSugerido: 0.0200, categoria: 'PRODUCTIVO', entidadesPermitidas: ['Banco'] },
+  { id: 'PRODUCTIVO_EMPRESARIAL', nombre: 'Productivo Empresarial', tasaMaxima: 10.21, tasaSugerida: 9.50, montoMinSugerido: 50000, montoMaximoLegal: 1000000, plazoMinSugerido: 12, plazoMaximoMeses: 60, desgravamenSugerido: 0.0250, categoria: 'PRODUCTIVO', entidadesPermitidas: ['Banco'] },
+  { id: 'PRODUCTIVO_PYMES',       nombre: 'Productivo PYMES',       tasaMaxima: 11.83, tasaSugerida: 11.00, montoMinSugerido: 10000, montoMaximoLegal: 500000, plazoMinSugerido: 6, plazoMaximoMeses: 60, desgravamenSugerido: 0.0300, categoria: 'PRODUCTIVO', entidadesPermitidas: ['Banco', 'Cooperativa'] },
   // Consumo
-  { id: 'CONSUMO_PRIORITARIO',    nombre: 'Consumo Prioritario',    tasaMaxima: 16.77, montoMaximoLegal: 50000, plazoMaximoMeses: 84, categoria: 'CONSUMO' },
-  { id: 'CONSUMO_ORDINARIO',      nombre: 'Consumo Ordinario',      tasaMaxima: 17.30, montoMaximoLegal: 50000, plazoMaximoMeses: 84, categoria: 'CONSUMO' },
+  { id: 'CONSUMO_PRIORITARIO',    nombre: 'Consumo Prioritario',    tasaMaxima: 16.77, tasaSugerida: 14.00, montoMinSugerido: 500, montoMaximoLegal: 30000, plazoMinSugerido: 12, plazoMaximoMeses: 60, desgravamenSugerido: 0.0600, categoria: 'CONSUMO', entidadesPermitidas: ['Banco', 'Cooperativa'] },
+  { id: 'CONSUMO_ORDINARIO',      nombre: 'Consumo Ordinario',      tasaMaxima: 17.30, tasaSugerida: 15.50, montoMinSugerido: 500, montoMaximoLegal: 30000, plazoMinSugerido: 12, plazoMaximoMeses: 60, desgravamenSugerido: 0.0700, categoria: 'CONSUMO', entidadesPermitidas: ['Banco', 'Cooperativa'] },
   // Vivienda / Inmobiliario
-  { id: 'INMOBILIARIO',           nombre: 'Inmobiliario General',   tasaMaxima: 11.33, montoMaximoLegal: 500000, plazoMaximoMeses: 360, categoria: 'VIVIENDA' },
-  { id: 'VIVIENDA_VIP',           nombre: 'Vivienda Interés Público (VIP)', tasaMaxima: 4.99, montoMaximoLegal: 105000, plazoMaximoMeses: 360, categoria: 'VIVIENDA' },
-  { id: 'VIVIENDA_VIS',           nombre: 'Vivienda Interés Social (VIS)',  tasaMaxima: 4.99, montoMaximoLegal: 80000, plazoMaximoMeses: 360, categoria: 'VIVIENDA' },
+  { id: 'INMOBILIARIO',           nombre: 'Vivienda (Inmobiliario)',tasaMaxima: 10.40, tasaSugerida: 9.00, montoMinSugerido: 40000, montoMaximoLegal: 500000, plazoMinSugerido: 120, plazoMaximoMeses: 240, desgravamenSugerido: 0.0300, categoria: 'VIVIENDA', entidadesPermitidas: ['Banco', 'Cooperativa'] },
+  { id: 'VIVIENDA_VIP',           nombre: 'Vivienda Interés Público (VIP)', tasaMaxima: 4.99, tasaSugerida: 4.99, montoMinSugerido: 40000, montoMaximoLegal: 105000, plazoMinSugerido: 120, plazoMaximoMeses: 240, desgravamenSugerido: 0.0200, categoria: 'VIVIENDA', entidadesPermitidas: ['Banco', 'Cooperativa'] },
+  { id: 'VIVIENDA_VIS',           nombre: 'Vivienda Interés Social (VIS)',  tasaMaxima: 4.99, tasaSugerida: 4.99, montoMinSugerido: 40000, montoMaximoLegal: 80000, plazoMinSugerido: 120, plazoMaximoMeses: 240, desgravamenSugerido: 0.0200, categoria: 'VIVIENDA', entidadesPermitidas: ['Banco', 'Cooperativa'] },
   // Microcrédito
-  { id: 'MICROCREDITO_MINORISTA', nombre: 'Microcrédito Minorista', tasaMaxima: 30.50, montoMaximoLegal: 1000, plazoMaximoMeses: 36, categoria: 'MICROCREDITO' },
-  { id: 'MICROCREDITO_SIMPLE',    nombre: 'Microcrédito Acumulación Simple', tasaMaxima: 27.50, montoMaximoLegal: 10000, plazoMaximoMeses: 48, categoria: 'MICROCREDITO' },
-  { id: 'MICROCREDITO_AMPLIADA',  nombre: 'Microcrédito Acumulación Ampliada', tasaMaxima: 25.50, montoMaximoLegal: 30000, plazoMaximoMeses: 60, categoria: 'MICROCREDITO' },
+  { id: 'MICROCREDITO_MINORISTA', nombre: 'Microcrédito Minorista', tasaMaxima: 28.23, tasaSugerida: 20.00, montoMinSugerido: 500, montoMaximoLegal: 3000, plazoMinSugerido: 3, plazoMaximoMeses: 36, desgravamenSugerido: 0.0800, categoria: 'MICROCREDITO', entidadesPermitidas: ['Cooperativa'] },
+  { id: 'MICROCREDITO_SIMPLE',    nombre: 'Microcrédito Acumulación Simple', tasaMaxima: 25.50, tasaSugerida: 18.00, montoMinSugerido: 3000, montoMaximoLegal: 10000, plazoMinSugerido: 6, plazoMaximoMeses: 48, desgravamenSugerido: 0.0750, categoria: 'MICROCREDITO', entidadesPermitidas: ['Cooperativa'] },
+  { id: 'MICROCREDITO_AMPLIADA',  nombre: 'Microcrédito Acumulación Ampliada', tasaMaxima: 25.50, tasaSugerida: 22.00, montoMinSugerido: 10000, montoMaximoLegal: 30000, plazoMinSugerido: 12, plazoMaximoMeses: 60, desgravamenSugerido: 0.0700, categoria: 'MICROCREDITO', entidadesPermitidas: ['Cooperativa'] },
   // Educativo
-  { id: 'EDUCATIVO',              nombre: 'Educativo General / Social', tasaMaxima: 9.50, montoMaximoLegal: 50000, plazoMaximoMeses: 120, categoria: 'EDUCATIVO' },
+  { id: 'EDUCATIVO',              nombre: 'Educativo',              tasaMaxima: 9.50, tasaSugerida: 8.00, montoMinSugerido: 1000, montoMaximoLegal: 20000, plazoMinSugerido: 12, plazoMaximoMeses: 84, desgravamenSugerido: 0.0300, categoria: 'EDUCATIVO', entidadesPermitidas: ['Banco', 'Cooperativa'] },
 ]
 
 // ─── Esquema Zod para Validación del Formulario de Asesor ────────────────────
@@ -102,6 +108,7 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>
 
 export function ConfiguradorCreditoPage() {
+  const [filtroEntidadTabla, setFiltroEntidadTabla] = useState<'TODOS' | 'BANCO' | 'COOPERATIVA'>('TODOS')
   const queryClient = useQueryClient()
   const { account } = useAuth()
   const usuario = account ? {
@@ -132,7 +139,7 @@ export function ConfiguradorCreditoPage() {
       montoMax: 20000,
       plazoMinMeses: 6,
       plazoMaxMeses: 60,
-      tasaInteres: 15.50,
+      tasaInteres: 14.00,
       tasaDesgravamenMensual: 0.0600,
       permiteFrances: true,
       permiteAleman: true,
@@ -140,13 +147,35 @@ export function ConfiguradorCreditoPage() {
     },
   })
 
+  const entidadActual = watch('entidad')
   const segmentoActualId = watch('segmentoBce')
   const tasaActual = watch('tasaInteres')
   const permiteFrances = watch('permiteFrances')
   const permiteAleman = watch('permiteAleman')
 
-  const infoSegmento = SEGMENTOS_BCE.find((s) => s.id === segmentoActualId) || SEGMENTOS_BCE[3]
+  // Catálogo dinámico de segmentos filtrado y priorizado por tipo de entidad
+  const segmentosDisponibles = useMemo(() => {
+    if (entidadActual === 'Cooperativa') {
+      return SEGMENTOS_BCE.filter((s) => s.entidadesPermitidas.includes('Cooperativa'))
+        .sort((a, b) => {
+          if (a.categoria === 'MICROCREDITO' && b.categoria !== 'MICROCREDITO') return -1
+          if (a.categoria !== 'MICROCREDITO' && b.categoria === 'MICROCREDITO') return 1
+          return 0
+        })
+    }
+    return SEGMENTOS_BCE.filter((s) => s.entidadesPermitidas.includes('Banco'))
+  }, [entidadActual])
+
+  const infoSegmento = SEGMENTOS_BCE.find((s) => s.id === segmentoActualId) || segmentosDisponibles[0] || SEGMENTOS_BCE[3]
   const tasaSuperaTope = tasaActual > infoSegmento.tasaMaxima
+
+  const listaFiltrada = useMemo(() => {
+    return creditosConfigurados.filter((c) => {
+      if (filtroEntidadTabla === 'BANCO') return c.entidad?.toLowerCase().includes('banco')
+      if (filtroEntidadTabla === 'COOPERATIVA') return c.entidad?.toLowerCase().includes('cooperativa')
+      return true
+    })
+  }, [creditosConfigurados, filtroEntidadTabla])
 
   const mutation = useMutation({
     mutationFn: (data: ConfigurarCreditoRequest) => creditosService.configurarCredito(data),
@@ -260,7 +289,37 @@ export function ConfiguradorCreditoPage() {
                     name="entidad"
                     control={control}
                     render={({ field }) => (
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <Select
+                        onValueChange={(val) => {
+                          field.onChange(val)
+                          if (val === 'Cooperativa') {
+                            const segAct = SEGMENTOS_BCE.find((s) => s.id === watch('segmentoBce'))
+                            if (!segAct?.entidadesPermitidas.includes('Cooperativa')) {
+                              setValue('segmentoBce', 'MICROCREDITO_MINORISTA')
+                              setValue('nombre', 'Microcrédito Minorista Solidario')
+                              setValue('tasaInteres', 20.00)
+                              setValue('montoMin', 500)
+                              setValue('montoMax', 3000)
+                              setValue('plazoMinMeses', 3)
+                              setValue('plazoMaxMeses', 36)
+                              setValue('tasaDesgravamenMensual', 0.0800)
+                            }
+                          } else if (val === 'Banco') {
+                            const segAct = SEGMENTOS_BCE.find((s) => s.id === watch('segmentoBce'))
+                            if (!segAct?.entidadesPermitidas.includes('Banco')) {
+                              setValue('segmentoBce', 'CONSUMO_PRIORITARIO')
+                              setValue('nombre', 'Crédito Consumo Preferencial')
+                              setValue('tasaInteres', 14.00)
+                              setValue('montoMin', 500)
+                              setValue('montoMax', 30000)
+                              setValue('plazoMinMeses', 12)
+                              setValue('plazoMaxMeses', 60)
+                              setValue('tasaDesgravamenMensual', 0.0600)
+                            }
+                          }
+                        }}
+                        value={field.value}
+                      >
                         <SelectTrigger className="w-full text-xs">
                           <SelectValue placeholder="Seleccione el tipo de entidad" />
                         </SelectTrigger>
@@ -294,8 +353,16 @@ export function ConfiguradorCreditoPage() {
                         onValueChange={(val) => {
                           field.onChange(val)
                           const seg = SEGMENTOS_BCE.find((s) => s.id === val)
-                          if (seg && watch('tasaInteres') > seg.tasaMaxima) {
-                            setValue('tasaInteres', Number((seg.tasaMaxima - 0.2).toFixed(2)))
+                          if (seg) {
+                            setValue('tasaInteres', seg.tasaSugerida)
+                            setValue('montoMin', seg.montoMinSugerido)
+                            if (seg.montoMaximoLegal) {
+                              setValue('montoMax', seg.montoMaximoLegal)
+                            }
+                            setValue('plazoMinMeses', seg.plazoMinSugerido)
+                            setValue('plazoMaxMeses', seg.plazoMaximoMeses)
+                            setValue('tasaDesgravamenMensual', seg.desgravamenSugerido)
+                            setValue('nombre', `Crédito ${seg.nombre}`)
                           }
                         }}
                         value={field.value}
@@ -304,7 +371,7 @@ export function ConfiguradorCreditoPage() {
                           <SelectValue placeholder="Seleccione el segmento BCE" />
                         </SelectTrigger>
                         <SelectContent className="max-h-60">
-                          {SEGMENTOS_BCE.map((seg) => (
+                          {segmentosDisponibles.map((seg) => (
                             <SelectItem key={seg.id} value={seg.id} className="text-xs">
                               {seg.nombre} (Máx {seg.tasaMaxima}%)
                             </SelectItem>
@@ -540,9 +607,46 @@ export function ConfiguradorCreditoPage() {
                     </CardDescription>
                   </div>
                 </div>
-                <Badge variant="secondary" className="font-mono text-xs">
-                  {creditosConfigurados.length} activos
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center rounded-lg border border-border bg-muted/40 p-0.5 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setFiltroEntidadTabla('TODOS')}
+                      className={`px-2 py-1 rounded-md transition-all font-sans font-medium text-[11px] ${
+                        filtroEntidadTabla === 'TODOS'
+                          ? 'bg-background shadow-xs text-foreground font-semibold'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      Todos
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFiltroEntidadTabla('BANCO')}
+                      className={`px-2 py-1 rounded-md transition-all font-sans font-medium text-[11px] ${
+                        filtroEntidadTabla === 'BANCO'
+                          ? 'bg-background shadow-xs text-foreground font-semibold'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      Bancos
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFiltroEntidadTabla('COOPERATIVA')}
+                      className={`px-2 py-1 rounded-md transition-all font-sans font-medium text-[11px] ${
+                        filtroEntidadTabla === 'COOPERATIVA'
+                          ? 'bg-background shadow-xs text-foreground font-semibold'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      Cooperativas
+                    </button>
+                  </div>
+                  <Badge variant="secondary" className="font-mono text-xs">
+                    {listaFiltrada.length} activos
+                  </Badge>
+                </div>
               </div>
             </CardHeader>
 
@@ -552,12 +656,14 @@ export function ConfiguradorCreditoPage() {
                   <RefreshCw className="w-4 h-4 animate-spin text-brand-teal" />
                   <span>Cargando productos configurados desde el servidor…</span>
                 </div>
-              ) : creditosConfigurados.length === 0 ? (
+              ) : listaFiltrada.length === 0 ? (
                 <div className="p-12 text-center text-muted-foreground space-y-3">
                   <ShieldAlert className="w-10 h-10 mx-auto opacity-40 text-brand-gold" />
-                  <p className="text-sm font-semibold text-foreground">No hay productos configurados aún</p>
+                  <p className="text-sm font-semibold text-foreground">No hay productos disponibles para este filtro</p>
                   <p className="text-xs max-w-sm mx-auto">
-                    Utiliza el formulario de la izquierda para registrar el primer producto de crédito conforme al marco regulatorio del BCE.
+                    {filtroEntidadTabla === 'TODOS'
+                      ? 'Utiliza el formulario de la izquierda para registrar el primer producto de crédito conforme al marco regulatorio del BCE.'
+                      : `No se encontraron productos registrados para ${filtroEntidadTabla === 'BANCO' ? 'Bancos' : 'Cooperativas'}.`}
                   </p>
                 </div>
               ) : (
@@ -575,7 +681,7 @@ export function ConfiguradorCreditoPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {creditosConfigurados.map((c) => (
+                      {listaFiltrada.map((c) => (
                         <TableRow key={`conf-${c.id}`} className="hover:bg-muted/40 transition-colors text-xs font-mono">
                           <TableCell className="font-sans">
                             <p className="font-semibold text-foreground">{c.nombre}</p>

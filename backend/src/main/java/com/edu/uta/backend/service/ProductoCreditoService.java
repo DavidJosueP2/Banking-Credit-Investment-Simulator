@@ -1,5 +1,6 @@
 package com.edu.uta.backend.service;
 
+import com.edu.uta.backend.config.NormativaFinancieraException;
 import com.edu.uta.backend.domain.entity.ProductoCreditoEntity;
 import com.edu.uta.backend.domain.entity.TipoCreditoEntity;
 import com.edu.uta.backend.dto.ProductoCreditoRequestDto;
@@ -34,6 +35,20 @@ public class ProductoCreditoService {
     @Transactional(readOnly = true)
     public ProductoCreditoResponseDto findById(Long id) {
         return toDto(getOrThrow(id));
+    }
+
+    @Transactional(readOnly = true)
+    public ProductoCreditoResponseDto findById(Long id, String entidad) {
+        ProductoCreditoEntity e = getOrThrow(id);
+        if (entidad != null && !entidad.isBlank()) {
+            if (e.getEntidad() != null && !e.getEntidad().equalsIgnoreCase(entidad.trim())) {
+                throw new NormativaFinancieraException(String.format(
+                        "El producto de crédito '%s' (ID %d) pertenece a la entidad '%s' y no a la entidad solicitada '%s'.",
+                        e.getNombre(), id, e.getEntidad(), entidad.trim()
+                ));
+            }
+        }
+        return toDto(e);
     }
 
     @Transactional

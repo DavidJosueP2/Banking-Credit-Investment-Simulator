@@ -46,26 +46,26 @@ public class CreditoConfiguracionService {
 
     static {
         // Productivo
-        REGLAS_BCE.put("PRODUCTIVO_CORPORATIVO", new ReglaSegmentoBce("PRODUCTIVO_CORPORATIVO", "Productivo Corporativo", new BigDecimal("9.33"), null, 180));
+        REGLAS_BCE.put("PRODUCTIVO_CORPORATIVO", new ReglaSegmentoBce("PRODUCTIVO_CORPORATIVO", "Productivo Corporativo", new BigDecimal("9.33"), null, 60));
         REGLAS_BCE.put("PRODUCTIVO_EMPRESARIAL", new ReglaSegmentoBce("PRODUCTIVO_EMPRESARIAL", "Productivo Empresarial", new BigDecimal("10.21"), null, 144));
         REGLAS_BCE.put("PRODUCTIVO_PYMES", new ReglaSegmentoBce("PRODUCTIVO_PYMES", "Productivo PYMES", new BigDecimal("11.83"), new BigDecimal("1000000.00"), 120));
 
         // Consumo
-        REGLAS_BCE.put("CONSUMO_PRIORITARIO", new ReglaSegmentoBce("CONSUMO_PRIORITARIO", "Consumo Prioritario", new BigDecimal("16.77"), new BigDecimal("50000.00"), 84));
-        REGLAS_BCE.put("CONSUMO_ORDINARIO", new ReglaSegmentoBce("CONSUMO_ORDINARIO", "Consumo Ordinario", new BigDecimal("17.30"), new BigDecimal("50000.00"), 84));
+        REGLAS_BCE.put("CONSUMO_PRIORITARIO", new ReglaSegmentoBce("CONSUMO_PRIORITARIO", "Consumo Prioritario", new BigDecimal("16.77"), new BigDecimal("30000.00"), 60));
+        REGLAS_BCE.put("CONSUMO_ORDINARIO", new ReglaSegmentoBce("CONSUMO_ORDINARIO", "Consumo Ordinario", new BigDecimal("17.30"), new BigDecimal("30000.00"), 60));
 
         // Vivienda / Inmobiliario
-        REGLAS_BCE.put("INMOBILIARIO", new ReglaSegmentoBce("INMOBILIARIO", "Inmobiliario", new BigDecimal("11.33"), new BigDecimal("500000.00"), 360));
+        REGLAS_BCE.put("INMOBILIARIO", new ReglaSegmentoBce("INMOBILIARIO", "Inmobiliario", new BigDecimal("10.40"), new BigDecimal("500000.00"), 240));
         REGLAS_BCE.put("VIVIENDA_VIP", new ReglaSegmentoBce("VIVIENDA_VIP", "Vivienda de Interés Público (VIP)", new BigDecimal("4.99"), new BigDecimal("105000.00"), 360));
         REGLAS_BCE.put("VIVIENDA_VIS", new ReglaSegmentoBce("VIVIENDA_VIS", "Vivienda de Interés Social (VIS)", new BigDecimal("4.99"), new BigDecimal("80000.00"), 360));
 
         // Microcrédito
-        REGLAS_BCE.put("MICROCREDITO_MINORISTA", new ReglaSegmentoBce("MICROCREDITO_MINORISTA", "Microcrédito Minorista", new BigDecimal("30.50"), new BigDecimal("1000.00"), 36));
-        REGLAS_BCE.put("MICROCREDITO_SIMPLE", new ReglaSegmentoBce("MICROCREDITO_SIMPLE", "Microcrédito Acumulación Simple", new BigDecimal("27.50"), new BigDecimal("10000.00"), 48));
+        REGLAS_BCE.put("MICROCREDITO_MINORISTA", new ReglaSegmentoBce("MICROCREDITO_MINORISTA", "Microcrédito Minorista", new BigDecimal("28.23"), new BigDecimal("3000.00"), 36));
+        REGLAS_BCE.put("MICROCREDITO_SIMPLE", new ReglaSegmentoBce("MICROCREDITO_SIMPLE", "Microcrédito Acumulación Simple", new BigDecimal("25.50"), new BigDecimal("10000.00"), 48));
         REGLAS_BCE.put("MICROCREDITO_AMPLIADA", new ReglaSegmentoBce("MICROCREDITO_AMPLIADA", "Microcrédito Acumulación Ampliada", new BigDecimal("25.50"), new BigDecimal("30000.00"), 60));
 
         // Educativo
-        REGLAS_BCE.put("EDUCATIVO", new ReglaSegmentoBce("EDUCATIVO", "Educativo", new BigDecimal("9.50"), new BigDecimal("50000.00"), 120));
+        REGLAS_BCE.put("EDUCATIVO", new ReglaSegmentoBce("EDUCATIVO", "Educativo", new BigDecimal("9.50"), new BigDecimal("20000.00"), 84));
     }
 
     public static Map<String, ReglaSegmentoBce> getReglasBce() {
@@ -164,7 +164,7 @@ public class CreditoConfiguracionService {
         if (regla != null) {
             // Tope legal de tasa activa
             if (dto.tasaInteres().compareTo(regla.tasaMaximaLegal()) > 0) {
-                throw new NormativaFinancieraException(String.format(
+                throw new NormativaFinancieraException(String.format(Locale.ROOT,
                         "La tasa ingresada (%.2f%%) supera la tasa máxima legal del %.2f%% permitida por el Banco Central del Ecuador (BCE) para el segmento '%s'.",
                         dto.tasaInteres(), regla.tasaMaximaLegal(), regla.nombreOficial()
                 ));
@@ -172,7 +172,7 @@ public class CreditoConfiguracionService {
 
             // Tope legal de monto máximo
             if (regla.montoMaximoLegal() != null && dto.montoMax().compareTo(regla.montoMaximoLegal()) > 0) {
-                throw new NormativaFinancieraException(String.format(
+                throw new NormativaFinancieraException(String.format(Locale.ROOT,
                         "El monto máximo ingresado ($%.2f) excede el tope legal de $%.2f fijado por la Junta de Política y Regulación Financiera para el segmento '%s'.",
                         dto.montoMax(), regla.montoMaximoLegal(), regla.nombreOficial()
                 ));
@@ -180,7 +180,7 @@ public class CreditoConfiguracionService {
 
             // Tope legal de plazo máximo
             if (regla.plazoMaximoMesesLegal() != null && dto.plazoMaxMeses() > regla.plazoMaximoMesesLegal()) {
-                throw new NormativaFinancieraException(String.format(
+                throw new NormativaFinancieraException(String.format(Locale.ROOT,
                         "El plazo máximo ingresado (%d meses) excede el límite normativo de %d meses fijado para el segmento '%s'.",
                         dto.plazoMaxMeses(), regla.plazoMaximoMesesLegal(), regla.nombreOficial()
                 ));

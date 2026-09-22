@@ -24,8 +24,11 @@ public class ProductoCreditoController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ProductoCreditoResponseDto> findById(@PathVariable Long id) {
-        return ResponseEntity.ok(service.findById(id));
+    public ResponseEntity<ProductoCreditoResponseDto> findById(
+            @PathVariable Long id,
+            @RequestParam(required = false) String entidad
+    ) {
+        return ResponseEntity.ok(service.findById(id, entidad));
     }
 
     @PostMapping

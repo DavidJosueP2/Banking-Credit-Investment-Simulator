@@ -59,8 +59,23 @@ public class SimuladorService {
         // Convertir a plazo en meses para buscar en el catálogo de productos
         int plazoEquivalenteMeses = esAnual ? plazoPeriodos * 12 : plazoPeriodos;
 
-        // Buscar producto configurado que calce con la solicitud
-        ProductoCreditoEntity producto = buscarProductoParaCliente(monto, plazoEquivalenteMeses, req.entidad());
+        // Buscar producto configurado que calce con la solicitud o validar productoId
+        ProductoCreditoEntity producto;
+        if (req.productoId() != null) {
+            producto = productoRepository.findById(req.productoId())
+                    .orElseThrow(() -> new NormativaFinancieraException("Producto de crédito no encontrado con ID: " + req.productoId()));
+
+            if (req.entidad() != null && !req.entidad().isBlank()) {
+                if (producto.getEntidad() != null && !producto.getEntidad().equalsIgnoreCase(req.entidad().trim())) {
+                    throw new NormativaFinancieraException(String.format(
+                            "El producto de crédito '%s' (ID %d) no pertenece a la entidad '%s'. Pertenece a '%s'.",
+                            producto.getNombre(), req.productoId(), req.entidad().trim(), producto.getEntidad()
+                    ));
+                }
+            }
+        } else {
+            producto = buscarProductoParaCliente(monto, plazoEquivalenteMeses, req.entidad());
+        }
 
         // Validar que el sistema de amortización seleccionado esté permitido
         validarSistemaPermitido(producto, req.sistema());
@@ -101,19 +116,59 @@ public class SimuladorService {
             throw new NormativaFinancieraException("Actualmente no existen productos de crédito configurados en el sistema.");
         }
 
-        // 1. Intentar buscar coincidencia estricta (monto, plazo y entidad si fue enviada)
+        boolean entidadEspecificada = entidad != null && !entidad.isBlank();
+
+        if (entidadEspecificada) {
+            String entidadNorm = entidad.trim();
+
+            // 1. Coincidencia estricta y obligatoria en la entidad solicitada
+            return productos.stream()
+                    .filter(p -> p.getEntidad() != null && p.getEntidad().equalsIgnoreCase(entidadNorm))
+                    .filter(p -> monto.compareTo(p.getMontoMin()) >= 0 && monto.compareTo(p.getMontoMax()) <= 0)
+                    .filter(p -> plazoMeses >= p.getPlazoMinMeses() && plazoMeses <= p.getPlazoMaxMeses())
+                    .findFirst()
+                    .orElseThrow(() -> {
+                        // Verificar si existe el producto en otra entidad para reportar violación de aislamiento
+                        boolean existeEnOtraEntidad = productos.stream()
+                                .anyMatch(p -> monto.compareTo(p.getMontoMin()) >= 0 && monto.compareTo(p.getMontoMax()) <= 0
+                                        && plazoMeses >= p.getPlazoMinMeses() && plazoMeses <= p.getPlazoMaxMeses());
+
+                        if (existeEnOtraEntidad) {
+                            throw new NormativaFinancieraException(String.format(
+                                    "El producto de crédito solicitado no pertenece a la entidad '%s' o no está habilitado para esta institución.",
+                                    entidadNorm
+                            ));
+                        }
+
+                        List<ProductoCreditoEntity> prodsEntidad = productos.stream()
+                                .filter(p -> p.getEntidad() != null && p.getEntidad().equalsIgnoreCase(entidadNorm))
+                                .toList();
+
+                        if (prodsEntidad.isEmpty()) {
+                            throw new NormativaFinancieraException(String.format(
+                                    "No existen productos de crédito configurados para la entidad '%s'.",
+                                    entidadNorm
+                            ));
+                        }
+
+                        BigDecimal min = prodsEntidad.stream().map(ProductoCreditoEntity::getMontoMin).min(BigDecimal::compareTo).orElse(BigDecimal.ZERO);
+                        BigDecimal max = prodsEntidad.stream().map(ProductoCreditoEntity::getMontoMax).max(BigDecimal::compareTo).orElse(BigDecimal.ZERO);
+                        int minPlazo = prodsEntidad.stream().mapToInt(ProductoCreditoEntity::getPlazoMinMeses).min().orElse(1);
+                        int maxPlazo = prodsEntidad.stream().mapToInt(ProductoCreditoEntity::getPlazoMaxMeses).max().orElse(360);
+
+                        return new NormativaFinancieraException(String.format(
+                                "No se encontró un producto disponible en '%s' para un monto de $%.2f y plazo de %d meses. " +
+                                "Rangos disponibles en '%s': Monto de $%.2f a $%.2f, Plazo de %d a %d meses.",
+                                entidadNorm, monto, plazoMeses, entidadNorm, min, max, minPlazo, maxPlazo
+                        ));
+                    });
+        }
+
+        // Búsqueda global si no se especificó entidad
         return productos.stream()
                 .filter(p -> monto.compareTo(p.getMontoMin()) >= 0 && monto.compareTo(p.getMontoMax()) <= 0)
                 .filter(p -> plazoMeses >= p.getPlazoMinMeses() && plazoMeses <= p.getPlazoMaxMeses())
-                .filter(p -> entidad == null || entidad.isBlank() || entidad.equalsIgnoreCase(p.getEntidad()))
                 .findFirst()
-                // 2. Si no coincide con la entidad específica, buscar por monto y plazo en cualquier entidad
-                .or(() -> productos.stream()
-                        .filter(p -> monto.compareTo(p.getMontoMin()) >= 0 && monto.compareTo(p.getMontoMax()) <= 0)
-                        .filter(p -> plazoMeses >= p.getPlazoMinMeses() && plazoMeses <= p.getPlazoMaxMeses())
-                        .findFirst()
-                )
-                // 3. Si no hay coincidencia exacta de rangos, lanzar error descriptivo
                 .orElseThrow(() -> {
                     BigDecimal minGlobal = productos.stream().map(ProductoCreditoEntity::getMontoMin).min(BigDecimal::compareTo).orElse(BigDecimal.ZERO);
                     BigDecimal maxGlobal = productos.stream().map(ProductoCreditoEntity::getMontoMax).max(BigDecimal::compareTo).orElse(BigDecimal.ZERO);
@@ -298,9 +353,21 @@ public class SimuladorService {
         );
     }
 
-    // ─── 2. Flujo Avanzado Legacy (SimulacionRequestDto) ───────────────────────
-
     public SimulacionResponseDto simular(SimulacionRequestDto req) {
+        if (req.productoId() != null) {
+            ProductoCreditoEntity prod = productoRepository.findById(req.productoId())
+                    .orElseThrow(() -> new NormativaFinancieraException("Producto de crédito no encontrado con ID: " + req.productoId()));
+
+            if (req.entidad() != null && !req.entidad().isBlank()) {
+                if (prod.getEntidad() != null && !prod.getEntidad().equalsIgnoreCase(req.entidad().trim())) {
+                    throw new NormativaFinancieraException(String.format(
+                            "El producto de crédito '%s' (ID %d) pertenece a la entidad '%s' y no a la entidad solicitada '%s'.",
+                            prod.getNombre(), req.productoId(), prod.getEntidad(), req.entidad().trim()
+                    ));
+                }
+            }
+        }
+
         BigDecimal monto = req.monto();
         int n = req.plazoMeses();
 

@@ -20,5 +20,7 @@ public record SimulacionRequestDto(
         /** Fecha de desembolso en formato ISO-8601 (yyyy-MM-dd), ej: "2025-10-01" */
         String fechaDesembolso,
         /** Segmento BCE para auditoría, ej: "CONSUMO", "VIVIENDA", "MICROCREDITO", "PYMES" */
-        String segmentoBce
+        String segmentoBce,
+        /** Entidad solicitada para validar aislamiento, ej: "BANCO" o "COOPERATIVA" */
+        String entidad
 ) {}

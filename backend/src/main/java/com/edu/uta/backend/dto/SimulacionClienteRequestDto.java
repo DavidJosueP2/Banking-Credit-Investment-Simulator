@@ -21,5 +21,6 @@ public record SimulacionClienteRequestDto(
         @NotNull(message = "El sistema de amortización es obligatorio (FRANCES o ALEMAN)")
         SistemaAmortizacion sistema,
 
-        String entidad     // Opcional: Banco o Cooperativa
+        String entidad,    // Opcional: Banco o Cooperativa
+        Long productoId    // Opcional: ID de producto específico para validar aislamiento de entidad
 ) {}
