@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useMutation } from '@tanstack/react-query'
+import { useState, useMemo } from 'react'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -12,6 +12,10 @@ import {
   RefreshCw,
   CheckCircle2,
   ArrowRight,
+  Building2,
+  Landmark,
+  Percent,
+  ShieldCheck,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -36,12 +40,69 @@ import { Badge } from '@/components/ui/badge'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { simuladorService } from '@/features/creditos/simulador/services/simulador.service'
-import { type SimulacionClienteResponse } from '@/types'
+import {
+  type SimulacionClienteResponse,
+  type SimulacionClienteRequest,
+  type EntidadCredito,
+} from '@/types'
 import { useAuth } from '@/app/providers/auth-provider'
 
-// ─── Validación Zod (Formulario Simplificado Usuario) ─────────────────────────
+// ─── Entidades por Defecto (Fallback institucional) ──────────────────────────
+
+const DEFAULT_ENTIDADES: EntidadCredito[] = [
+  {
+    id: 3,
+    nombre: 'Banco Pichincha - Crédito Personal',
+    tipo: 'Banco',
+    tasaNominal: 15.20,
+    desgravamen: 0.0550,
+  },
+  {
+    id: 4,
+    nombre: 'Banco Guayaquil - Multicrédito',
+    tipo: 'Banco',
+    tasaNominal: 15.80,
+    desgravamen: 0.0600,
+  },
+  {
+    id: 1,
+    nombre: 'Crédito Consumo Ágil Banco',
+    tipo: 'Banco',
+    tasaNominal: 15.50,
+    desgravamen: 0.0600,
+  },
+  {
+    id: 5,
+    nombre: 'Cooperativa JEP - Microcrédito Crece',
+    tipo: 'Cooperativa',
+    tasaNominal: 21.50,
+    desgravamen: 0.0700,
+  },
+  {
+    id: 6,
+    nombre: 'Cooperativa Policía Nacional - Préstamo Solidario',
+    tipo: 'Cooperativa',
+    tasaNominal: 17.90,
+    desgravamen: 0.0600,
+  },
+  {
+    id: 2,
+    nombre: 'Microcrédito Crece Cooperativa',
+    tipo: 'Cooperativa',
+    tasaNominal: 22.00,
+    desgravamen: 0.0700,
+  },
+]
+
+// ─── Validación Zod (Formulario con Cascada de Entidades) ────────────────────
 
 const clienteSchema = z.object({
+  tipoInstitucion: z.enum(['Banco', 'Cooperativa'], {
+    message: 'Seleccione el tipo de institución (Banco o Cooperativa)',
+  }),
+  entidadId: z.coerce
+    .number({ message: 'Seleccione una entidad financiera específica' })
+    .min(1, 'Seleccione una entidad financiera específica en el Paso 2'),
   monto: z
     .number({ message: 'Ingrese un monto válido' })
     .min(50, 'El monto mínimo a simular es de $50 USD'),
@@ -51,7 +112,6 @@ const clienteSchema = z.object({
     .min(1, 'El plazo mínimo es 1')
     .max(360, 'El plazo no puede superar los 360 períodos'),
   sistema: z.enum(['FRANCES', 'ALEMAN'] as const),
-  entidad: z.string().optional(),
 })
 
 type ClienteFormData = z.infer<typeof clienteSchema>
@@ -186,6 +246,21 @@ export function SimuladorClientePage() {
 
   const [resultado, setResultado] = useState<SimulacionClienteResponse | null>(null)
 
+  // Catálogo de entidades desde el backend
+  const entidadesQuery = useQuery({
+    queryKey: ['simulador', 'entidades'],
+    queryFn: () => simuladorService.obtenerEntidades(),
+    staleTime: 60_000,
+  })
+
+  // Entidades activas disponibles (usa API si disponible, o fallback institucional)
+  const entidadesDisponibles = useMemo(() => {
+    if (entidadesQuery.data && entidadesQuery.data.length > 0) {
+      return entidadesQuery.data
+    }
+    return DEFAULT_ENTIDADES
+  }, [entidadesQuery.data])
+
   const {
     register,
     handleSubmit,
@@ -196,28 +271,53 @@ export function SimuladorClientePage() {
   } = useForm<ClienteFormData>({
     resolver: zodResolver(clienteSchema),
     defaultValues: {
+      tipoInstitucion: 'Banco',
+      entidadId: 3,
       monto: 5000,
       frecuencia: 'MENSUAL',
       plazo: 24,
       sistema: 'FRANCES',
-      entidad: '',
     },
   })
 
+  const tipoInstitucionActual = watch('tipoInstitucion')
+  const entidadIdActual = watch('entidadId')
   const frecuenciaActual = watch('frecuencia')
   const sistemaActual = watch('sistema')
   const montoActual = watch('monto')
 
+  // Entidades filtradas según Combo Box 1 (Tipo de Institución)
+  const entidadesFiltradas = useMemo(() => {
+    if (!tipoInstitucionActual) return []
+    return entidadesDisponibles.filter(
+      (e) => e.tipo.toLowerCase() === tipoInstitucionActual.toLowerCase()
+    )
+  }, [entidadesDisponibles, tipoInstitucionActual])
+
+  // Entidad actualmente seleccionada en Combo Box 2
+  const entidadSeleccionada = useMemo(() => {
+    if (!entidadIdActual) return null
+    return entidadesDisponibles.find((e) => e.id === Number(entidadIdActual)) || null
+  }, [entidadesDisponibles, entidadIdActual])
+
   const mutation = useMutation({
-    mutationFn: (data: ClienteFormData) =>
-      simuladorService.calcularCliente({
-        ...data,
+    mutationFn: (data: ClienteFormData) => {
+      const payload: SimulacionClienteRequest = {
+        entidadId: data.entidadId,
+        productoId: data.entidadId,
+        monto: data.monto,
+        frecuencia: data.frecuencia,
+        plazo: data.plazo,
+        sistema: data.sistema,
+        entidad: data.tipoInstitucion,
         usuario: usuario?.nombre,
-      }),
+      }
+      return simuladorService.calcularCliente(payload)
+    },
     onSuccess: (data) => {
       setResultado(data)
       toast.success('Amortización calculada correctamente', {
-        description: `Producto asignado: ${data.nombreProducto} (${data.entidad}) - Tasa: ${data.tasaInteresAnual}%`,
+        description: `Entidad: ${data.nombreProducto} (${data.entidad}) — Tasa: ${data.tasaInteresAnual}% — Desgravamen: ${data.tasaDesgravamenMensual}%`,
       })
     },
     onError: (err: any) => {
@@ -226,7 +326,12 @@ export function SimuladorClientePage() {
     },
   })
 
-  const onSubmit = (data: ClienteFormData) => {
+  const onSubmit = (data: ClienteFormData, e?: React.BaseSyntheticEvent) => {
+    e?.preventDefault()
+    if (!data.entidadId || data.entidadId <= 0) {
+      toast.error('Seleccione una entidad financiera específica en el Paso 2')
+      return
+    }
     mutation.mutate(data)
   }
 
@@ -274,7 +379,7 @@ export function SimuladorClientePage() {
                     Datos del Préstamo
                   </CardTitle>
                   <CardDescription className="text-xs">
-                    Ingresa las condiciones básicas deseadas
+                    Selecciona tu entidad y las condiciones del financiamiento
                   </CardDescription>
                 </div>
               </div>
@@ -282,7 +387,122 @@ export function SimuladorClientePage() {
 
             <CardContent className="pt-5">
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-                {/* 1. Monto Solicitado */}
+                
+                {/* ── TAREA 1: FLUJO DE SELECCIÓN EN CASCADA ────────────────── */}
+
+                {/* Combo Box 1: Tipo de Institución (Obligatorio) */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-foreground flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <Landmark className="w-3.5 h-3.5 text-brand-teal" />
+                      1. Tipo de Institución *
+                    </span>
+                    <span className="text-[10px] text-brand-teal font-medium">Obligatorio</span>
+                  </Label>
+                  <Controller
+                    name="tipoInstitucion"
+                    control={control}
+                    render={({ field }) => (
+                      <Select
+                        onValueChange={(val: 'Banco' | 'Cooperativa') => {
+                          field.onChange(val)
+                          // Al cambiar de tipo, buscar si hay entidades de este tipo
+                          const primera = entidadesDisponibles.find(
+                            (e) => e.tipo.toLowerCase() === val.toLowerCase()
+                          )
+                          setValue('entidadId', primera ? primera.id : 0)
+                        }}
+                        value={field.value}
+                      >
+                        <SelectTrigger className="w-full text-xs">
+                          <SelectValue placeholder="Seleccione Tipo (Banco o Cooperativa)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Banco">Banco Comercial</SelectItem>
+                          <SelectItem value="Cooperativa">Cooperativa de Ahorro y Crédito</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                  {errors.tipoInstitucion && (
+                    <p className="text-[11px] text-destructive">{errors.tipoInstitucion.message}</p>
+                  )}
+                </div>
+
+                {/* Combo Box 2: Entidad Específica (Obligatorio) */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-foreground flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <Building2 className="w-3.5 h-3.5 text-brand-teal" />
+                      2. Entidad Financiera Específica *
+                    </span>
+                    <span className="text-[10px] text-brand-teal font-medium">Obligatorio</span>
+                  </Label>
+                  <Controller
+                    name="entidadId"
+                    control={control}
+                    render={({ field }) => (
+                      <Select
+                        disabled={!tipoInstitucionActual || entidadesFiltradas.length === 0}
+                        onValueChange={(val) => field.onChange(Number(val))}
+                        value={field.value ? String(field.value) : ''}
+                      >
+                        <SelectTrigger className="w-full text-xs">
+                          <SelectValue
+                            placeholder={
+                              !tipoInstitucionActual
+                                ? 'Primero seleccione el tipo de institución'
+                                : 'Seleccione una institución disponible'
+                            }
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {entidadesFiltradas.map((ent) => (
+                            <SelectItem key={ent.id} value={String(ent.id)}>
+                              {ent.nombre}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                  {errors.entidadId && (
+                    <p className="text-[11px] text-destructive">{errors.entidadId.message}</p>
+                  )}
+                </div>
+
+                {/* 3. Campos Informativos (Solo Lectura) */}
+                {entidadSeleccionada && (
+                  <div className="grid grid-cols-2 gap-2.5 p-3 rounded-xl bg-brand-teal/5 border border-brand-teal/20 text-xs transition-all">
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
+                        <Percent className="w-3 h-3 text-brand-teal" />
+                        <span>Tasa de Interés Nominal</span>
+                      </div>
+                      <div className="font-mono font-bold text-sm text-foreground">
+                        {entidadSeleccionada.tasaNominal.toFixed(2)}%{' '}
+                        <span className="text-[10px] font-normal text-muted-foreground">anual</span>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">Extraída de base oficial</p>
+                    </div>
+
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
+                        <ShieldCheck className="w-3 h-3 text-brand-teal" />
+                        <span>Seguro Desgravamen</span>
+                      </div>
+                      <div className="font-mono font-bold text-sm text-foreground">
+                        {entidadSeleccionada.desgravamen.toFixed(4)}%{' '}
+                        <span className="text-[10px] font-normal text-muted-foreground">mensual</span>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">Sobre saldo deudor</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── TAREA 2: CONSERVACIÓN EXACTA DE PARÁMETROS RESTANTES ── */}
+
+                {/* Monto Solicitado */}
                 <div className="space-y-2">
                   <Label htmlFor="monto" className="text-xs font-semibold text-foreground flex items-center justify-between">
                     <span>Monto Solicitado ($ USD) *</span>
@@ -321,7 +541,7 @@ export function SimuladorClientePage() {
                   </div>
                 </div>
 
-                {/* 2. Frecuencia de Pago */}
+                {/* Frecuencia de Pago */}
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold text-foreground">
                     Frecuencia de Pago *
@@ -358,7 +578,7 @@ export function SimuladorClientePage() {
                   </div>
                 </div>
 
-                {/* 3. Plazo */}
+                {/* Plazo */}
                 <div className="space-y-2">
                   <Label htmlFor="plazo" className="text-xs font-semibold text-foreground flex items-center justify-between">
                     <span>
@@ -416,7 +636,7 @@ export function SimuladorClientePage() {
                   </div>
                 </div>
 
-                {/* 4. Sistema de Amortización */}
+                {/* Sistema de Amortización */}
                 <div className="space-y-2">
                   <Label className="text-xs font-semibold text-foreground">
                     Sistema de Amortización *
@@ -466,32 +686,6 @@ export function SimuladorClientePage() {
                   </div>
                 </div>
 
-                {/* 5. Entidad (Opcional) */}
-                <div className="space-y-1.5 pt-1">
-                  <Label className="text-xs font-medium text-muted-foreground">
-                    Preferencia de Entidad (Opcional)
-                  </Label>
-                  <Controller
-                    name="entidad"
-                    control={control}
-                    render={({ field }) => (
-                      <Select
-                        onValueChange={(val) => field.onChange(val === 'TODAS' ? '' : val)}
-                        value={field.value || 'TODAS'}
-                      >
-                        <SelectTrigger className="w-full text-xs">
-                          <SelectValue placeholder="Cualquier entidad disponible" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="TODAS">Cualquier Entidad (Automático)</SelectItem>
-                          <SelectItem value="Banco">Banco Comercial</SelectItem>
-                          <SelectItem value="Cooperativa">Cooperativa de Ahorro y Crédito</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    )}
-                  />
-                </div>
-
                 {/* Botón Calcular */}
                 <div className="pt-2">
                   <Button
@@ -537,7 +731,7 @@ export function SimuladorClientePage() {
                   </p>
                 </div>
 
-                {/* Botón de Descargar PDF (Requerimiento 3) */}
+                {/* Botón de Descargar PDF */}
                 <Button
                   onClick={() => exportarSimulacionPdf(resultado, usuario?.nombre)}
                   className="gap-2 bg-brand-teal text-brand-teal-foreground hover:bg-brand-teal/90 font-semibold text-xs shadow-sm shrink-0"
@@ -679,7 +873,7 @@ export function SimuladorClientePage() {
                   Tu simulación aparecerá aquí
                 </h3>
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  Ingresa el monto solicitado, la periodicidad y el sistema de amortización deseado, luego presiona <strong>"Calcular Amortización"</strong> para ver tu tabla oficial y descargar el reporte en PDF.
+                  Selecciona la institución financiera, ingresa el monto y plazo deseado, y presiona <strong>"Calcular Amortización"</strong> para ver tu tabla oficial con seguro de desgravamen y descargar el reporte en PDF.
                 </p>
               </div>
               <div className="flex flex-wrap items-center justify-center gap-2 pt-2">

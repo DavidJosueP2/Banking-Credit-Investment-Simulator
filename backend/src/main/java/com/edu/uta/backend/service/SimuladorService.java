@@ -4,6 +4,7 @@ import com.edu.uta.backend.config.NormativaFinancieraException;
 import com.edu.uta.backend.domain.entity.ProductoCreditoEntity;
 import com.edu.uta.backend.domain.entity.TasaCreditoEntity;
 import com.edu.uta.backend.domain.enums.SistemaAmortizacion;
+import com.edu.uta.backend.dto.EntidadCreditoDto;
 import com.edu.uta.backend.dto.SimulacionClienteRequestDto;
 import com.edu.uta.backend.dto.SimulacionClienteResponseDto;
 import com.edu.uta.backend.dto.SimulacionClienteResponseDto.CuotaClienteDto;
@@ -43,6 +44,24 @@ public class SimuladorService {
 
     private final ProductoCreditoRepository productoRepository;
 
+    @Transactional(readOnly = true)
+    public List<EntidadCreditoDto> obtenerEntidadesDisponibles() {
+        return productoRepository.findAllByActivoTrueOrderByOrdenAsc().stream()
+                .map(p -> new EntidadCreditoDto(
+                        p.getId(),
+                        p.getNombre(),
+                        p.getEntidad() != null ? p.getEntidad() : "Banco",
+                        obtenerTasaAnual(p),
+                        p.getTasaDesgravamenMensual() != null ? p.getTasaDesgravamenMensual() : new BigDecimal("0.0600"),
+                        p.getMontoMin(),
+                        p.getMontoMax(),
+                        p.getPlazoMinMeses(),
+                        p.getPlazoMaxMeses(),
+                        p.getSistemasPermitidos()
+                ))
+                .toList();
+    }
+
     // ─── 1. Flujo del Usuario Normal (Simulación Cliente) ─────────────────────
 
     @Transactional(readOnly = true)
@@ -59,17 +78,18 @@ public class SimuladorService {
         // Convertir a plazo en meses para buscar en el catálogo de productos
         int plazoEquivalenteMeses = esAnual ? plazoPeriodos * 12 : plazoPeriodos;
 
-        // Buscar producto configurado que calce con la solicitud o validar productoId
+        // Buscar producto/entidad configurado que calce con la solicitud o validar ID
         ProductoCreditoEntity producto;
-        if (req.productoId() != null) {
-            producto = productoRepository.findById(req.productoId())
-                    .orElseThrow(() -> new NormativaFinancieraException("Producto de crédito no encontrado con ID: " + req.productoId()));
+        Long idSeleccionado = req.entidadId() != null ? req.entidadId() : req.productoId();
+        if (idSeleccionado != null) {
+            producto = productoRepository.findById(idSeleccionado)
+                    .orElseThrow(() -> new NormativaFinancieraException("Entidad de crédito no encontrada con ID: " + idSeleccionado));
 
             if (req.entidad() != null && !req.entidad().isBlank()) {
                 if (producto.getEntidad() != null && !producto.getEntidad().equalsIgnoreCase(req.entidad().trim())) {
                     throw new NormativaFinancieraException(String.format(
                             "El producto de crédito '%s' (ID %d) no pertenece a la entidad '%s'. Pertenece a '%s'.",
-                            producto.getNombre(), req.productoId(), req.entidad().trim(), producto.getEntidad()
+                            producto.getNombre(), idSeleccionado, req.entidad().trim(), producto.getEntidad()
                     ));
                 }
             }

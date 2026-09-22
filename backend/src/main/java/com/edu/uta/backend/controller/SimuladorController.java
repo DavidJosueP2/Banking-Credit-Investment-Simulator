@@ -4,11 +4,14 @@ import com.edu.uta.backend.dto.SimulacionClienteRequestDto;
 import com.edu.uta.backend.dto.SimulacionClienteResponseDto;
 import com.edu.uta.backend.dto.SimulacionRequestDto;
 import com.edu.uta.backend.dto.SimulacionResponseDto;
+import com.edu.uta.backend.dto.EntidadCreditoDto;
 import com.edu.uta.backend.service.SimuladorService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping({"/api/simulador", "/api/creditos/simular"})
@@ -16,6 +19,16 @@ import org.springframework.web.bind.annotation.*;
 public class SimuladorController {
 
     private final SimuladorService service;
+    
+    /**
+     * Catálogo de entidades financieras disponibles (Bancos y Cooperativas)
+     * con sus tasas oficiales y seguros de desgravamen configurados en base de datos.
+     * GET /api/simulador/entidades
+     */
+    @GetMapping("/entidades")
+    public ResponseEntity<List<com.edu.uta.backend.dto.EntidadCreditoDto>> obtenerEntidades() {
+        return ResponseEntity.ok(service.obtenerEntidadesDisponibles());
+    }
 
     /**
      * Endpoint simplificado para el Usuario Normal / Cliente.

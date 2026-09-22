@@ -135,11 +135,26 @@ export interface CuotaCliente {
   saldoFinal: number
 }
 
+export interface EntidadCredito {
+  id: number
+  nombre: string
+  tipo: 'Banco' | 'Cooperativa' | string
+  tasaNominal: number
+  desgravamen: number
+  montoMin?: number
+  montoMax?: number
+  plazoMinMeses?: number
+  plazoMaxMeses?: number
+  sistemasPermitidos?: string
+}
+
 export interface SimulacionClienteRequest {
   monto: number
   frecuencia: 'MENSUAL' | 'ANUAL'
   plazo: number
   sistema: SistemaAmortizacion
+  entidadId?: number
+  productoId?: number
   entidad?: string
   usuario?: string
 }
