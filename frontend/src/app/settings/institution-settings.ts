@@ -206,8 +206,8 @@ export const defaultInstitutionSettings: InstitutionSettings = {
     sansFont: 'Plus Jakarta Sans',
   },
   landing: {
-    heroTitle: 'Tus decisiones financieras,',
-    heroHighlight: 'más claras.',
+    heroTitle: 'Construimos confianza,',
+    heroHighlight: 'protegemos tú futuro',
     heroDescription: 'Compara opciones de crédito e inversión, revisa sus condiciones y elige con información clara antes de decidir.',
     heroCreditButton: 'Explorar créditos',
     heroInvestmentButton: 'Conocer inversiones',

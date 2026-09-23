@@ -227,8 +227,8 @@ public class InstitutionSettingsService {
                 Map.entry("headingFont", "Axiforma"),
                 Map.entry("sansFont", "Plus Jakarta Sans")));
         defaults.put("landing", Map.ofEntries(
-                Map.entry("heroTitle", "Tus decisiones financieras,"),
-                Map.entry("heroHighlight", "más claras."),
+                Map.entry("heroTitle", "Construimos confianza,"),
+                Map.entry("heroHighlight", "protegemos tú futuro"),
                 Map.entry("heroDescription", "Compara opciones de crédito e inversión, revisa sus condiciones y elige con información clara antes de decidir."),
                 Map.entry("heroCreditButton", "Explorar créditos"),
                 Map.entry("heroInvestmentButton", "Conocer inversiones"),
