@@ -17,7 +17,7 @@ import { ProfilePage } from '@/pages/profile-page'
 import { RegistrationPage } from '@/pages/registration-page'
 import { RolePermissionsPage } from '@/pages/role-permissions-page'
 import { SimuladorClientePage } from '@/pages/creditos/simulador-cliente-page'
-import { ConfiguradorCreditoPage } from '@/pages/admin/creditos/configurador-credito-page'
+import { CreditosAdminPage, CreditoProductEditorPage } from '@/pages/admin/creditos/configurador-credito-page'
 
 const LivenessDevPage = lazy(() => import('@/pages/liveness-dev-page')
   .then((module) => ({ default: module.LivenessDevPage })))
@@ -70,7 +70,23 @@ export const router = createBrowserRouter([
         path: 'creditos',
         element: (
           <PermissionGate permission="credit.products.manage">
-            <ConfiguradorCreditoPage />
+            <CreditosAdminPage />
+          </PermissionGate>
+        ),
+      },
+      {
+        path: 'creditos/nuevo',
+        element: (
+          <PermissionGate permission="credit.products.manage">
+            <CreditoProductEditorPage />
+          </PermissionGate>
+        ),
+      },
+      {
+        path: 'creditos/:productId/editar',
+        element: (
+          <PermissionGate permission="credit.products.manage">
+            <CreditoProductEditorPage />
           </PermissionGate>
         ),
       },
@@ -78,7 +94,7 @@ export const router = createBrowserRouter([
         path: 'configuracion-creditos',
         element: (
           <PermissionGate permission="credit.products.manage">
-            <ConfiguradorCreditoPage />
+            <CreditosAdminPage />
           </PermissionGate>
         ),
       },

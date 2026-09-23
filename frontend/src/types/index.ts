@@ -254,6 +254,17 @@ export interface SimulacionResult {
   tablaCuotas: CuotaSimulacion[]
 }
 
+export interface CargoConfiguracionDto {
+  id?: number
+  nombre: string
+  tipoCargo: 'FIJO' | 'PORCENTAJE' | string
+  valor: number
+  periodicidad?: 'MENSUAL' | 'UNICO' | string
+  baseCalculo?: 'SALDO_DEUDOR' | 'MONTO_SOLICITADO' | 'FIJO' | string
+  normaAplicable?: string
+  obligatorio?: boolean
+}
+
 export interface ConfigurarCreditoRequest {
   nombre: string
   entidad: string
@@ -266,6 +277,8 @@ export interface ConfigurarCreditoRequest {
   tasaDesgravamenMensual: number
   sistemasPermitidos: SistemaAmortizacion[]
   descripcion?: string
+  unidadPlazo?: string
+  cargosIndirectos?: CargoConfiguracionDto[]
 }
 
 export interface ConfigurarCreditoResponse {
@@ -283,4 +296,7 @@ export interface ConfigurarCreditoResponse {
   descripcion?: string
   activo: boolean
   creadoEn: string
+  unidadPlazo?: string
+  cargosIndirectos?: CargoConfiguracionDto[]
 }
+
