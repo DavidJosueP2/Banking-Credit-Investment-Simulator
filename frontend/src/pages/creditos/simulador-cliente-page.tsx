@@ -19,6 +19,7 @@ import {
   Receipt,
   FileCheck2,
   Info,
+  TableProperties,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -32,6 +33,14 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { simuladorService, PRODUCTOS_FALLBACK } from '@/features/creditos/simulador/services/simulador.service'
@@ -195,6 +204,7 @@ export function SimuladorClientePage() {
   const usuario = account ? { nombre: account.fullName || account.username } : null
 
   const [resultado, setResultado] = useState<SimulacionClienteResponse | null>(null)
+  const [modalTablaAbierto, setModalTablaAbierto] = useState(false)
 
   // Consulta de Tipos de Crédito desde la Base de Datos
   const productosQuery = useQuery({
@@ -366,9 +376,10 @@ export function SimuladorClientePage() {
         </p>
       </div>
 
-      <div className="mt-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* ── Formulario de Parámetros del Usuario (Sticky Desktop) ─────── */}
-        <div className="lg:col-span-4 space-y-6 lg:sticky lg:top-24">
+      {/* ── Layout de Dos Columnas (Formulario vs Resumen) ─────────────── */}
+      <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+        {/* ── Columna Izquierda: Formulario de Parámetros ──────────────── */}
+        <div className="space-y-6">
           <Card className="rounded-xl border bg-card shadow-xs">
             <CardHeader className="border-b pb-4">
               <div className="flex items-center gap-3">
@@ -656,202 +667,143 @@ export function SimuladorClientePage() {
           </Card>
         </div>
 
-        {/* ── Panel de Resultados (Misma Vista sin Redirección) ─────────── */}
-        <div className="lg:col-span-8 space-y-6">
+        {/* ── Columna Derecha: Tarjeta de Resumen o Estado Inicial (Sticky Desktop) ── */}
+        <div className="space-y-6 lg:sticky lg:top-24">
           {resultado ? (
-            <div className="space-y-6">
-              {/* Barra de Producto + Botón Descarga */}
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-5 rounded-xl border bg-card">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2.5">
-                    <h2 className="font-heading text-lg font-normal text-foreground">
-                      {resultado.nombreProducto}
-                    </h2>
-                    <Badge variant="outline" className="text-xs">
-                      {resultado.sistema === 'FRANCES' ? 'Francés' : 'Alemán'}
-                    </Badge>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Segmento BCE: <strong className="text-foreground font-medium">{resultado.segmentoBce || 'Oficial'}</strong> · Tasa Nominal: <strong className="text-foreground font-medium">{resultado.tasaInteresAnual}%</strong> · Desgravamen: <strong className="text-foreground font-medium">{resultado.tasaDesgravamenMensual}%</strong> mensual
-                  </p>
-                </div>
-
-                <Button
-                  onClick={() => exportarSimulacionPdf(resultado, usuario?.nombre)}
-                  variant="outline"
-                  size="sm"
-                  className="gap-2 shrink-0 border-brand-teal/30 text-brand-teal hover:bg-brand-teal/10"
-                >
-                  <Download className="size-4" />
-                  <span>Descargar PDF</span>
-                </Button>
-              </div>
-
-              {/* Tarjetas de Resumen Operativo */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="rounded-xl border bg-card p-4 space-y-1">
-                  <span className="text-[11px] font-medium uppercase tracking-wider text-brand-teal">
-                    Cuota {resultado.frecuencia === 'ANUAL' ? 'Anual' : 'Mensual'}
-                  </span>
-                  <p className="text-2xl font-normal text-foreground font-sans tracking-tight">
-                    {fmt(resultado.cuotaPeriodica)}
-                  </p>
-                  <span className="text-[10px] text-muted-foreground block">
-                    {resultado.sistema === 'FRANCES' ? 'Cuota constante' : 'Primera cuota estimada'}
-                  </span>
-                </div>
-
-                <div className="rounded-xl border bg-card p-4 space-y-1">
-                  <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                    Total Interés
-                  </span>
-                  <p className="text-2xl font-normal text-foreground font-sans tracking-tight">
-                    {fmt(resultado.totalIntereses)}
-                  </p>
-                  <span className="text-[10px] text-muted-foreground block">
-                    Costo financiero
-                  </span>
-                </div>
-
-                <div className="rounded-xl border bg-card p-4 space-y-1">
-                  <span className="text-[11px] font-medium uppercase tracking-wider text-brand-gold">
-                    Desgravamen y Cargos
-                  </span>
-                  <p className="text-2xl font-normal text-foreground font-sans tracking-tight">
-                    {fmt((resultado.totalDesgravamen || 0) + (resultado.totalCargosIndirectos || 0))}
-                  </p>
-                  <span className="text-[10px] text-muted-foreground block">
-                    Seguro + indirectos
-                  </span>
-                </div>
-
-                <div className="rounded-xl border bg-muted/40 p-4 space-y-1">
-                  <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                    Total a Pagar
-                  </span>
-                  <p className="text-2xl font-normal text-foreground font-sans tracking-tight">
-                    {fmt(resultado.totalPagar)}
-                  </p>
-                  <span className="text-[10px] text-muted-foreground block">
-                    {resultado.totalCuotas} cuotas totales
-                  </span>
-                </div>
-              </div>
-
-              {/* Resumen Detallado del Crédito */}
-              <div className="rounded-xl border bg-card p-4.5 space-y-3">
-                <h3 className="text-xs font-semibold text-foreground uppercase tracking-wider">
-                  Resumen de la Operación
-                </h3>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-2 gap-x-4 text-xs">
-                  {resultado.costoTotal && (
-                    <div>
-                      <span className="text-muted-foreground">Monto del bien:</span>{' '}
-                      <strong className="text-foreground">{fmt(resultado.costoTotal)}</strong>
-                    </div>
-                  )}
+            <Card className="rounded-xl border bg-card shadow-xs overflow-hidden">
+              <CardHeader className="border-b pb-4">
+                <div className="flex items-center justify-between gap-3">
                   <div>
-                    <span className="text-muted-foreground">Monto solicitado:</span>{' '}
-                    <strong className="text-foreground">{fmt(resultado.monto)}</strong>
+                    <CardTitle className="text-base text-foreground font-sans font-medium">
+                      Resumen del Crédito
+                    </CardTitle>
+                    <CardDescription className="text-xs text-muted-foreground">
+                      {resultado.nombreProducto} · {resultado.totalCuotas} {resultado.frecuencia === 'ANUAL' ? 'años' : 'meses'} · Tasa: {resultado.tasaInteresAnual}%
+                    </CardDescription>
                   </div>
-                  <div>
-                    <span className="text-muted-foreground">Plazo:</span>{' '}
-                    <strong className="text-foreground">{resultado.totalCuotas} {resultado.frecuencia === 'ANUAL' ? 'años' : 'meses'}</strong>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Sistema:</span>{' '}
-                    <strong className="text-foreground">{resultado.sistema === 'FRANCES' ? 'Francés' : 'Alemán'}</strong>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Tasa nominal:</span>{' '}
-                    <strong className="text-foreground">{resultado.tasaInteresAnual}% anual</strong>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Desgravamen:</span>{' '}
-                    <strong className="text-foreground">{resultado.tasaDesgravamenMensual}% mensual</strong>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Total Cargos Indirectos:</span>{' '}
-                    <strong className="text-brand-gold">{fmt(resultado.totalCargosIndirectos || 0)}</strong>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Total Intereses:</span>{' '}
-                    <strong className="text-foreground">{fmt(resultado.totalIntereses)}</strong>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Total Pagado:</span>{' '}
-                    <strong className="text-brand-teal">{fmt(resultado.totalPagar)}</strong>
-                  </div>
-                </div>
-              </div>
-
-              {/* ── Tabla Oficial de Amortización (8 Columnas) ─────────── */}
-              <div className="overflow-hidden rounded-xl border bg-card">
-                <div className="flex items-center justify-between border-b px-5 py-4">
-                  <div>
-                    <h3 className="text-sm font-medium text-foreground">
-                      Tabla Oficial de Amortización
-                    </h3>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Cronograma oficial con discriminación de capital, interés, desgravamen y cargos indirectos
-                    </p>
-                  </div>
-                  <Badge variant="secondary" className="text-xs">
-                    {resultado.totalCuotas} cuotas
+                  <Badge variant="outline" className="text-xs shrink-0">
+                    {resultado.sistema === 'FRANCES' ? 'Francés (Cuota Fija)' : 'Alemán (Capital Fijo)'}
                   </Badge>
                 </div>
+              </CardHeader>
 
-                <div className="overflow-x-auto max-h-[520px]">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b text-left text-xs bg-muted/50 text-muted-foreground">
-                        <th className="p-3 text-center font-medium">Cuota</th>
-                        <th className="p-3 text-right font-medium">Saldo Inicial</th>
-                        <th className="p-3 text-right font-medium text-foreground">Capital</th>
-                        <th className="p-3 text-right font-medium">Interés</th>
-                        <th className="p-3 text-right font-medium text-brand-gold">Desgravamen</th>
-                        <th className="p-3 text-right font-medium text-brand-gold">Cargos Ind.</th>
-                        <th className="p-3 text-right font-medium text-brand-teal">Cuota Total</th>
-                        <th className="p-3 text-right font-medium">Saldo Final</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {resultado.tablaCuotas.map((c) => (
-                        <tr
-                          key={`cuota-row-${c.numeroCuota}`}
-                          className="border-b last:border-0 hover:bg-muted/40 transition-colors text-xs"
-                        >
-                          <td className="p-3 text-center text-muted-foreground font-medium">
-                            {c.numeroCuota}
-                          </td>
-                          <td className="p-3 text-right text-muted-foreground">
-                            {fmt(c.saldoInicial)}
-                          </td>
-                          <td className="p-3 text-right font-medium text-foreground">
-                            {fmt(c.capital)}
-                          </td>
-                          <td className="p-3 text-right text-muted-foreground">
-                            {fmt(c.interes)}
-                          </td>
-                          <td className="p-3 text-right text-brand-gold">
-                            {fmt(c.desgravamen)}
-                          </td>
-                          <td className="p-3 text-right text-brand-gold">
-                            {fmt(c.cargosIndirectos || 0)}
-                          </td>
-                          <td className="p-3 text-right font-semibold text-foreground bg-brand-teal/5">
-                            {fmt(c.cuotaTotal)}
-                          </td>
-                          <td className="p-3 text-right text-muted-foreground">
-                            {fmt(c.saldoFinal)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+              <CardContent className="p-6 space-y-5">
+                {/* 1. Cuota Mensual Destacada */}
+                <div className="rounded-xl bg-brand-teal/5 border border-brand-teal/20 p-5 text-center sm:text-left space-y-1.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-brand-teal">
+                      Cuota {resultado.frecuencia === 'ANUAL' ? 'Anual' : 'Mensual'} Estimada
+                    </span>
+                    <Badge variant="outline" className="text-[11px] border-brand-teal/40 text-brand-teal bg-brand-teal/10">
+                      {resultado.sistema === 'FRANCES' ? 'Cuota Fija' : 'Primera Cuota'}
+                    </Badge>
+                  </div>
+                  <div className="text-3xl sm:text-4xl font-semibold tracking-tight text-foreground font-sans">
+                    {fmt(resultado.cuotaPeriodica)}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    {resultado.sistema === 'FRANCES'
+                      ? 'Cuota regular constante calculada bajo el sistema francés.'
+                      : 'Monto de la primera cuota estimada. El valor decrece periódicamente.'}
+                  </p>
                 </div>
-              </div>
-            </div>
+
+                {/* 2. Desglose de la Cuota (Capital + Interés + Seguro de Desgravamen) */}
+                <div className="rounded-xl bg-muted/40 border border-border/70 p-4 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-foreground">
+                      Desglose de la cuota {resultado.sistema === 'ALEMAN' && '(Cuota 1)'}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">
+                      Capital + Interés + Seguro
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div className="rounded-lg bg-background/80 p-2 border border-border/60">
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-wide block">
+                        Capital
+                      </span>
+                      <span className="text-xs sm:text-sm font-semibold text-foreground font-sans">
+                        {fmt(resultado.tablaCuotas[0]?.capital)}
+                      </span>
+                    </div>
+
+                    <div className="rounded-lg bg-background/80 p-2 border border-border/60">
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-wide block">
+                        Interés
+                      </span>
+                      <span className="text-xs sm:text-sm font-semibold text-foreground font-sans">
+                        {fmt(resultado.tablaCuotas[0]?.interes)}
+                      </span>
+                    </div>
+
+                    <div className="rounded-lg bg-background/80 p-2 border border-border/60">
+                      <span className="text-[10px] text-brand-gold uppercase tracking-wide block">
+                        Seguro
+                      </span>
+                      <span className="text-xs sm:text-sm font-semibold text-brand-gold font-sans">
+                        {fmt(resultado.tablaCuotas[0]?.desgravamen)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-center gap-1.5 text-[11px] text-muted-foreground pt-0.5">
+                    <span className="font-medium text-foreground">{fmt(resultado.tablaCuotas[0]?.capital)}</span>
+                    <span>+</span>
+                    <span className="font-medium text-foreground">{fmt(resultado.tablaCuotas[0]?.interes)}</span>
+                    <span>+</span>
+                    <span className="font-medium text-brand-gold">{fmt(resultado.tablaCuotas[0]?.desgravamen)}</span>
+                    <span>=</span>
+                    <span className="font-semibold text-brand-teal">{fmt(resultado.cuotaPeriodica)}</span>
+                  </div>
+                </div>
+
+                {/* 3. Detalle General del Crédito */}
+                <div className="space-y-2.5 pt-1">
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Detalle General
+                  </h4>
+                  <div className="rounded-xl border border-border/70 divide-y divide-border/60 overflow-hidden bg-card/60">
+                    <div className="flex justify-between items-center px-4 py-2.5 text-xs">
+                      <span className="text-muted-foreground">Capital total prestado</span>
+                      <span className="font-medium text-foreground">{fmt(resultado.monto)}</span>
+                    </div>
+                    <div className="flex justify-between items-center px-4 py-2.5 text-xs">
+                      <span className="text-muted-foreground">Total de intereses</span>
+                      <span className="font-medium text-foreground">{fmt(resultado.totalIntereses)}</span>
+                    </div>
+                    <div className="flex justify-between items-center px-4 py-2.5 text-xs">
+                      <span className="text-muted-foreground">Total de seguro (Desgravamen)</span>
+                      <span className="font-medium text-brand-gold">{fmt(resultado.totalDesgravamen)}</span>
+                    </div>
+                    {Boolean(resultado.totalCargosIndirectos) && (
+                      <div className="flex justify-between items-center px-4 py-2.5 text-xs">
+                        <span className="text-muted-foreground">Total cargos indirectos</span>
+                        <span className="font-medium text-foreground">{fmt(resultado.totalCargosIndirectos)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between items-center px-4 py-3 text-xs bg-muted/30">
+                      <span className="font-semibold text-foreground text-sm">Gran Total a Pagar</span>
+                      <span className="font-bold text-brand-teal text-base">{fmt(resultado.totalPagar)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. Botón de Acción: Ver tabla de amortización */}
+                <div className="pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setModalTablaAbierto(true)}
+                    className="w-full gap-2 border-brand-teal/40 text-brand-teal hover:bg-brand-teal/10 hover:text-brand-teal font-medium text-xs sm:text-sm h-11"
+                  >
+                    <TableProperties className="size-4" />
+                    <span>Ver tabla de amortización</span>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           ) : (
             /* Estado Inicial / Vacío */
             <div className="flex flex-col items-center justify-center min-h-[460px] rounded-2xl border border-dashed border-border bg-card/50 p-8 text-center space-y-4">
@@ -875,6 +827,113 @@ export function SimuladorClientePage() {
           )}
         </div>
       </div>
+
+      {/* ── Modal / Dialog: Tabla Completa de Amortización ────────────────── */}
+      <Dialog open={modalTablaAbierto} onOpenChange={setModalTablaAbierto}>
+        <DialogContent className="max-w-4xl w-[95vw] max-h-[90vh] flex flex-col p-0 overflow-hidden bg-card border-border">
+          <DialogHeader className="p-5 border-b border-border pb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pr-6">
+              <div>
+                <DialogTitle className="text-lg font-heading font-normal text-foreground">
+                  Tabla Oficial de Amortización
+                </DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                  {resultado?.nombreProducto} — {resultado?.totalCuotas} cuotas ({resultado?.sistema === 'FRANCES' ? 'Sistema Francés' : 'Sistema Alemán'})
+                </DialogDescription>
+              </div>
+              <Button
+                type="button"
+                variant="brand"
+                size="sm"
+                onClick={() => resultado && exportarSimulacionPdf(resultado, usuario?.nombre)}
+                className="gap-2 font-medium shrink-0"
+              >
+                <Download className="size-4" />
+                <span>Descargar (PDF/Excel)</span>
+              </Button>
+            </div>
+          </DialogHeader>
+
+          {/* Contenido del Modal: Tabla completa con todas las cuotas */}
+          <div className="overflow-auto flex-1 p-5">
+            <div className="overflow-x-auto rounded-lg border border-border">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b bg-muted/60 text-muted-foreground">
+                    <th className="p-3 text-center font-medium">Mes</th>
+                    <th className="p-3 text-right font-medium">Saldo Inicial</th>
+                    <th className="p-3 text-right font-medium text-foreground">Capital</th>
+                    <th className="p-3 text-right font-medium">Interés</th>
+                    <th className="p-3 text-right font-medium text-brand-gold">Seguro</th>
+                    <th className="p-3 text-right font-medium text-brand-gold">Cargos Ind.</th>
+                    <th className="p-3 text-right font-medium text-brand-teal">Cuota</th>
+                    <th className="p-3 text-right font-medium">Saldo Final</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/60">
+                  {resultado?.tablaCuotas.map((c) => (
+                    <tr
+                      key={`cuota-modal-${c.numeroCuota}`}
+                      className="hover:bg-muted/40 transition-colors"
+                    >
+                      <td className="p-3 text-center text-muted-foreground font-medium">
+                        {c.numeroCuota}
+                      </td>
+                      <td className="p-3 text-right text-muted-foreground">
+                        {fmt(c.saldoInicial)}
+                      </td>
+                      <td className="p-3 text-right font-medium text-foreground">
+                        {fmt(c.capital)}
+                      </td>
+                      <td className="p-3 text-right text-muted-foreground">
+                        {fmt(c.interes)}
+                      </td>
+                      <td className="p-3 text-right text-brand-gold">
+                        {fmt(c.desgravamen)}
+                      </td>
+                      <td className="p-3 text-right text-brand-gold">
+                        {fmt(c.cargosIndirectos || 0)}
+                      </td>
+                      <td className="p-3 text-right font-semibold text-foreground bg-brand-teal/5">
+                        {fmt(c.cuotaTotal)}
+                      </td>
+                      <td className="p-3 text-right text-muted-foreground">
+                        {fmt(c.saldoFinal)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <DialogFooter className="p-4 border-t border-border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-muted/20">
+            <span className="text-[11px] text-muted-foreground">
+              * Cronograma referencial bajo normativa del Banco Central del Ecuador (BCE).
+            </span>
+            <div className="flex items-center gap-2 justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setModalTablaAbierto(false)}
+              >
+                Cerrar
+              </Button>
+              <Button
+                type="button"
+                variant="brand"
+                size="sm"
+                onClick={() => resultado && exportarSimulacionPdf(resultado, usuario?.nombre)}
+                className="gap-2 font-medium"
+              >
+                <Download className="size-4" />
+                <span>Descargar (PDF/Excel)</span>
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </main>
   )
 }
