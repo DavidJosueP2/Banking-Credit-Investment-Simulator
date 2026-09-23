@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -79,30 +80,88 @@ const SEGMENTOS_BCE: SegmentoBceInfo[] = [
   { id: 'EDUCATIVO',              nombre: 'Educativo',              tasaMaxima: 9.50, tasaSugerida: 8.00, montoMinSugerido: 1000, montoMaximoLegal: 20000, plazoMinSugerido: 12, plazoMaximoMeses: 84, desgravamenSugerido: 0.0300, categoria: 'EDUCATIVO', entidadesPermitidas: ['Banco', 'Cooperativa'] },
 ]
 
-// ─── Esquema Zod para Validación del Formulario de Asesor ────────────────────
+// ─── Normativa Oficial Diferenciada por Tipo de Entidad (BCE / SB / SEPS) ───
+
+export const NORMATIVA_ENTIDAD = {
+  Banco: {
+    nombre: 'Banco Comercial / Privado',
+    regulador: 'Superintendencia de Bancos & BCE',
+    desgravamenMin: 0.0100,
+    desgravamenMax: 0.0650,
+    desgravamenSugerido: 0.0600,
+    tasaAbsolutaMaxima: 17.30,
+    descripcion: 'Regulado por la Superintendencia de Bancos. Desgravamen legal: 0.0100% - 0.0650% mensual. Topes BCE vigentes.',
+  },
+  Cooperativa: {
+    nombre: 'Cooperativa de Ahorro y Crédito',
+    regulador: 'SEPS & BCE',
+    desgravamenMin: 0.0400,
+    desgravamenMax: 0.1200,
+    desgravamenSugerido: 0.0700,
+    tasaAbsolutaMaxima: 28.23,
+    descripcion: 'Regulado por la SEPS. Desgravamen legal: 0.0400% - 0.1200% mensual. Permite microcréditos hasta 28.23% según BCE.',
+  },
+} as const
+
+// ─── Esquema Zod para Validación del Formulario de Asesor / Administrador ───
 
 const formSchema = z.object({
   nombre: z.string().min(3, 'El nombre debe tener al menos 3 caracteres'),
-  entidad: z.string().min(1, 'Seleccione la entidad (Banco o Cooperativa)'),
+  entidad: z.enum(['Banco', 'Cooperativa'], { message: 'Seleccione la entidad (Banco o Cooperativa)' }),
   segmentoBce: z.string().min(1, 'Seleccione un segmento regulatorio del BCE'),
   montoMin: z.number({ message: 'Monto mínimo inválido' }).min(50, 'El monto mínimo no puede ser menor a $50'),
   montoMax: z.number({ message: 'Monto máximo inválido' }).min(50, 'El monto máximo no puede ser menor a $50'),
   plazoMinMeses: z.number().min(1, 'Plazo mínimo al menos 1 mes'),
   plazoMaxMeses: z.number().min(1, 'Plazo máximo al menos 1 mes'),
   tasaInteres: z.number().min(0.01, 'La tasa debe ser mayor a 0%'),
-  tasaDesgravamenMensual: z.number().min(0, 'El desgravamen no puede ser negativo').max(0.50, 'Máximo 0.50% mensual'),
+  tasaDesgravamenMensual: z.number({ message: 'Desgravamen inválido' }).min(0.0001, 'El desgravamen debe ser mayor a 0%'),
   permiteFrances: z.boolean(),
   permiteAleman: z.boolean(),
   descripcion: z.string().optional(),
-}).refine((data) => data.montoMax >= data.montoMin, {
-  message: 'El monto máximo no puede ser menor al monto mínimo',
-  path: ['montoMax'],
-}).refine((data) => data.plazoMaxMeses >= data.plazoMinMeses, {
-  message: 'El plazo máximo no puede ser menor al plazo mínimo',
-  path: ['plazoMaxMeses'],
-}).refine((data) => data.permiteFrances || data.permiteAleman, {
-  message: 'Debe habilitar al menos un sistema de amortización',
-  path: ['permiteFrances'],
+}).superRefine((data, ctx) => {
+  if (data.montoMax < data.montoMin) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'El monto máximo no puede ser menor al monto mínimo',
+      path: ['montoMax'],
+    })
+  }
+  if (data.plazoMaxMeses < data.plazoMinMeses) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'El plazo máximo no puede ser menor al plazo mínimo',
+      path: ['plazoMaxMeses'],
+    })
+  }
+  if (!data.permiteFrances && !data.permiteAleman) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Debe habilitar al menos un sistema de amortización',
+      path: ['permiteFrances'],
+    })
+  }
+
+  // Validación de Tasa contra Techo Legal del Segmento BCE
+  const seg = SEGMENTOS_BCE.find((s) => s.id === data.segmentoBce)
+  if (seg && data.tasaInteres > seg.tasaMaxima) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: `La tasa (${data.tasaInteres}%) supera el tope legal del BCE (${seg.tasaMaxima}%) para ${seg.nombre}`,
+      path: ['tasaInteres'],
+    })
+  }
+
+  // Validación dinámica de Seguro de Desgravamen según Entidad (Banco vs Cooperativa)
+  const norm = NORMATIVA_ENTIDAD[data.entidad]
+  if (norm) {
+    if (data.tasaDesgravamenMensual < norm.desgravamenMin || data.tasaDesgravamenMensual > norm.desgravamenMax) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Para ${data.entidad}, el desgravamen mensual debe ubicarse entre ${norm.desgravamenMin}% y ${norm.desgravamenMax}% (${norm.regulador})`,
+        path: ['tasaDesgravamenMensual'],
+      })
+    }
+  }
 })
 
 type FormValues = z.infer<typeof formSchema>
@@ -110,7 +169,15 @@ type FormValues = z.infer<typeof formSchema>
 export function ConfiguradorCreditoPage() {
   const [filtroEntidadTabla, setFiltroEntidadTabla] = useState<'TODOS' | 'BANCO' | 'COOPERATIVA'>('TODOS')
   const queryClient = useQueryClient()
-  const { account } = useAuth()
+  const { account, hasPermission } = useAuth()
+
+  // ─── Control de Acceso Basado en Roles (RBAC) ──────────────────────────
+  // Solo Administrador o Asesor de crédito tienen autorización para parametrizar
+  const roles = account?.roles?.map((r) => r.toLowerCase()) ?? []
+  const esAdministrador = roles.includes('administrator') || roles.includes('admin') || roles.includes('role_administrator')
+  const esAsesorCredito = roles.includes('credit_advisor') || roles.includes('asesor') || roles.includes('role_asesor') || roles.includes('role_credit_advisor')
+  const esRolAutorizado = esAdministrador || esAsesorCredito || hasPermission('credit.products.manage')
+
   const usuario = account ? {
     nombre: account.fullName || account.username,
     apellido: '',
@@ -120,6 +187,7 @@ export function ConfiguradorCreditoPage() {
   const { data: creditosConfigurados = [], isLoading: cargandoLista } = useQuery({
     queryKey: ['creditosConfigurados'],
     queryFn: creditosService.getConfigurados,
+    enabled: esRolAutorizado,
   })
 
   const {
@@ -147,11 +215,17 @@ export function ConfiguradorCreditoPage() {
     },
   })
 
-  const entidadActual = watch('entidad')
+  const entidadActual = watch('entidad') as 'Banco' | 'Cooperativa'
   const segmentoActualId = watch('segmentoBce')
   const tasaActual = watch('tasaInteres')
   const permiteFrances = watch('permiteFrances')
   const permiteAleman = watch('permiteAleman')
+
+  // Normativa dinámica según tipo de entidad (Banco vs Cooperativa)
+  const normativaActual = NORMATIVA_ENTIDAD[entidadActual] || NORMATIVA_ENTIDAD.Banco
+  const desgravamenActual = watch('tasaDesgravamenMensual')
+  const desgravamenFueraDeRango =
+    desgravamenActual < normativaActual.desgravamenMin || desgravamenActual > normativaActual.desgravamenMax
 
   // Catálogo dinámico de segmentos filtrado y priorizado por tipo de entidad
   const segmentosDisponibles = useMemo(() => {
@@ -212,6 +286,26 @@ export function ConfiguradorCreditoPage() {
     })
   }
 
+  // ─── Renderizado de Bloqueo para Roles No Autorizados ────────────────────
+  if (!esRolAutorizado) {
+    return (
+      <div className="mx-auto max-w-xl py-20 px-4 text-center space-y-4">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+          <ShieldAlert className="h-7 w-7" />
+        </div>
+        <h2 className="text-2xl font-bold tracking-tight text-foreground">Acceso Restringido</h2>
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          Esta vista y la configuración de tasas de crédito y seguro de desgravamen están reservadas exclusivamente para usuarios con rol de <strong>Administrador</strong> o <strong>Asesor de crédito</strong>.
+        </p>
+        <div className="pt-2">
+          <Button asChild variant="outline">
+            <Link to="/simulador">Ir al Simulador Público</Link>
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 space-y-8 sm:px-6 lg:px-8">
       {/* ── Header Ejecutivo Asesor ─────────────────────────────────────── */}
@@ -223,7 +317,7 @@ export function ConfiguradorCreditoPage() {
             </h1>
             <Badge className="bg-brand-teal/15 text-brand-teal border-brand-teal/30 font-medium text-xs">
               <BadgeCheck className="w-3.5 h-3.5 mr-1" />
-              Rol: Asesor Financiero
+              Rol: {esAdministrador ? 'Administrador' : 'Asesor de crédito'}
             </Badge>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -333,6 +427,19 @@ export function ConfiguradorCreditoPage() {
                   {errors.entidad && (
                     <p className="text-[11px] text-destructive">{errors.entidad.message}</p>
                   )}
+
+                  {/* Ficha Dinámica de Normativa Legal por Tipo de Entidad */}
+                  <div className="p-2.5 rounded-lg border border-border bg-muted/30 text-[11px] space-y-1">
+                    <div className="flex items-center justify-between text-foreground font-medium">
+                      <span>Normativa: {normativaActual.regulador}</span>
+                      <span className="font-mono text-brand-teal font-semibold">
+                        Desgravamen: {normativaActual.desgravamenMin}% - {normativaActual.desgravamenMax}%/mes
+                      </span>
+                    </div>
+                    <p className="text-muted-foreground text-[10.5px] leading-relaxed">
+                      {normativaActual.descripcion}
+                    </p>
+                  </div>
                 </div>
 
                 {/* 3. Segmento Regulatorio BCE */}
@@ -483,15 +590,24 @@ export function ConfiguradorCreditoPage() {
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label htmlFor="desgravamen" className="text-xs font-semibold text-foreground flex items-center gap-1">
-                      <Shield className="w-3.5 h-3.5 text-brand-gold" />
-                      Desgravamen Mensual (%)
+                    <Label htmlFor="desgravamen" className="text-xs font-semibold text-foreground flex items-center justify-between">
+                      <span className="flex items-center gap-1">
+                        <Shield className="w-3.5 h-3.5 text-brand-gold" />
+                        Desgravamen Mensual (%)
+                      </span>
+                      <span className="text-[10px] font-mono text-muted-foreground">
+                        {normativaActual.desgravamenMin}% - {normativaActual.desgravamenMax}%
+                      </span>
                     </Label>
                     <Input
                       id="desgravamen"
                       type="number"
                       step="0.001"
-                      className="text-xs font-mono"
+                      className={`text-xs font-mono ${
+                        desgravamenFueraDeRango
+                          ? 'border-destructive focus-visible:ring-destructive bg-destructive/5'
+                          : 'focus-visible:ring-brand-teal'
+                      }`}
                       {...register('tasaDesgravamenMensual', { valueAsNumber: true })}
                     />
                     {errors.tasaDesgravamenMensual && (
@@ -508,6 +624,19 @@ export function ConfiguradorCreditoPage() {
                       <p className="font-semibold">Violación de Tasa Máxima Legal (BCE)</p>
                       <p className="text-[11px] mt-0.5 leading-relaxed">
                         La tasa de {tasaActual}% supera el techo regulatorio de {infoSegmento.tasaMaxima}% para el segmento {infoSegmento.nombre}. No se permite guardar créditos con usura.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Alerta si desgravamen está fuera del rango legal para la entidad */}
+                {desgravamenFueraDeRango && (
+                  <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-semibold">Desgravamen fuera de rango normativo ({entidadActual})</p>
+                      <p className="text-[11px] mt-0.5 leading-relaxed">
+                        Para {entidadActual === 'Banco' ? 'Bancos (Superintendencia de Bancos)' : 'Cooperativas (SEPS)'}, el seguro de desgravamen debe ubicarse entre {normativaActual.desgravamenMin}% y {normativaActual.desgravamenMax}% mensual.
                       </p>
                     </div>
                   </div>
@@ -569,7 +698,7 @@ export function ConfiguradorCreditoPage() {
                   <Button
                     type="submit"
                     className="w-full gap-2 bg-brand-teal text-brand-teal-foreground hover:bg-brand-teal/90 shadow-sm font-semibold text-sm transition-all"
-                    disabled={mutation.isPending || tasaSuperaTope}
+                    disabled={mutation.isPending || tasaSuperaTope || desgravamenFueraDeRango}
                   >
                     {mutation.isPending ? (
                       <>

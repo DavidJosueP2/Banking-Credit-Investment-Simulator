@@ -100,7 +100,7 @@ const clienteSchema = z.object({
   tipoInstitucion: z.enum(['Banco', 'Cooperativa'], {
     message: 'Seleccione el tipo de institución (Banco o Cooperativa)',
   }),
-  entidadId: z.coerce
+  entidadId: z
     .number({ message: 'Seleccione una entidad financiera específica' })
     .min(1, 'Seleccione una entidad financiera específica en el Paso 2'),
   monto: z
