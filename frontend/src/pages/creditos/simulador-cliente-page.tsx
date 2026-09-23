@@ -20,6 +20,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import creditPersonImage from '@/assets/imgs/persona-crédito.png'
+import { SimulatorHeroBanner } from '@/components/shared/simulator-hero-banner'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import {
   Select,
@@ -38,6 +40,7 @@ import {
   type EntidadCredito,
 } from '@/types'
 import { useAuth } from '@/app/providers/auth-provider'
+import { useInstitutionSettings } from '@/app/providers/settings-provider'
 
 // ─── Entidades por Defecto (Fallback institucional) ──────────────────────────
 
@@ -233,6 +236,7 @@ function exportarSimulacionPdf(data: SimulacionClienteResponse, clienteNombre?: 
 
 export function SimuladorClientePage() {
   const { account, hasPermission } = useAuth()
+  const { assets } = useInstitutionSettings()
   const isAsesor = hasPermission('credit.products.manage') || (account?.roles?.includes('credit_advisor') ?? false)
   const usuario = account ? { nombre: account.fullName || account.username } : null
 
@@ -328,36 +332,40 @@ export function SimuladorClientePage() {
   }
 
   return (
-    <main id="contenido" className="mx-auto max-w-7xl px-5 py-10 sm:px-8 lg:py-14 space-y-8">
-      {/* ── Banner condicional para Asesor ─────────────────────────────── */}
-      {isAsesor && (
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-xl bg-brand-teal/5 border border-brand-teal/20 text-xs">
-          <div className="flex items-center gap-2.5 text-foreground">
-            <span className="flex size-2 rounded-full bg-brand-teal animate-pulse" />
-            <span>
-              Sesión activa como <strong className="font-semibold text-foreground">Asesor Financiero</strong> ({usuario?.nombre}). Puedes gestionar la parametrización institucional.
-            </span>
+    <main id="contenido" className="w-full">
+      {/* ── Encabezado Acentuado con Franja Estilo Banco ───────────────── */}
+      <SimulatorHeroBanner
+        breadcrumbs={[
+          { label: 'Inicio', href: '/' },
+          { label: 'Créditos', href: '/creditos/simulador' },
+          { label: 'Simulador de Crédito' },
+        ]}
+        title="Simulador de Crédito"
+        description="Calcula tu cronograma de pagos oficial con amortización francesa o alemana y seguro de desgravamen sobre saldo deudor."
+        imageSrc={assets.creditSimulatorImage ?? creditPersonImage}
+        imageAlt="Persona simulando un crédito"
+      />
+
+      <div className="mx-auto max-w-7xl px-5 py-8 sm:px-8 lg:py-12 space-y-8">
+        {/* ── Banner condicional para Asesor ─────────────────────────────── */}
+        {isAsesor && (
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-xl bg-brand-teal/5 border border-brand-teal/20 text-xs">
+            <div className="flex items-center gap-2.5 text-foreground">
+              <span className="flex size-2 rounded-full bg-brand-teal animate-pulse" />
+              <span>
+                Sesión activa como <strong className="font-semibold text-foreground">Asesor Financiero</strong> ({usuario?.nombre}). Puedes gestionar la parametrización institucional.
+              </span>
+            </div>
+            <Button asChild size="sm" variant="outline" className="border-brand-teal/30 text-brand-teal hover:bg-brand-teal/10 gap-1.5 shrink-0">
+              <Link to="/admin/creditos">
+                Ir a Configuración de Créditos
+                <ArrowRight className="size-3.5" />
+              </Link>
+            </Button>
           </div>
-          <Button asChild size="sm" variant="outline" className="border-brand-teal/30 text-brand-teal hover:bg-brand-teal/10 gap-1.5 shrink-0">
-            <Link to="/admin/creditos">
-              Ir a Configuración de Créditos
-              <ArrowRight className="size-3.5" />
-            </Link>
-          </Button>
-        </div>
-      )}
+        )}
 
-      {/* ── Encabezado Estándar del Sistema de Diseño ──────────────────── */}
-      <div className="text-center max-w-3xl mx-auto space-y-2">
-        <h1 className="font-heading text-3xl font-normal tracking-tight text-foreground sm:text-4xl">
-          Simulador de Crédito
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Calcula tu cronograma de pagos oficial con amortización francesa o alemana y seguro de desgravamen sobre saldo deudor.
-        </p>
-      </div>
-
-      <div className="mt-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* ── Formulario de Parámetros (Sticky Desktop) ─────────────────── */}
         <div className="lg:col-span-4 space-y-6 lg:sticky lg:top-24">
           <Card className="rounded-xl border bg-card shadow-xs">
@@ -868,6 +876,7 @@ export function SimuladorClientePage() {
             </div>
           )}
         </div>
+      </div>
       </div>
     </main>
   )

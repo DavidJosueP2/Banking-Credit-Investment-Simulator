@@ -290,7 +290,7 @@ export function ConfiguradorCreditoPage() {
         </p>
         <div className="pt-2">
           <Button asChild variant="outline">
-            <Link to="/simulador">Ir al Simulador Público</Link>
+            <Link to="/creditos/simulador">Ir al Simulador Público</Link>
           </Button>
         </div>
       </div>
