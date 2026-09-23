@@ -163,7 +163,7 @@ export function HomePage() {
 
   return (
     <main id="contenido">
-      <section className="relative isolate grid min-h-[calc(100dvh-7.5rem)] w-full items-center overflow-hidden bg-background md:min-h-[calc(100dvh-4.5rem)] 2xl:grid-cols-[minmax(18rem,1fr)_minmax(0,60rem)_minmax(18rem,1fr)]" aria-labelledby="landing-intro-title">
+      <section className="relative isolate grid min-h-[calc(100dvh-7.5rem)] w-full items-center overflow-hidden bg-background md:min-h-[calc(100dvh-4.5rem)] 2xl:grid-cols-[minmax(15rem,1fr)_minmax(0,44rem)_minmax(15rem,1fr)]" aria-labelledby="landing-intro-title">
         {decorativeIllustrationsVisible && <HeroIllustration side="left" />}
         <div className="relative z-10 mx-auto w-full px-5 py-14 text-center sm:px-8 sm:py-16 lg:py-20 2xl:col-start-2">
           <BrandLogo

@@ -2,8 +2,7 @@ import { CircleCheck, MailCheck, TimerReset } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 
-import leftIllustration from '@/assets/landing/brunexa-playful-left.svg'
-import rightIllustration from '@/assets/landing/brunexa-playful-right.svg'
+import { IllustratedAccessLayout } from '@/components/layout/illustrated-access-layout'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
@@ -92,26 +91,21 @@ export function EmailVerificationPage() {
   }
 
   return (
-    <main id="contenido" className="grid min-h-[calc(100svh-4.5rem)] overflow-hidden 2xl:grid-cols-[minmax(15rem,1fr)_minmax(0,34rem)_minmax(15rem,1fr)]">
-      <div aria-hidden="true" className="hidden items-center justify-start 2xl:flex">
-        <img src={leftIllustration} alt="" className="h-auto w-full max-w-[26rem] -translate-x-8 select-none object-contain" />
-      </div>
-
-      <section className="flex items-center px-5 py-14 sm:px-8 lg:py-20" aria-labelledby="verification-title">
-        <div className="mx-auto w-full max-w-lg">
-          {verified ? (
-            <div className="text-center" role="status">
-              <CircleCheck className="mx-auto size-12 text-brand-teal" aria-hidden="true" />
-              <h1 id="verification-title" className="mt-6 text-3xl sm:text-4xl">Correo verificado</h1>
-              <p className="mx-auto mt-4 max-w-[48ch] leading-7 text-muted-foreground">
-                Tu correo quedó confirmado. Ya puedes iniciar sesión si la cuenta se encuentra activa.
-              </p>
-              <Button asChild size="lg" variant="brand" className="mt-8 w-full sm:w-auto">
-                <Link to="/login">Ir a iniciar sesión</Link>
-              </Button>
-            </div>
-          ) : (
-            <>
+    <IllustratedAccessLayout>
+      <section className="mx-auto w-full max-w-lg" aria-labelledby="verification-title">
+        {verified ? (
+          <div className="text-center" role="status">
+            <CircleCheck className="mx-auto size-12 text-brand-teal" aria-hidden="true" />
+            <h1 id="verification-title" className="mt-6 text-3xl sm:text-4xl">Correo verificado</h1>
+            <p className="mx-auto mt-4 max-w-[48ch] leading-7 text-muted-foreground">
+              Tu correo quedó confirmado. Ya puedes iniciar sesión si la cuenta se encuentra activa.
+            </p>
+            <Button asChild size="lg" variant="brand" className="mt-8 w-full sm:w-auto">
+              <Link to="/login">Ir a iniciar sesión</Link>
+            </Button>
+          </div>
+        ) : (
+          <>
               <MailCheck className="size-9 text-brand-teal" aria-hidden="true" />
               <h1 id="verification-title" className="mt-5 text-3xl sm:text-4xl">Verifica tu correo</h1>
               <p className="mt-4 max-w-[52ch] leading-7 text-muted-foreground">
@@ -174,14 +168,9 @@ export function EmailVerificationPage() {
               <Link to="/login" className="mt-7 inline-block text-sm text-brand-gold underline underline-offset-4 hover:text-foreground">
                 Volver al inicio de sesión
               </Link>
-            </>
-          )}
-        </div>
+          </>
+        )}
       </section>
-
-      <div aria-hidden="true" className="hidden items-center justify-end 2xl:flex">
-        <img src={rightIllustration} alt="" className="h-auto w-full max-w-[25rem] translate-x-8 select-none object-contain" />
-      </div>
-    </main>
+    </IllustratedAccessLayout>
   )
 }

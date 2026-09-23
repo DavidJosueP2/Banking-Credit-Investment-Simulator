@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
-import { Ban, Check, CircleCheck, Copy, MailCheck, RefreshCw, UserRoundCheck } from 'lucide-react'
+import { Ban, Check, CircleCheck, Copy, Eye, EyeOff, MailCheck, RefreshCw, UserRoundCheck } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { toast } from 'sonner'
 
@@ -73,6 +73,7 @@ export function RolePermissionsPage() {
   const [newEmail, setNewEmail] = useState('')
   const [newUsername, setNewUsername] = useState('')
   const [newPassword, setNewPassword] = useState('')
+  const [showNewPassword, setShowNewPassword] = useState(false)
   const [passwordMode, setPasswordMode] = useState<PasswordMode>('manual')
   const [newRole, setNewRole] = useState('')
   const [creating, setCreating] = useState(false)
@@ -189,6 +190,7 @@ export function RolePermissionsPage() {
       setNewEmail('')
       setNewUsername('')
       setNewPassword('')
+      setShowNewPassword(false)
       setPasswordMode('manual')
       setNewRole('')
     }
@@ -271,7 +273,32 @@ export function RolePermissionsPage() {
                 {passwordMode === 'manual' && (
                   <div className="space-y-2">
                     <Label htmlFor="new-password">Contraseña inicial</Label>
-                    <Input id="new-password" type="password" minLength={12} maxLength={128} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required autoComplete="new-password" />
+                    <div className="relative">
+                      <Input
+                        id="new-password"
+                        type={showNewPassword ? 'text' : 'password'}
+                        minLength={12}
+                        maxLength={128}
+                        value={newPassword}
+                        onChange={(event) => setNewPassword(event.target.value)}
+                        required
+                        autoComplete="new-password"
+                        className="pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowNewPassword((prev) => !prev)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
+                        aria-label={showNewPassword ? 'Ocultar contraseña' : 'Ver contraseña'}
+                        title={showNewPassword ? 'Ocultar contraseña' : 'Ver contraseña'}
+                      >
+                        {showNewPassword ? (
+                          <EyeOff className="size-4.5" aria-hidden="true" />
+                        ) : (
+                          <Eye className="size-4.5" aria-hidden="true" />
+                        )}
+                      </button>
+                    </div>
                     <p className="text-sm text-muted-foreground">Debe contener al menos 12 caracteres.</p>
                   </div>
                 )}

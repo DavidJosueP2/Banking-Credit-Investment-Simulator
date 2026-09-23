@@ -21,7 +21,12 @@ export function HeroIllustration({ side }: HeroIllustrationProps) {
       <img
         src={side === 'left' ? leftIllustration : rightIllustration}
         alt=""
-        className="h-auto w-full max-w-[26.25rem] object-contain"
+        className={cn(
+          'h-auto w-full select-none object-contain',
+          side === 'left'
+            ? 'max-w-[26rem] -translate-x-8'
+            : 'max-w-[25rem] translate-x-8',
+        )}
       />
     </div>
   )
