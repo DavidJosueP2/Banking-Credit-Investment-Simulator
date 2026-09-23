@@ -32,6 +32,15 @@ public class CargoCreditoEntity {
     @Column(nullable = false, precision = 12, scale = 4)
     private BigDecimal valor = BigDecimal.ZERO;
 
+    @Column(length = 20)
+    private String periodicidad = "MENSUAL"; // MENSUAL o UNICO
+
+    @Column(name = "base_calculo", length = 30)
+    private String baseCalculo = "SALDO_DEUDOR"; // SALDO_DEUDOR, MONTO_SOLICITADO, FIJO
+
+    @Column(name = "norma_aplicable", length = 200)
+    private String normaAplicable;
+
     @Column(nullable = false)
     private Boolean obligatorio = true;
 

@@ -249,6 +249,7 @@ export function ConfiguradorCreditoPage() {
         description: `${resp.nombre} (${resp.entidad}) configurado y disponible en el motor de simulación.`,
       })
       queryClient.invalidateQueries({ queryKey: ['creditosConfigurados'] })
+      queryClient.invalidateQueries({ queryKey: ['simulador', 'productos'] })
       queryClient.invalidateQueries({ queryKey: ['productos'] })
     },
     onError: (err: any) => {

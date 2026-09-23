@@ -56,6 +56,9 @@ public class ProductoCreditoEntity {
     @Column(name = "segmento_bce", length = 100)
     private String segmentoBce = "Consumo Prioritario";
 
+    @Column(name = "unidad_plazo", length = 20)
+    private String unidadPlazo = "MESES";
+
     @Column(name = "imagen_url", columnDefinition = "TEXT")
     private String imagenUrl;
 

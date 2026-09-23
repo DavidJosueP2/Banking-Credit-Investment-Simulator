@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -12,10 +12,13 @@ import {
   RefreshCw,
   CheckCircle2,
   ArrowRight,
-  Building2,
-  Landmark,
   Percent,
   ShieldCheck,
+  ShoppingBag,
+  Coins,
+  Receipt,
+  FileCheck2,
+  Info,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -31,84 +34,15 @@ import {
 import { Badge } from '@/components/ui/badge'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import { simuladorService } from '@/features/creditos/simulador/services/simulador.service'
+import { simuladorService, PRODUCTOS_FALLBACK } from '@/features/creditos/simulador/services/simulador.service'
 import {
   type SimulacionClienteResponse,
   type SimulacionClienteRequest,
-  type EntidadCredito,
+  type ProductoSimulador,
 } from '@/types'
 import { useAuth } from '@/app/providers/auth-provider'
 
-// ─── Entidades por Defecto (Fallback institucional) ──────────────────────────
-
-const DEFAULT_ENTIDADES: EntidadCredito[] = [
-  {
-    id: 3,
-    nombre: 'Banco Pichincha - Crédito Personal',
-    tipo: 'Banco',
-    tasaNominal: 15.20,
-    desgravamen: 0.0550,
-  },
-  {
-    id: 4,
-    nombre: 'Banco Guayaquil - Multicrédito',
-    tipo: 'Banco',
-    tasaNominal: 15.80,
-    desgravamen: 0.0600,
-  },
-  {
-    id: 1,
-    nombre: 'Crédito Consumo Ágil Banco',
-    tipo: 'Banco',
-    tasaNominal: 15.50,
-    desgravamen: 0.0600,
-  },
-  {
-    id: 5,
-    nombre: 'Cooperativa JEP - Microcrédito Crece',
-    tipo: 'Cooperativa',
-    tasaNominal: 21.50,
-    desgravamen: 0.0700,
-  },
-  {
-    id: 6,
-    nombre: 'Cooperativa Policía Nacional - Préstamo Solidario',
-    tipo: 'Cooperativa',
-    tasaNominal: 17.90,
-    desgravamen: 0.0600,
-  },
-  {
-    id: 2,
-    nombre: 'Microcrédito Crece Cooperativa',
-    tipo: 'Cooperativa',
-    tasaNominal: 22.00,
-    desgravamen: 0.0700,
-  },
-]
-
-// ─── Validación Zod (Formulario con Cascada de Entidades) ────────────────────
-
-const clienteSchema = z.object({
-  tipoInstitucion: z.enum(['Banco', 'Cooperativa'], {
-    message: 'Seleccione el tipo de institución (Banco o Cooperativa)',
-  }),
-  entidadId: z
-    .number({ message: 'Seleccione una entidad financiera específica' })
-    .min(1, 'Seleccione una entidad financiera específica en el Paso 2'),
-  monto: z
-    .number({ message: 'Ingrese un monto válido' })
-    .min(50, 'El monto mínimo a simular es de $50 USD'),
-  frecuencia: z.enum(['MENSUAL', 'ANUAL'] as const),
-  plazo: z
-    .number({ message: 'Ingrese un plazo válido' })
-    .min(1, 'El plazo mínimo es 1')
-    .max(360, 'El plazo no puede superar los 360 períodos'),
-  sistema: z.enum(['FRANCES', 'ALEMAN'] as const),
-})
-
-type ClienteFormData = z.infer<typeof clienteSchema>
-
-// Formateador de moneda USD
+// ─── Formateador de moneda USD ───────────────────────────────────────────────
 const fmtCurrency = new Intl.NumberFormat('es-EC', {
   style: 'currency',
   currency: 'USD',
@@ -116,12 +50,30 @@ const fmtCurrency = new Intl.NumberFormat('es-EC', {
 })
 const fmt = (n: number | undefined) => fmtCurrency.format(n || 0)
 
-// ─── Función de Generación de PDF con Paleta Institucional ───────────────────
+// ─── Validación Zod Dinámica ────────────────────────────────────────────────
+const simuladorSchema = z.object({
+  productoId: z.number({ message: 'Seleccione un tipo de crédito' }).min(1, 'Seleccione un tipo de crédito'),
+  costoTotal: z
+    .number({ message: 'Ingrese el costo del bien o servicio' })
+    .min(10, 'El valor mínimo del bien o servicio es de $10 USD'),
+  monto: z
+    .number({ message: 'Ingrese el monto que desea prestar' })
+    .min(10, 'El monto mínimo a simular es de $10 USD'),
+  plazo: z
+    .number({ message: 'Ingrese el plazo deseado' })
+    .min(1, 'El plazo mínimo es de 1 período'),
+  sistema: z.enum(['FRANCES', 'ALEMAN'] as const, {
+    message: 'Seleccione un sistema de amortización',
+  }),
+})
 
+type SimuladorFormData = z.infer<typeof simuladorSchema>
+
+// ─── Exportación Oficial a PDF (8 Columnas y Resumen Normativo) ──────────────
 function exportarSimulacionPdf(data: SimulacionClienteResponse, clienteNombre?: string | null) {
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
 
-  // Color primario corporativo: Brand Teal [8, 116, 123] (#08747b)
+  // Cabecera Corporativa Brand Teal
   doc.setFillColor(8, 116, 123)
   doc.rect(0, 0, 297, 24, 'F')
 
@@ -133,7 +85,11 @@ function exportarSimulacionPdf(data: SimulacionClienteResponse, clienteNombre?: 
   doc.setFontSize(8.5)
   doc.setFont('helvetica', 'normal')
   doc.text('Sistema Financiero Ecuatoriano • Normativa del Banco Central del Ecuador (BCE)', 14, 17)
-  doc.text(`Fecha de emisión: ${new Date().toLocaleDateString('es-EC')} ${new Date().toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' })}`, 220, 17)
+  doc.text(
+    `Emisión: ${new Date().toLocaleDateString('es-EC')} ${new Date().toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' })}`,
+    220,
+    17
+  )
 
   // Resumen Operativo
   doc.setTextColor(32, 37, 39)
@@ -149,12 +105,14 @@ function exportarSimulacionPdf(data: SimulacionClienteResponse, clienteNombre?: 
   const col3X = 158
   const col4X = 230
 
-  doc.text(`Producto: ${data.nombreProducto}`, col1X, 38)
-  doc.text(`Entidad: ${data.entidad}`, col1X, 44)
-  doc.text(`Segmento BCE: ${data.segmentoBce}`, col1X, 50)
+  doc.text(`Tipo de Crédito: ${data.nombreProducto}`, col1X, 38)
+  if (data.costoTotal) {
+    doc.text(`Costo del Bien / Servicio: ${fmt(data.costoTotal)}`, col1X, 44)
+  }
+  doc.text(`Segmento BCE: ${data.segmentoBce || 'Oficial'}`, col1X, 50)
 
-  doc.text(`Monto Financiado: ${fmt(data.monto)}`, col2X, 38)
-  doc.text(`Frecuencia de Pago: ${data.frecuencia}`, col2X, 44)
+  doc.text(`Monto Solicitado: ${fmt(data.monto)}`, col2X, 38)
+  doc.text(`Frecuencia: ${data.frecuencia}`, col2X, 44)
   doc.text(`Plazo: ${data.totalCuotas} ${data.frecuencia === 'ANUAL' ? 'años' : 'meses'}`, col2X, 50)
 
   doc.text(`Tasa Nominal Anual: ${data.tasaInteresAnual}%`, col3X, 38)
@@ -162,17 +120,18 @@ function exportarSimulacionPdf(data: SimulacionClienteResponse, clienteNombre?: 
   doc.text(`Sistema: ${data.sistema === 'FRANCES' ? 'Francés (Cuota Fija)' : 'Alemán (Capital Fijo)'}`, col3X, 50)
 
   doc.setFont('helvetica', 'bold')
-  doc.text(`Cuota Periódica: ${fmt(data.cuotaPeriodica)}`, col4X, 38)
-  doc.text(`Total Intereses: ${fmt(data.totalIntereses)}`, col4X, 44)
+  doc.text(`Cuota Inicial: ${fmt(data.cuotaPeriodica)}`, col4X, 38)
+  doc.text(`Cargos Indirectos: ${fmt(data.totalCargosIndirectos || 0)}`, col4X, 44)
   doc.text(`Total a Pagar: ${fmt(data.totalPagar)}`, col4X, 50)
 
-  // 7 Columnas Exactas solicitadas
+  // 8 Columnas Exactas Oficiales
   const head = [[
-    'No. Cuota',
+    'No.',
     'Saldo Inicial',
     'Capital',
     'Interés',
     'Desgravamen',
+    'Cargos Ind.',
     'Cuota Total',
     'Saldo Final',
   ]]
@@ -183,6 +142,7 @@ function exportarSimulacionPdf(data: SimulacionClienteResponse, clienteNombre?: 
     fmt(c.capital),
     fmt(c.interes),
     fmt(c.desgravamen),
+    fmt(c.cargosIndirectos || 0),
     fmt(c.cuotaTotal),
     fmt(c.saldoFinal),
   ])
@@ -200,7 +160,7 @@ function exportarSimulacionPdf(data: SimulacionClienteResponse, clienteNombre?: 
       textColor: [32, 37, 39],
     },
     headStyles: {
-      fillColor: [8, 116, 123], // Brand Teal
+      fillColor: [8, 116, 123],
       textColor: [255, 255, 255],
       fontStyle: 'bold',
       halign: 'right',
@@ -209,28 +169,26 @@ function exportarSimulacionPdf(data: SimulacionClienteResponse, clienteNombre?: 
       fillColor: [248, 250, 250],
     },
     columnStyles: {
-      0: { halign: 'center', cellWidth: 20 },
-      5: { fontStyle: 'bold', fillColor: [240, 248, 248] },
+      0: { halign: 'center', cellWidth: 15 },
+      6: { fontStyle: 'bold', fillColor: [240, 248, 248] },
     },
   })
 
-  // Pie de página legal
   const finalY = (doc as any).lastAutoTable?.finalY || 180
   doc.setFontSize(7.5)
   doc.setFont('helvetica', 'italic')
   doc.setTextColor(120, 130, 133)
   doc.text(
-    '* Esta simulación es referencial y está sujeta a aprobación crediticia. El seguro de desgravamen se calcula mensualmente sobre el saldo deudor según normativa de la Junta de Política y Regulación Financiera.',
+    '* Simulación referencial calculada con tasas y cargos vigentes según resolución del Banco Central del Ecuador (BCE) y Junta de Política y Regulación Financiera.',
     14,
     Math.min(finalY + 8, 200)
   )
 
-  const nombreArchivo = `Amortizacion_${data.sistema}_${data.monto}USD.pdf`
+  const nombreArchivo = `Amortizacion_${data.nombreProducto.replace(/\s+/g, '_')}_${data.monto}USD.pdf`
   doc.save(nombreArchivo)
 }
 
-// ─── Componente Principal de la Vista Usuario ────────────────────────────────
-
+// ─── Componente Principal del Simulador ─────────────────────────────────────
 export function SimuladorClientePage() {
   const { account, hasPermission } = useAuth()
   const isAsesor = hasPermission('credit.products.manage') || (account?.roles?.includes('credit_advisor') ?? false)
@@ -238,20 +196,21 @@ export function SimuladorClientePage() {
 
   const [resultado, setResultado] = useState<SimulacionClienteResponse | null>(null)
 
-  // Catálogo de entidades desde el backend
-  const entidadesQuery = useQuery({
-    queryKey: ['simulador', 'entidades'],
-    queryFn: () => simuladorService.obtenerEntidades(),
+  // Consulta de Tipos de Crédito desde la Base de Datos
+  const productosQuery = useQuery({
+    queryKey: ['simulador', 'productos'],
+    queryFn: () => simuladorService.obtenerProductos(),
     staleTime: 60_000,
   })
 
-  // Entidades activas disponibles (usa API si disponible, o fallback institucional)
-  const entidadesDisponibles = useMemo(() => {
-    if (entidadesQuery.data && entidadesQuery.data.length > 0) {
-      return entidadesQuery.data
+  const productosDisponibles: ProductoSimulador[] = useMemo(() => {
+    if (productosQuery.data && productosQuery.data.length > 0) {
+      return productosQuery.data
     }
-    return DEFAULT_ENTIDADES
-  }, [entidadesQuery.data])
+    return PRODUCTOS_FALLBACK
+  }, [productosQuery.data])
+
+  const defaultProd: ProductoSimulador = productosDisponibles[0] || PRODUCTOS_FALLBACK[0]
 
   const {
     register,
@@ -259,106 +218,156 @@ export function SimuladorClientePage() {
     control,
     watch,
     setValue,
+    setError,
+    clearErrors,
     formState: { errors },
-  } = useForm<ClienteFormData>({
-    resolver: zodResolver(clienteSchema),
+  } = useForm<SimuladorFormData>({
+    resolver: zodResolver(simuladorSchema),
     defaultValues: {
-      tipoInstitucion: 'Banco',
-      entidadId: 3,
+      productoId: defaultProd.id,
+      costoTotal: 8000,
       monto: 5000,
-      frecuencia: 'MENSUAL',
-      plazo: 24,
-      sistema: 'FRANCES',
+      plazo: defaultProd.plazoMin >= 12 ? defaultProd.plazoMin : 24,
+      sistema: (defaultProd.sistemasPermitidos[0] as 'FRANCES' | 'ALEMAN') || 'FRANCES',
     },
   })
 
-  const tipoInstitucionActual = watch('tipoInstitucion')
-  const entidadIdActual = watch('entidadId')
-  const frecuenciaActual = watch('frecuencia')
-  const sistemaActual = watch('sistema')
+  const productoIdActual = watch('productoId')
+  const costoTotalActual = watch('costoTotal')
   const montoActual = watch('monto')
+  const plazoActual = watch('plazo')
+  const sistemaActual = watch('sistema')
 
-  // Entidades filtradas según Combo Box 1 (Tipo de Institución)
-  const entidadesFiltradas = useMemo(() => {
-    if (!tipoInstitucionActual) return []
-    return entidadesDisponibles.filter(
-      (e) => e.tipo.toLowerCase() === tipoInstitucionActual.toLowerCase()
-    )
-  }, [entidadesDisponibles, tipoInstitucionActual])
+  // Producto seleccionado dinámicamente
+  const productoSeleccionado = useMemo(() => {
+    return productosDisponibles.find((p) => p.id === Number(productoIdActual)) || defaultProd
+  }, [productosDisponibles, productoIdActual, defaultProd])
 
-  // Entidad actualmente seleccionada en Combo Box 2
-  const entidadSeleccionada = useMemo(() => {
-    if (!entidadIdActual) return null
-    return entidadesDisponibles.find((e) => e.id === Number(entidadIdActual)) || null
-  }, [entidadesDisponibles, entidadIdActual])
+  const esAnios = productoSeleccionado.unidadPlazo === 'ANIOS'
+  const etiquetaPlazo = esAnios ? 'años' : 'meses'
+
+  // Cambio dinámico de producto: ajustar límites y valores incompatibles
+  useEffect(() => {
+    if (!productoSeleccionado) return
+
+    // 1. Ajustar plazo si está fuera del rango del nuevo producto
+    if (plazoActual < productoSeleccionado.plazoMin) {
+      setValue('plazo', productoSeleccionado.plazoMin)
+    } else if (plazoActual > productoSeleccionado.plazoMax) {
+      setValue('plazo', productoSeleccionado.plazoMax)
+    }
+
+    // 2. Ajustar monto si excede el máximo del nuevo producto
+    if (montoActual > productoSeleccionado.montoMax) {
+      setValue('monto', productoSeleccionado.montoMax)
+    } else if (montoActual < productoSeleccionado.montoMin) {
+      setValue('monto', productoSeleccionado.montoMin)
+    }
+
+    // 3. Ajustar sistema de amortización si el producto no permite el actual
+    if (!productoSeleccionado.sistemasPermitidos.includes(sistemaActual)) {
+      const nuevoSistema = (productoSeleccionado.sistemasPermitidos[0] as 'FRANCES' | 'ALEMAN') || 'FRANCES'
+      setValue('sistema', nuevoSistema)
+    }
+  }, [productoSeleccionado, setValue, plazoActual, montoActual, sistemaActual])
+
+  // Validación de la relación lógica entre monto solicitado y costo total
+  useEffect(() => {
+    if (costoTotalActual && montoActual && montoActual > costoTotalActual) {
+      setError('monto', {
+        type: 'manual',
+        message: `El monto a prestar ($${montoActual}) no puede ser mayor que el costo total del bien ($${costoTotalActual})`,
+      })
+    } else {
+      clearErrors('monto')
+    }
+  }, [costoTotalActual, montoActual, setError, clearErrors])
 
   const mutation = useMutation({
-    mutationFn: (data: ClienteFormData) => {
+    mutationFn: (data: SimuladorFormData) => {
       const payload: SimulacionClienteRequest = {
-        entidadId: data.entidadId,
-        productoId: data.entidadId,
+        productoId: data.productoId,
+        creditTypeId: data.productoId,
+        costoTotal: data.costoTotal,
         monto: data.monto,
-        frecuencia: data.frecuencia,
+        frecuencia: esAnios ? 'ANUAL' : 'MENSUAL',
         plazo: data.plazo,
         sistema: data.sistema,
-        entidad: data.tipoInstitucion,
         usuario: usuario?.nombre,
       }
       return simuladorService.calcularCliente(payload)
     },
     onSuccess: (data) => {
       setResultado(data)
-      toast.success('Amortización calculada correctamente', {
-        description: `Entidad: ${data.nombreProducto} (${data.entidad}) — Tasa: ${data.tasaInteresAnual}% — Desgravamen: ${data.tasaDesgravamenMensual}%`,
+      toast.success('Amortización calculada exitosamente', {
+        description: `${data.nombreProducto} — Tasa: ${data.tasaInteresAnual}% · Desgravamen: ${data.tasaDesgravamenMensual}%`,
       })
     },
     onError: (err: any) => {
       const msg = err.response?.data?.message || err.message || 'Error al realizar la simulación'
-      toast.error('No se pudo calcular el crédito', { description: msg })
+      toast.error('No se pudo simular el crédito', { description: msg })
     },
   })
 
-  const onSubmit = (data: ClienteFormData, e?: React.BaseSyntheticEvent) => {
+  const onSubmit = (data: SimuladorFormData, e?: React.BaseSyntheticEvent) => {
     e?.preventDefault()
-    if (!data.entidadId || data.entidadId <= 0) {
-      toast.error('Seleccione una entidad financiera específica en el Paso 2')
+
+    // Validaciones frontend adicionales
+    if (data.monto > data.costoTotal) {
+      toast.error('El monto a financiar no puede superar el costo del bien o servicio')
       return
     }
+
+    if (data.monto < productoSeleccionado.montoMin) {
+      toast.error(`El monto mínimo permitido para ${productoSeleccionado.nombre} es de $${productoSeleccionado.montoMin}`)
+      return
+    }
+
+    if (data.monto > productoSeleccionado.montoMax) {
+      toast.error(`El monto máximo permitido para ${productoSeleccionado.nombre} es de $${productoSeleccionado.montoMax}`)
+      return
+    }
+
+    if (data.plazo < productoSeleccionado.plazoMin || data.plazo > productoSeleccionado.plazoMax) {
+      toast.error(`El plazo debe estar entre ${productoSeleccionado.plazoMin} y ${productoSeleccionado.plazoMax} ${etiquetaPlazo}`)
+      return
+    }
+
     mutation.mutate(data)
   }
 
   return (
     <main id="contenido" className="mx-auto max-w-7xl px-5 py-10 sm:px-8 lg:py-14 space-y-8">
-      {/* ── Banner condicional para Asesor ─────────────────────────────── */}
+      {/* ── Banner condicional para Asesor / Administrador ─────────────── */}
       {isAsesor && (
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-xl bg-brand-teal/5 border border-brand-teal/20 text-xs">
           <div className="flex items-center gap-2.5 text-foreground">
             <span className="flex size-2 rounded-full bg-brand-teal animate-pulse" />
             <span>
-              Sesión activa como <strong className="font-semibold text-foreground">Asesor Financiero</strong> ({usuario?.nombre}). Puedes gestionar la parametrización institucional.
+              Sesión activa como <strong className="font-semibold text-foreground">Asesor Financiero</strong> ({usuario?.nombre}). La configuración y cargos de cada crédito provienen de la parametrización interna.
             </span>
           </div>
           <Button asChild size="sm" variant="outline" className="border-brand-teal/30 text-brand-teal hover:bg-brand-teal/10 gap-1.5 shrink-0">
             <Link to="/admin/creditos">
-              Ir a Configuración de Créditos
+              Administrar Productos
               <ArrowRight className="size-3.5" />
             </Link>
           </Button>
         </div>
       )}
 
-      {/* ── Encabezado Estándar del Sistema de Diseño ──────────────────── */}
+      {/* ── Encabezado Principal ────────────────────────────────────────── */}
       <div className="text-center max-w-3xl mx-auto space-y-2">
         <h1 className="font-heading text-3xl font-normal tracking-tight text-foreground sm:text-4xl">
           Simulador de Crédito
         </h1>
         <p className="text-sm text-muted-foreground">
-          Calcula tu cronograma de pagos oficial con amortización francesa o alemana y seguro de desgravamen sobre saldo deudor.
+          Calcula tu cronograma de pagos oficial conforme a la normativa vigente del Banco Central del Ecuador (BCE), con seguro de desgravamen y cargos indirectos transparentes.
         </p>
       </div>
 
       <div className="mt-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* ── Formulario de Parámetros (Sticky Desktop) ─────────────────── */}
+        {/* ── Formulario de Parámetros del Usuario (Sticky Desktop) ─────── */}
         <div className="lg:col-span-4 space-y-6 lg:sticky lg:top-24">
           <Card className="rounded-xl border bg-card shadow-xs">
             <CardHeader className="border-b pb-4">
@@ -368,10 +377,10 @@ export function SimuladorClientePage() {
                 </div>
                 <div>
                   <CardTitle className="text-base text-foreground font-sans font-medium">
-                    Datos del Préstamo
+                    Parámetros del Crédito
                   </CardTitle>
                   <CardDescription className="text-xs text-muted-foreground">
-                    Selecciona tu entidad y las condiciones del financiamiento
+                    Ingresa las condiciones deseadas para tu financiamiento
                   </CardDescription>
                 </div>
               </div>
@@ -380,96 +389,56 @@ export function SimuladorClientePage() {
             <CardContent className="pt-6">
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
                 
-                {/* Combo Box 1: Tipo de Institución */}
+                {/* 1. ComboBox Único: Tipo de Crédito (Cargado dinámicamente desde BD) */}
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <Label className="text-xs font-medium text-foreground flex items-center gap-1.5">
-                      <Landmark className="size-3.5 text-brand-teal" />
-                      1. Tipo de Institución
+                      <Receipt className="size-3.5 text-brand-teal" />
+                      Tipo de crédito
                     </Label>
-                    <span className="text-[10px] text-brand-teal font-medium">Obligatorio</span>
+                    <span className="text-[10px] text-brand-teal font-medium">Configuración oficial</span>
                   </div>
                   <Controller
-                    name="tipoInstitucion"
+                    name="productoId"
                     control={control}
                     render={({ field }) => (
                       <Select
-                        onValueChange={(val: 'Banco' | 'Cooperativa') => {
-                          field.onChange(val)
-                          const primera = entidadesDisponibles.find(
-                            (e) => e.tipo.toLowerCase() === val.toLowerCase()
-                          )
-                          setValue('entidadId', primera ? primera.id : 0)
-                        }}
-                        value={field.value}
-                      >
-                        <SelectTrigger className="w-full text-xs">
-                          <SelectValue placeholder="Seleccione Tipo (Banco o Cooperativa)" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Banco">Banco Comercial</SelectItem>
-                          <SelectItem value="Cooperativa">Cooperativa de Ahorro y Crédito</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    )}
-                  />
-                  {errors.tipoInstitucion && (
-                    <p className="text-[11px] text-destructive">{errors.tipoInstitucion.message}</p>
-                  )}
-                </div>
-
-                {/* Combo Box 2: Entidad Específica */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-xs font-medium text-foreground flex items-center gap-1.5">
-                      <Building2 className="size-3.5 text-brand-teal" />
-                      2. Entidad Financiera Específica
-                    </Label>
-                    <span className="text-[10px] text-brand-teal font-medium">Obligatorio</span>
-                  </div>
-                  <Controller
-                    name="entidadId"
-                    control={control}
-                    render={({ field }) => (
-                      <Select
-                        disabled={!tipoInstitucionActual || entidadesFiltradas.length === 0}
                         onValueChange={(val) => field.onChange(Number(val))}
                         value={field.value ? String(field.value) : ''}
                       >
                         <SelectTrigger className="w-full text-xs">
-                          <SelectValue
-                            placeholder={
-                              !tipoInstitucionActual
-                                ? 'Primero seleccione el tipo de institución'
-                                : 'Seleccione una institución disponible'
-                            }
-                          />
+                          <SelectValue placeholder="Seleccione un tipo de crédito" />
                         </SelectTrigger>
                         <SelectContent>
-                          {entidadesFiltradas.map((ent) => (
-                            <SelectItem key={ent.id} value={String(ent.id)}>
-                              {ent.nombre}
+                          {productosDisponibles.map((prod) => (
+                            <SelectItem key={prod.id} value={String(prod.id)}>
+                              {prod.nombre}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     )}
                   />
-                  {errors.entidadId && (
-                    <p className="text-[11px] text-destructive">{errors.entidadId.message}</p>
+                  {errors.productoId && (
+                    <p className="text-[11px] text-destructive">{errors.productoId.message}</p>
+                  )}
+                  {productoSeleccionado.descripcion && (
+                    <p className="text-[11px] text-muted-foreground leading-snug">
+                      {productoSeleccionado.descripcion}
+                    </p>
                   )}
                 </div>
 
-                {/* Tarjeta de Tasas Oficiales Extraídas */}
-                {entidadSeleccionada && (
-                  <div className="grid grid-cols-2 gap-3 p-3.5 rounded-xl bg-muted/40 border border-border text-xs">
+                {/* Tarjeta de Solo Lectura: Tasa Nominal, Desgravamen y Cargos */}
+                <div className="p-3.5 rounded-xl bg-muted/40 border border-border space-y-2.5 text-xs">
+                  <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-0.5">
                       <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
                         <Percent className="size-3 text-brand-teal" />
                         <span>Tasa Nominal</span>
                       </div>
                       <div className="font-sans font-semibold text-sm text-foreground">
-                        {entidadSeleccionada.tasaNominal.toFixed(2)}%{' '}
+                        {productoSeleccionado.tasaNominal.toFixed(2)}%{' '}
                         <span className="text-[10px] font-normal text-muted-foreground">anual</span>
                       </div>
                       <p className="text-[10px] text-muted-foreground">Regulación BCE</p>
@@ -481,19 +450,67 @@ export function SimuladorClientePage() {
                         <span>Desgravamen</span>
                       </div>
                       <div className="font-sans font-semibold text-sm text-foreground">
-                        {entidadSeleccionada.desgravamen.toFixed(4)}%{' '}
+                        {productoSeleccionado.desgravamen.toFixed(4)}%{' '}
                         <span className="text-[10px] font-normal text-muted-foreground">mensual</span>
                       </div>
                       <p className="text-[10px] text-muted-foreground">Sobre saldo deudor</p>
                     </div>
                   </div>
-                )}
 
-                {/* Monto Solicitado */}
-                <div className="space-y-2">
+                  {/* Cargos Indirectos Asociados (si existen) */}
+                  {productoSeleccionado.cargosIndirectos && productoSeleccionado.cargosIndirectos.length > 0 && (
+                    <div className="pt-2 border-t border-border/60">
+                      <div className="flex items-center gap-1 text-[11px] text-muted-foreground mb-1">
+                        <FileCheck2 className="size-3 text-brand-gold" />
+                        <span className="font-medium text-foreground">Cargos Indirectos aplicables:</span>
+                      </div>
+                      <div className="space-y-1">
+                        {productoSeleccionado.cargosIndirectos.map((c, i) => (
+                          <div key={i} className="flex justify-between text-[11px] text-muted-foreground">
+                            <span>• {c.nombre}:</span>
+                            <span className="font-medium text-foreground">
+                              {c.tipoCargo === 'PORCENTAJE' ? `${c.valor}% (${c.baseCalculo.toLowerCase()})` : `$${c.valor} (${c.periodicidad.toLowerCase()})`}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 2. Campo: ¿Cuánto cuesta el bien/servicio? */}
+                <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="monto" className="text-xs font-medium text-foreground">
-                      Monto Solicitado ($ USD)
+                    <Label htmlFor="costoTotal" className="text-xs font-medium text-foreground flex items-center gap-1.5">
+                      <ShoppingBag className="size-3.5 text-brand-teal" />
+                      ¿Cuánto cuesta el bien/servicio?
+                    </Label>
+                    <span className="font-sans text-muted-foreground text-xs">{fmt(costoTotalActual)}</span>
+                  </div>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2 text-muted-foreground text-xs font-medium">$</span>
+                    <Input
+                      id="costoTotal"
+                      type="number"
+                      step="50"
+                      className="pl-7 text-xs"
+                      {...register('costoTotal', { valueAsNumber: true })}
+                    />
+                  </div>
+                  {errors.costoTotal && (
+                    <p className="text-[11px] text-destructive">{errors.costoTotal.message}</p>
+                  )}
+                  <p className="text-[10px] text-muted-foreground">
+                    Valor total del bien, vehículo, inmueble o servicio a adquirir.
+                  </p>
+                </div>
+
+                {/* 3. Campo: ¿Cuánto desea prestar? */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="monto" className="text-xs font-medium text-foreground flex items-center gap-1.5">
+                      <Coins className="size-3.5 text-brand-teal" />
+                      ¿Cuánto desea prestar?
                     </Label>
                     <span className="font-sans text-brand-teal font-medium text-xs">{fmt(montoActual)}</span>
                   </div>
@@ -510,172 +527,110 @@ export function SimuladorClientePage() {
                   {errors.monto && (
                     <p className="text-[11px] text-destructive">{errors.monto.message}</p>
                   )}
-
-                  {/* Chips de montos sugeridos */}
-                  <div className="flex flex-wrap gap-1.5 pt-1">
-                    {[1000, 3000, 5000, 10000, 20000].map((val) => (
-                      <button
-                        key={val}
-                        type="button"
-                        onClick={() => setValue('monto', val)}
-                        className={`text-[11px] px-2.5 py-1 rounded-md border transition-all ${
-                          montoActual === val
-                            ? 'bg-brand-teal text-brand-teal-foreground border-brand-teal font-medium shadow-2xs'
-                            : 'bg-background hover:bg-muted/60 text-muted-foreground border-border'
-                        }`}
-                      >
-                        ${val.toLocaleString()}
-                      </button>
-                    ))}
+                  <div className="flex justify-between items-center text-[10px] text-muted-foreground pt-0.5">
+                    <span>Mín: {fmt(productoSeleccionado.montoMin)}</span>
+                    <span>Máx: {fmt(productoSeleccionado.montoMax)}</span>
                   </div>
                 </div>
 
-                {/* Frecuencia de Pago */}
+                {/* 4. Campo: Plazo (¿En cuánto tiempo desea pagar?) */}
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-medium text-foreground">
-                    Frecuencia de Pago
-                  </Label>
-                  <div className="grid grid-cols-2 gap-2 pt-0.5">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setValue('frecuencia', 'MENSUAL')
-                        setValue('plazo', 24)
-                      }}
-                      className={`py-2 px-3 rounded-lg border text-xs transition-colors ${
-                        frecuenciaActual === 'MENSUAL'
-                          ? 'border-brand-teal bg-brand-teal/10 text-brand-teal font-medium shadow-2xs'
-                          : 'border-border text-muted-foreground hover:bg-muted/40'
-                      }`}
-                    >
-                      Mensual (12/año)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setValue('frecuencia', 'ANUAL')
-                        setValue('plazo', 3)
-                      }}
-                      className={`py-2 px-3 rounded-lg border text-xs transition-colors ${
-                        frecuenciaActual === 'ANUAL'
-                          ? 'border-brand-teal bg-brand-teal/10 text-brand-teal font-medium shadow-2xs'
-                          : 'border-border text-muted-foreground hover:bg-muted/40'
-                      }`}
-                    >
-                      Anual (1/año)
-                    </button>
-                  </div>
-                </div>
-
-                {/* Plazo */}
-                <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="plazo" className="text-xs font-medium text-foreground">
-                      Plazo en {frecuenciaActual === 'ANUAL' ? 'Años' : 'Meses'}
+                    <Label htmlFor="plazo" className="text-xs font-medium text-foreground flex items-center gap-1.5">
+                      <Calendar className="size-3.5 text-brand-teal" />
+                      ¿En cuánto tiempo desea pagar?
                     </Label>
                     <span className="text-muted-foreground text-xs">
-                      {watch('plazo')} {frecuenciaActual === 'ANUAL' ? 'años' : 'meses'}
+                      {plazoActual} {etiquetaPlazo}
                     </span>
                   </div>
                   <div className="relative">
-                    <Calendar className="absolute left-3 top-2.5 size-3.5 text-muted-foreground" />
                     <Input
                       id="plazo"
                       type="number"
-                      min="1"
-                      className="pl-8 text-xs"
+                      min={productoSeleccionado.plazoMin}
+                      max={productoSeleccionado.plazoMax}
+                      className="text-xs pr-16"
                       {...register('plazo', { valueAsNumber: true })}
                     />
+                    <span className="absolute right-3 top-2 text-xs text-muted-foreground font-medium uppercase">
+                      {etiquetaPlazo}
+                    </span>
                   </div>
                   {errors.plazo && (
                     <p className="text-[11px] text-destructive">{errors.plazo.message}</p>
                   )}
-
-                  {/* Chips de plazos sugeridos */}
-                  <div className="flex flex-wrap gap-1.5 pt-0.5">
-                    {frecuenciaActual === 'MENSUAL'
-                      ? [6, 12, 24, 36, 48, 60].map((p) => (
-                          <button
-                            key={p}
-                            type="button"
-                            onClick={() => setValue('plazo', p)}
-                            className={`text-[11px] px-2.5 py-0.5 rounded-md border transition-all ${
-                              watch('plazo') === p
-                                ? 'bg-brand-teal text-brand-teal-foreground border-brand-teal font-medium shadow-2xs'
-                                : 'bg-background hover:bg-muted/60 text-muted-foreground border-border'
-                            }`}
-                          >
-                            {p}m
-                          </button>
-                        ))
-                      : [1, 2, 3, 5, 10].map((p) => (
-                          <button
-                            key={p}
-                            type="button"
-                            onClick={() => setValue('plazo', p)}
-                            className={`text-[11px] px-2.5 py-0.5 rounded-md border transition-all ${
-                              watch('plazo') === p
-                                ? 'bg-brand-teal text-brand-teal-foreground border-brand-teal font-medium shadow-2xs'
-                                : 'bg-background hover:bg-muted/60 text-muted-foreground border-border'
-                            }`}
-                          >
-                            {p} {p === 1 ? 'año' : 'años'}
-                          </button>
-                        ))}
+                  <div className="flex justify-between text-[10px] text-muted-foreground pt-0.5">
+                    <span>Mín: {productoSeleccionado.plazoMin} {etiquetaPlazo}</span>
+                    <span>Máx: {productoSeleccionado.plazoMax} {etiquetaPlazo}</span>
                   </div>
                 </div>
 
-                {/* Sistema de Amortización */}
+                {/* 5. Campo: Sistema de Amortización (Filtrado según producto) */}
                 <div className="space-y-2">
                   <Label className="text-xs font-medium text-foreground">
                     Sistema de Amortización
                   </Label>
                   <div className="space-y-2 pt-0.5">
-                    <div
-                      onClick={() => setValue('sistema', 'FRANCES')}
-                      className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
-                        sistemaActual === 'FRANCES'
-                          ? 'border-brand-teal bg-brand-teal/5 shadow-2xs'
-                          : 'border-border hover:bg-muted/30'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium text-xs text-foreground">
-                          Sistema Francés (Cuota Fija)
-                        </span>
-                        {sistemaActual === 'FRANCES' && (
-                          <CheckCircle2 className="size-4 text-brand-teal" />
-                        )}
+                    {/* Opción Francés */}
+                    {productoSeleccionado.sistemasPermitidos.includes('FRANCES') && (
+                      <div
+                        onClick={() => setValue('sistema', 'FRANCES')}
+                        className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
+                          sistemaActual === 'FRANCES'
+                            ? 'border-brand-teal bg-brand-teal/5 shadow-2xs'
+                            : 'border-border hover:bg-muted/30'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium text-xs text-foreground">
+                            Sistema Francés (Cuota Fija)
+                          </span>
+                          {sistemaActual === 'FRANCES' && (
+                            <CheckCircle2 className="size-4 text-brand-teal" />
+                          )}
+                        </div>
+                        <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+                          Cuota constante en cada período. El interés decrece progresivamente mientras que el abono al capital aumenta.
+                        </p>
                       </div>
-                      <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
-                        Cuota constante en cada periodo. El interés decrece progresivamente mientras que el abono al capital aumenta.
-                      </p>
-                    </div>
+                    )}
 
-                    <div
-                      onClick={() => setValue('sistema', 'ALEMAN')}
-                      className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
-                        sistemaActual === 'ALEMAN'
-                          ? 'border-brand-teal bg-brand-teal/5 shadow-2xs'
-                          : 'border-border hover:bg-muted/30'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium text-xs text-foreground">
-                          Sistema Alemán (Capital Constante)
-                        </span>
-                        {sistemaActual === 'ALEMAN' && (
-                          <CheckCircle2 className="size-4 text-brand-teal" />
-                        )}
+                    {/* Opción Alemán */}
+                    {productoSeleccionado.sistemasPermitidos.includes('ALEMAN') && (
+                      <div
+                        onClick={() => setValue('sistema', 'ALEMAN')}
+                        className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
+                          sistemaActual === 'ALEMAN'
+                            ? 'border-brand-teal bg-brand-teal/5 shadow-2xs'
+                            : 'border-border hover:bg-muted/30'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium text-xs text-foreground">
+                            Sistema Alemán (Capital Constante)
+                          </span>
+                          {sistemaActual === 'ALEMAN' && (
+                            <CheckCircle2 className="size-4 text-brand-teal" />
+                          )}
+                        </div>
+                        <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+                          Abono de capital idéntico en cada período. Las cuotas iniciales son mayores y descienden progresivamente.
+                        </p>
                       </div>
-                      <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
-                        Abono de capital idéntico en cada mes. Las cuotas iniciales son mayores y descienden con el tiempo.
+                    )}
+
+                    {/* Mensaje si el producto permite solo uno */}
+                    {productoSeleccionado.sistemasPermitidos.length === 1 && (
+                      <p className="text-[10px] text-muted-foreground italic flex items-center gap-1">
+                        <Info className="size-3 text-brand-teal" />
+                        Este tipo de crédito está configurado exclusivamente para operar bajo el sistema seleccionado.
                       </p>
-                    </div>
+                    )}
                   </div>
                 </div>
 
-                {/* Botón Principal */}
+                {/* Botón Principal de Simulación */}
                 <div className="pt-2">
                   <Button
                     type="submit"
@@ -686,12 +641,12 @@ export function SimuladorClientePage() {
                     {mutation.isPending ? (
                       <>
                         <RefreshCw className="size-4 animate-spin" />
-                        <span>Calculando tabla oficial…</span>
+                        <span>Calculando amortización oficial…</span>
                       </>
                     ) : (
                       <>
                         <Calculator className="size-4" />
-                        <span>Calcular Amortización</span>
+                        <span>Simular crédito</span>
                       </>
                     )}
                   </Button>
@@ -701,7 +656,7 @@ export function SimuladorClientePage() {
           </Card>
         </div>
 
-        {/* ── Panel de Resultados ──────────────────────────────────────── */}
+        {/* ── Panel de Resultados (Misma Vista sin Redirección) ─────────── */}
         <div className="lg:col-span-8 space-y-6">
           {resultado ? (
             <div className="space-y-6">
@@ -713,11 +668,11 @@ export function SimuladorClientePage() {
                       {resultado.nombreProducto}
                     </h2>
                     <Badge variant="outline" className="text-xs">
-                      {resultado.entidad}
+                      {resultado.sistema === 'FRANCES' ? 'Francés' : 'Alemán'}
                     </Badge>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Segmento BCE: <strong className="text-foreground font-medium">{resultado.segmentoBce}</strong> · Tasa Nominal: <strong className="text-foreground font-medium">{resultado.tasaInteresAnual}%</strong> · Desgravamen: <strong className="text-foreground font-medium">{resultado.tasaDesgravamenMensual}%</strong> mensual
+                    Segmento BCE: <strong className="text-foreground font-medium">{resultado.segmentoBce || 'Oficial'}</strong> · Tasa Nominal: <strong className="text-foreground font-medium">{resultado.tasaInteresAnual}%</strong> · Desgravamen: <strong className="text-foreground font-medium">{resultado.tasaDesgravamenMensual}%</strong> mensual
                   </p>
                 </div>
 
@@ -732,7 +687,7 @@ export function SimuladorClientePage() {
                 </Button>
               </div>
 
-              {/* 4 Métricas Clave */}
+              {/* Tarjetas de Resumen Operativo */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div className="rounded-xl border bg-card p-4 space-y-1">
                   <span className="text-[11px] font-medium uppercase tracking-wider text-brand-teal">
@@ -760,13 +715,13 @@ export function SimuladorClientePage() {
 
                 <div className="rounded-xl border bg-card p-4 space-y-1">
                   <span className="text-[11px] font-medium uppercase tracking-wider text-brand-gold">
-                    Total Desgravamen
+                    Desgravamen y Cargos
                   </span>
                   <p className="text-2xl font-normal text-foreground font-sans tracking-tight">
-                    {fmt(resultado.totalDesgravamen)}
+                    {fmt((resultado.totalDesgravamen || 0) + (resultado.totalCargosIndirectos || 0))}
                   </p>
                   <span className="text-[10px] text-muted-foreground block">
-                    Sobre saldo deudor
+                    Seguro + indirectos
                   </span>
                 </div>
 
@@ -783,7 +738,54 @@ export function SimuladorClientePage() {
                 </div>
               </div>
 
-              {/* ── Tabla Oficial de Amortización (7 Columnas) ──────────── */}
+              {/* Resumen Detallado del Crédito */}
+              <div className="rounded-xl border bg-card p-4.5 space-y-3">
+                <h3 className="text-xs font-semibold text-foreground uppercase tracking-wider">
+                  Resumen de la Operación
+                </h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-2 gap-x-4 text-xs">
+                  {resultado.costoTotal && (
+                    <div>
+                      <span className="text-muted-foreground">Monto del bien:</span>{' '}
+                      <strong className="text-foreground">{fmt(resultado.costoTotal)}</strong>
+                    </div>
+                  )}
+                  <div>
+                    <span className="text-muted-foreground">Monto solicitado:</span>{' '}
+                    <strong className="text-foreground">{fmt(resultado.monto)}</strong>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Plazo:</span>{' '}
+                    <strong className="text-foreground">{resultado.totalCuotas} {resultado.frecuencia === 'ANUAL' ? 'años' : 'meses'}</strong>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Sistema:</span>{' '}
+                    <strong className="text-foreground">{resultado.sistema === 'FRANCES' ? 'Francés' : 'Alemán'}</strong>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Tasa nominal:</span>{' '}
+                    <strong className="text-foreground">{resultado.tasaInteresAnual}% anual</strong>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Desgravamen:</span>{' '}
+                    <strong className="text-foreground">{resultado.tasaDesgravamenMensual}% mensual</strong>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Total Cargos Indirectos:</span>{' '}
+                    <strong className="text-brand-gold">{fmt(resultado.totalCargosIndirectos || 0)}</strong>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Total Intereses:</span>{' '}
+                    <strong className="text-foreground">{fmt(resultado.totalIntereses)}</strong>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Total Pagado:</span>{' '}
+                    <strong className="text-brand-teal">{fmt(resultado.totalPagar)}</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* ── Tabla Oficial de Amortización (8 Columnas) ─────────── */}
               <div className="overflow-hidden rounded-xl border bg-card">
                 <div className="flex items-center justify-between border-b px-5 py-4">
                   <div>
@@ -791,7 +793,7 @@ export function SimuladorClientePage() {
                       Tabla Oficial de Amortización
                     </h3>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      Cronograma detallado con desglose de capital, interés y seguro de desgravamen
+                      Cronograma oficial con discriminación de capital, interés, desgravamen y cargos indirectos
                     </p>
                   </div>
                   <Badge variant="secondary" className="text-xs">
@@ -803,13 +805,14 @@ export function SimuladorClientePage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b text-left text-xs bg-muted/50 text-muted-foreground">
-                        <th className="p-3.5 text-center font-medium">No.</th>
-                        <th className="p-3.5 text-right font-medium">Saldo Inicial</th>
-                        <th className="p-3.5 text-right font-medium text-foreground">Capital</th>
-                        <th className="p-3.5 text-right font-medium">Interés</th>
-                        <th className="p-3.5 text-right font-medium text-brand-gold">Desgravamen</th>
-                        <th className="p-3.5 text-right font-medium text-brand-teal">Cuota Total</th>
-                        <th className="p-3.5 text-right font-medium">Saldo Final</th>
+                        <th className="p-3 text-center font-medium">Cuota</th>
+                        <th className="p-3 text-right font-medium">Saldo Inicial</th>
+                        <th className="p-3 text-right font-medium text-foreground">Capital</th>
+                        <th className="p-3 text-right font-medium">Interés</th>
+                        <th className="p-3 text-right font-medium text-brand-gold">Desgravamen</th>
+                        <th className="p-3 text-right font-medium text-brand-gold">Cargos Ind.</th>
+                        <th className="p-3 text-right font-medium text-brand-teal">Cuota Total</th>
+                        <th className="p-3 text-right font-medium">Saldo Final</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -818,25 +821,28 @@ export function SimuladorClientePage() {
                           key={`cuota-row-${c.numeroCuota}`}
                           className="border-b last:border-0 hover:bg-muted/40 transition-colors text-xs"
                         >
-                          <td className="p-3.5 text-center text-muted-foreground font-medium">
+                          <td className="p-3 text-center text-muted-foreground font-medium">
                             {c.numeroCuota}
                           </td>
-                          <td className="p-3.5 text-right text-muted-foreground">
+                          <td className="p-3 text-right text-muted-foreground">
                             {fmt(c.saldoInicial)}
                           </td>
-                          <td className="p-3.5 text-right font-medium text-foreground">
+                          <td className="p-3 text-right font-medium text-foreground">
                             {fmt(c.capital)}
                           </td>
-                          <td className="p-3.5 text-right text-muted-foreground">
+                          <td className="p-3 text-right text-muted-foreground">
                             {fmt(c.interes)}
                           </td>
-                          <td className="p-3.5 text-right text-brand-gold">
+                          <td className="p-3 text-right text-brand-gold">
                             {fmt(c.desgravamen)}
                           </td>
-                          <td className="p-3.5 text-right font-semibold text-foreground bg-brand-teal/5">
+                          <td className="p-3 text-right text-brand-gold">
+                            {fmt(c.cargosIndirectos || 0)}
+                          </td>
+                          <td className="p-3 text-right font-semibold text-foreground bg-brand-teal/5">
                             {fmt(c.cuotaTotal)}
                           </td>
-                          <td className="p-3.5 text-right text-muted-foreground">
+                          <td className="p-3 text-right text-muted-foreground">
                             {fmt(c.saldoFinal)}
                           </td>
                         </tr>
@@ -857,12 +863,12 @@ export function SimuladorClientePage() {
                   Tu simulación aparecerá aquí
                 </h3>
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  Selecciona la institución financiera, ingresa el monto y plazo deseado, y presiona <strong className="text-foreground font-medium">"Calcular Amortización"</strong> para ver tu tabla oficial con seguro de desgravamen y descargar el reporte en PDF.
+                  Selecciona el tipo de crédito, ingresa el costo del bien, el monto a financiar y el plazo, y presiona <strong className="text-foreground font-medium">"Simular crédito"</strong> para ver tu cronograma oficial con tasas de regulación BCE y seguro de desgravamen.
                 </p>
               </div>
               <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
-                <Badge variant="outline" className="text-xs">Normativa BCE 2026</Badge>
-                <Badge variant="outline" className="text-xs">Desgravamen sobre saldo</Badge>
+                <Badge variant="outline" className="text-xs">Normativa BCE Vigente</Badge>
+                <Badge variant="outline" className="text-xs">Cargos Transparentes</Badge>
                 <Badge variant="outline" className="text-xs">Exportación PDF Oficial</Badge>
               </div>
             </div>

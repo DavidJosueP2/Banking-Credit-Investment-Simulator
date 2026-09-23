@@ -44,5 +44,34 @@ public record ConfigurarCreditoRequestDto(
         @NotEmpty(message = "Debe especificar al menos un sistema de amortización permitido")
         List<SistemaAmortizacion> sistemasPermitidos,
 
-        String descripcion
-) {}
+        String descripcion,
+        String unidadPlazo, // MESES o ANIOS
+        List<CargoConfiguracionDto> cargosIndirectos
+) {
+    public ConfigurarCreditoRequestDto(
+            String nombre,
+            String entidad,
+            String segmentoBce,
+            BigDecimal montoMin,
+            BigDecimal montoMax,
+            Integer plazoMinMeses,
+            Integer plazoMaxMeses,
+            BigDecimal tasaInteres,
+            BigDecimal tasaDesgravamenMensual,
+            List<SistemaAmortizacion> sistemasPermitidos,
+            String descripcion
+    ) {
+        this(nombre, entidad, segmentoBce, montoMin, montoMax, plazoMinMeses, plazoMaxMeses,
+                tasaInteres, tasaDesgravamenMensual, sistemasPermitidos, descripcion, "MESES", List.of());
+    }
+
+    public record CargoConfiguracionDto(
+            String nombre,
+            String tipoCargo,    // FIJO o PORCENTAJE
+            BigDecimal valor,
+            String periodicidad, // MENSUAL o UNICO
+            String baseCalculo,  // SALDO_DEUDOR, MONTO_SOLICITADO, FIJO
+            String normaAplicable,
+            Boolean obligatorio
+    ) {}
+}

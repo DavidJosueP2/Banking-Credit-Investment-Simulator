@@ -1,10 +1,15 @@
 package com.edu.uta.backend.service;
 
 import com.edu.uta.backend.config.NormativaFinancieraException;
+import com.edu.uta.backend.domain.entity.CargoCreditoEntity;
 import com.edu.uta.backend.domain.entity.ProductoCreditoEntity;
+import com.edu.uta.backend.domain.entity.SeguroCreditoEntity;
 import com.edu.uta.backend.domain.entity.TasaCreditoEntity;
 import com.edu.uta.backend.domain.enums.SistemaAmortizacion;
+import com.edu.uta.backend.domain.enums.TipoCargo;
 import com.edu.uta.backend.dto.EntidadCreditoDto;
+import com.edu.uta.backend.dto.ProductoSimuladorDto;
+import com.edu.uta.backend.dto.ProductoSimuladorDto.CargoIndirectoDto;
 import com.edu.uta.backend.dto.SimulacionClienteRequestDto;
 import com.edu.uta.backend.dto.SimulacionClienteResponseDto;
 import com.edu.uta.backend.dto.SimulacionClienteResponseDto.CuotaClienteDto;
@@ -24,14 +29,11 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
- * Servicio de cálculo de amortización con precisión bancaria.
- *
- * Soporta:
- * 1. Simulación simplificada para Cliente (POST /api/simulador/calcular) con matching de producto,
- *    frecuencia (mensual/anual) y seguro de desgravamen exacto sobre saldo remanente.
- * 2. Simulación técnica avanzada (POST /api/creditos/simular).
+ * Servicio de cálculo de amortización con precisión bancaria, control normativo BCE
+ * e integración de cargos indirectos configurados.
  */
 @Slf4j
 @Service
@@ -44,6 +46,58 @@ public class SimuladorService {
 
     private final ProductoCreditoRepository productoRepository;
 
+    /**
+     * Catálogo de productos de crédito configurados en base de datos para el simulador de clientes.
+     */
+    @Transactional(readOnly = true)
+    public List<ProductoSimuladorDto> obtenerProductosDisponibles() {
+        return productoRepository.findAllByActivoTrueOrderByOrdenAsc().stream()
+                .map(p -> {
+                    BigDecimal tasa = obtenerTasaAnual(p);
+                    BigDecimal desgravamen = p.getTasaDesgravamenMensual() != null
+                            ? p.getTasaDesgravamenMensual()
+                            : new BigDecimal("0.0600");
+                    String unidad = p.getUnidadPlazo() != null ? p.getUnidadPlazo().toUpperCase().trim() : "MESES";
+                    boolean esAnios = "ANIOS".equals(unidad);
+                    int plazoMin = esAnios ? Math.max(1, p.getPlazoMinMeses() / 12) : p.getPlazoMinMeses();
+                    int plazoMax = esAnios ? Math.max(1, p.getPlazoMaxMeses() / 12) : p.getPlazoMaxMeses();
+                    List<SistemaAmortizacion> sistemas = parseSistemas(p.getSistemasPermitidos());
+
+                    List<CargoIndirectoDto> cargos = p.getCargos() != null
+                            ? p.getCargos().stream()
+                            .filter(c -> c.getActivo() == null || c.getActivo())
+                            .map(c -> new CargoIndirectoDto(
+                                    c.getId(), c.getNombre(),
+                                    c.getTipoCargo() != null ? c.getTipoCargo().name() : "FIJO",
+                                    c.getValor() != null ? c.getValor() : BigDecimal.ZERO,
+                                    c.getPeriodicidad() != null ? c.getPeriodicidad() : "MENSUAL",
+                                    c.getBaseCalculo() != null ? c.getBaseCalculo() : "SALDO_DEUDOR",
+                                    c.getNormaAplicable(), c.getObligatorio()
+                            )).toList()
+                            : List.of();
+
+                    return new ProductoSimuladorDto(
+                            p.getId(),
+                            p.getNombre(),
+                            p.getDescripcion(),
+                            tasa,
+                            desgravamen,
+                            p.getMontoMin(),
+                            p.getMontoMax(),
+                            plazoMin,
+                            plazoMax,
+                            unidad,
+                            sistemas,
+                            p.getSegmentoBce(),
+                            cargos
+                    );
+                })
+                .toList();
+    }
+
+    /**
+     * Catálogo legado para retrocompatibilidad
+     */
     @Transactional(readOnly = true)
     public List<EntidadCreditoDto> obtenerEntidadesDisponibles() {
         return productoRepository.findAllByActivoTrueOrderByOrdenAsc().stream()
@@ -67,23 +121,19 @@ public class SimuladorService {
     @Transactional(readOnly = true)
     public SimulacionClienteResponseDto simularCliente(SimulacionClienteRequestDto req) {
         BigDecimal monto = req.monto();
-        String frecuencia = req.frecuencia() != null ? req.frecuencia().toUpperCase().trim() : "MENSUAL";
-        boolean esAnual = "ANUAL".equals(frecuencia);
         int plazoPeriodos = req.plazo();
 
         if (plazoPeriodos <= 0) {
             throw new NormativaFinancieraException("El plazo debe ser mayor a cero");
         }
 
-        // Convertir a plazo en meses para buscar en el catálogo de productos
-        int plazoEquivalenteMeses = esAnual ? plazoPeriodos * 12 : plazoPeriodos;
-
-        // Buscar producto/entidad configurado que calce con la solicitud o validar ID
+        // 1. Resolver el producto por ID configurado o búsqueda
         ProductoCreditoEntity producto;
-        Long idSeleccionado = req.entidadId() != null ? req.entidadId() : req.productoId();
+        Long idSeleccionado = req.resolverProductoId();
+
         if (idSeleccionado != null) {
             producto = productoRepository.findById(idSeleccionado)
-                    .orElseThrow(() -> new NormativaFinancieraException("Entidad de crédito no encontrada con ID: " + idSeleccionado));
+                    .orElseThrow(() -> new NormativaFinancieraException("Producto de crédito no encontrado con ID: " + idSeleccionado));
 
             if (req.entidad() != null && !req.entidad().isBlank()) {
                 if (producto.getEntidad() != null && !producto.getEntidad().equalsIgnoreCase(req.entidad().trim())) {
@@ -94,39 +144,83 @@ public class SimuladorService {
                 }
             }
         } else {
-            producto = buscarProductoParaCliente(monto, plazoEquivalenteMeses, req.entidad());
+            String freqTemp = req.frecuencia() != null ? req.frecuencia().toUpperCase().trim() : "MENSUAL";
+            int mesesTemp = "ANUAL".equals(freqTemp) ? plazoPeriodos * 12 : plazoPeriodos;
+            producto = buscarProductoParaCliente(monto, mesesTemp, req.entidad());
         }
 
-        // Validar que el sistema de amortización seleccionado esté permitido
+        // 2. Determinar unidad de plazo y frecuencia
+        String unidadProducto = producto.getUnidadPlazo() != null ? producto.getUnidadPlazo().trim().toUpperCase() : "MESES";
+        boolean esAnual = "ANIOS".equals(unidadProducto) || "ANUAL".equalsIgnoreCase(req.frecuencia());
+        String frecuencia = esAnual ? "ANUAL" : "MENSUAL";
+        int plazoEquivalenteMeses = esAnual ? plazoPeriodos * 12 : plazoPeriodos;
+
+        // 3. Validar costo total del bien o servicio si se suministró
+        BigDecimal costoTotal = req.costoTotal();
+        if (costoTotal != null) {
+            if (costoTotal.compareTo(BigDecimal.ZERO) <= 0) {
+                throw new NormativaFinancieraException("El costo total del bien o servicio debe ser mayor a cero");
+            }
+            if (monto.compareTo(costoTotal) > 0) {
+                throw new NormativaFinancieraException(String.format(Locale.ROOT,
+                        "El monto solicitado ($%.2f) no puede ser mayor que el costo total del bien o servicio ($%.2f).",
+                        monto, costoTotal));
+            }
+        }
+
+        // 4. Validar monto solicitado contra límites del producto
+        if (monto.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new NormativaFinancieraException("El monto a financiar debe ser mayor a cero");
+        }
+        if (producto.getMontoMin() != null && monto.compareTo(producto.getMontoMin()) < 0) {
+            throw new NormativaFinancieraException(String.format(Locale.ROOT,
+                    "El monto solicitado ($%.2f) es inferior al monto mínimo permitido ($%.2f) para '%s'.",
+                    monto, producto.getMontoMin(), producto.getNombre()));
+        }
+        if (producto.getMontoMax() != null && monto.compareTo(producto.getMontoMax()) > 0) {
+            throw new NormativaFinancieraException(String.format(Locale.ROOT,
+                    "El monto solicitado ($%.2f) excede el monto máximo permitido ($%.2f) para '%s'.",
+                    monto, producto.getMontoMax(), producto.getNombre()));
+        }
+
+        // 5. Validar plazo permitido
+        if (plazoEquivalenteMeses < producto.getPlazoMinMeses() || plazoEquivalenteMeses > producto.getPlazoMaxMeses()) {
+            int minUnit = esAnual ? Math.max(1, producto.getPlazoMinMeses() / 12) : producto.getPlazoMinMeses();
+            int maxUnit = esAnual ? Math.max(1, producto.getPlazoMaxMeses() / 12) : producto.getPlazoMaxMeses();
+            String uName = esAnual ? "años" : "meses";
+            throw new NormativaFinancieraException(String.format(
+                    "El plazo ingresado (%d %s) está fuera del rango permitido (%d a %d %s) para '%s'.",
+                    plazoPeriodos, uName, minUnit, maxUnit, uName, producto.getNombre()
+            ));
+        }
+
+        // 6. Validar que el sistema de amortización seleccionado esté permitido
         validarSistemaPermitido(producto, req.sistema());
 
-        // Obtener la tasa de interés anual del producto
+        // 7. Obtener la tasa de interés anual del producto desde la base de datos
         BigDecimal tasaAnualPct = obtenerTasaAnual(producto);
 
-        // Obtener la tasa de desgravamen configurada en el producto (porcentaje mensual)
+        // 8. Obtener la tasa de desgravamen configurada en el producto (porcentaje mensual)
         BigDecimal tasaDesgravamenMensualPct = producto.getTasaDesgravamenMensual() != null
                 ? producto.getTasaDesgravamenMensual()
                 : new BigDecimal("0.0600");
 
-        // Calcular tasa periódica de interés
-        // Si mensual: i_m = (1 + i_a)^(1/12) - 1
-        // Si anual:   i_a = tasaAnualPct / 100
+        // 9. Calcular tasa periódica de interés
         BigDecimal tasaPeriodicaInteres = esAnual
                 ? tasaAnualPct.divide(BigDecimal.valueOf(100), MC)
                 : calcularTasaMensual(tasaAnualPct.divide(BigDecimal.valueOf(100), MC));
 
-        // Calcular tasa periódica de desgravamen
-        // El seguro de desgravamen se calcula aplicando la tasa sobre el saldo deudor vigente en cada período
+        // 10. Calcular tasa periódica de desgravamen
         BigDecimal tasaPeriodicaDesgravamen = esAnual
                 ? tasaDesgravamenMensualPct.multiply(BigDecimal.valueOf(12), MC).divide(BigDecimal.valueOf(100), MC)
                 : tasaDesgravamenMensualPct.divide(BigDecimal.valueOf(100), MC);
 
-        // Generar la tabla de amortización periódica
+        // 11. Generar la tabla de amortización periódica con desgravamen y cargos indirectos
         return req.sistema() == SistemaAmortizacion.FRANCES
-                ? calcularClienteFrances(producto, monto, plazoPeriodos, plazoEquivalenteMeses, frecuencia,
-                tasaAnualPct, tasaDesgravamenMensualPct, tasaPeriodicaInteres, tasaPeriodicaDesgravamen)
-                : calcularClienteAleman(producto, monto, plazoPeriodos, plazoEquivalenteMeses, frecuencia,
-                tasaAnualPct, tasaDesgravamenMensualPct, tasaPeriodicaInteres, tasaPeriodicaDesgravamen);
+                ? calcularClienteFrances(producto, monto, costoTotal, plazoPeriodos, plazoEquivalenteMeses, frecuencia,
+                unidadProducto, tasaAnualPct, tasaDesgravamenMensualPct, tasaPeriodicaInteres, tasaPeriodicaDesgravamen, req.usuario())
+                : calcularClienteAleman(producto, monto, costoTotal, plazoPeriodos, plazoEquivalenteMeses, frecuencia,
+                unidadProducto, tasaAnualPct, tasaDesgravamenMensualPct, tasaPeriodicaInteres, tasaPeriodicaDesgravamen, req.usuario());
     }
 
     private ProductoCreditoEntity buscarProductoParaCliente(BigDecimal monto, int plazoMeses, String entidad) {
@@ -141,14 +235,12 @@ public class SimuladorService {
         if (entidadEspecificada) {
             String entidadNorm = entidad.trim();
 
-            // 1. Coincidencia estricta y obligatoria en la entidad solicitada
             return productos.stream()
                     .filter(p -> p.getEntidad() != null && p.getEntidad().equalsIgnoreCase(entidadNorm))
                     .filter(p -> monto.compareTo(p.getMontoMin()) >= 0 && monto.compareTo(p.getMontoMax()) <= 0)
                     .filter(p -> plazoMeses >= p.getPlazoMinMeses() && plazoMeses <= p.getPlazoMaxMeses())
                     .findFirst()
                     .orElseThrow(() -> {
-                        // Verificar si existe el producto en otra entidad para reportar violación de aislamiento
                         boolean existeEnOtraEntidad = productos.stream()
                                 .anyMatch(p -> monto.compareTo(p.getMontoMin()) >= 0 && monto.compareTo(p.getMontoMax()) <= 0
                                         && plazoMeses >= p.getPlazoMinMeses() && plazoMeses <= p.getPlazoMaxMeses());
@@ -184,7 +276,6 @@ public class SimuladorService {
                     });
         }
 
-        // Búsqueda global si no se especificó entidad
         return productos.stream()
                 .filter(p -> monto.compareTo(p.getMontoMin()) >= 0 && monto.compareTo(p.getMontoMax()) <= 0)
                 .filter(p -> plazoMeses >= p.getPlazoMinMeses() && plazoMeses <= p.getPlazoMaxMeses())
@@ -230,9 +321,10 @@ public class SimuladorService {
     // ─── 1.1 Cálculo Cliente: Sistema Francés ──────────────────────────────────
 
     private SimulacionClienteResponseDto calcularClienteFrances(
-            ProductoCreditoEntity producto, BigDecimal monto, int n, int plazoMeses, String frecuencia,
+            ProductoCreditoEntity producto, BigDecimal monto, BigDecimal costoTotal,
+            int n, int plazoMeses, String frecuencia, String unidadPlazo,
             BigDecimal tasaAnualPct, BigDecimal tasaDesgravamenMensualPct,
-            BigDecimal i, BigDecimal iDesgravamen) {
+            BigDecimal i, BigDecimal iDesgravamen, String usuario) {
 
         // C_base = P * [i * (1+i)^n] / [(1+i)^n - 1]
         BigDecimal unoPlusI = BigDecimal.ONE.add(i, MC);
@@ -247,6 +339,7 @@ public class SimuladorService {
         BigDecimal totalCapital = BigDecimal.ZERO;
         BigDecimal totalIntereses = BigDecimal.ZERO;
         BigDecimal totalDesgravamen = BigDecimal.ZERO;
+        BigDecimal totalCargosIndirectos = BigDecimal.ZERO;
         BigDecimal primeraCuota = null;
 
         for (int k = 1; k <= n; k++) {
@@ -255,7 +348,7 @@ public class SimuladorService {
             BigDecimal interes = saldo.multiply(i, MC).setScale(SCALE, RoundingMode.HALF_UP);
             BigDecimal capital = cuotaBase.subtract(interes).setScale(SCALE, RoundingMode.HALF_UP);
 
-            // Ajuste en última cuota
+            // Ajuste en última cuota para cuadre exacto de saldo
             if (k == n) {
                 capital = saldo.setScale(SCALE, RoundingMode.HALF_UP);
                 interes = cuotaBase.subtract(capital).max(BigDecimal.ZERO);
@@ -263,25 +356,30 @@ public class SimuladorService {
 
             // Seguro de Desgravamen: tasa periódica aplicada al saldo deudor vigente
             BigDecimal desgravamen = saldoInicial.multiply(iDesgravamen, MC).setScale(SCALE, RoundingMode.HALF_UP);
-            // Cuota Total = Capital + Interés + Desgravamen
-            BigDecimal cuotaTotal = capital.add(interes).add(desgravamen).setScale(SCALE, RoundingMode.HALF_UP);
+
+            // Cargos Indirectos regulados del período
+            BigDecimal cargosIndirectos = calcularCargosPeriodo(producto, saldoInicial, monto, k, n);
+
+            // Cuota Total = Capital + Interés + Desgravamen + Cargos Indirectos
+            BigDecimal cuotaTotal = capital.add(interes).add(desgravamen).add(cargosIndirectos).setScale(SCALE, RoundingMode.HALF_UP);
 
             BigDecimal saldoFinal = saldo.subtract(capital).setScale(SCALE, RoundingMode.HALF_UP).max(BigDecimal.ZERO);
 
             totalCapital = totalCapital.add(capital);
             totalIntereses = totalIntereses.add(interes);
             totalDesgravamen = totalDesgravamen.add(desgravamen);
+            totalCargosIndirectos = totalCargosIndirectos.add(cargosIndirectos);
 
             if (k == 1) primeraCuota = cuotaTotal;
 
             tabla.add(new CuotaClienteDto(
-                    k, saldoInicial, capital, interes, desgravamen, cuotaTotal, saldoFinal
+                    k, saldoInicial, capital, interes, desgravamen, cargosIndirectos, cuotaTotal, saldoFinal
             ));
 
             saldo = saldoFinal;
         }
 
-        BigDecimal totalPagar = totalCapital.add(totalIntereses).add(totalDesgravamen)
+        BigDecimal totalPagar = totalCapital.add(totalIntereses).add(totalDesgravamen).add(totalCargosIndirectos)
                 .setScale(SCALE, RoundingMode.HALF_UP);
 
         return new SimulacionClienteResponseDto(
@@ -301,16 +399,21 @@ public class SimuladorService {
                 totalIntereses,
                 totalDesgravamen,
                 totalPagar,
-                tabla
+                tabla,
+                usuario,
+                costoTotal,
+                unidadPlazo,
+                totalCargosIndirectos
         );
     }
 
     // ─── 1.2 Cálculo Cliente: Sistema Alemán ───────────────────────────────────
 
     private SimulacionClienteResponseDto calcularClienteAleman(
-            ProductoCreditoEntity producto, BigDecimal monto, int n, int plazoMeses, String frecuencia,
+            ProductoCreditoEntity producto, BigDecimal monto, BigDecimal costoTotal,
+            int n, int plazoMeses, String frecuencia, String unidadPlazo,
             BigDecimal tasaAnualPct, BigDecimal tasaDesgravamenMensualPct,
-            BigDecimal i, BigDecimal iDesgravamen) {
+            BigDecimal i, BigDecimal iDesgravamen, String usuario) {
 
         // Amortización constante = P / n
         BigDecimal amortizacion = monto.divide(BigDecimal.valueOf(n), MC)
@@ -321,6 +424,7 @@ public class SimuladorService {
         BigDecimal totalCapital = BigDecimal.ZERO;
         BigDecimal totalIntereses = BigDecimal.ZERO;
         BigDecimal totalDesgravamen = BigDecimal.ZERO;
+        BigDecimal totalCargosIndirectos = BigDecimal.ZERO;
         BigDecimal primeraCuota = null;
 
         for (int k = 1; k <= n; k++) {
@@ -331,25 +435,30 @@ public class SimuladorService {
 
             // Seguro de Desgravamen: tasa periódica aplicada al saldo deudor vigente
             BigDecimal desgravamen = saldoInicial.multiply(iDesgravamen, MC).setScale(SCALE, RoundingMode.HALF_UP);
-            // Cuota Total = Capital + Interés + Desgravamen
-            BigDecimal cuotaTotal = capital.add(interes).add(desgravamen).setScale(SCALE, RoundingMode.HALF_UP);
+
+            // Cargos Indirectos regulados del período
+            BigDecimal cargosIndirectos = calcularCargosPeriodo(producto, saldoInicial, monto, k, n);
+
+            // Cuota Total = Capital + Interés + Desgravamen + Cargos Indirectos
+            BigDecimal cuotaTotal = capital.add(interes).add(desgravamen).add(cargosIndirectos).setScale(SCALE, RoundingMode.HALF_UP);
 
             BigDecimal saldoFinal = saldo.subtract(capital).setScale(SCALE, RoundingMode.HALF_UP).max(BigDecimal.ZERO);
 
             totalCapital = totalCapital.add(capital);
             totalIntereses = totalIntereses.add(interes);
             totalDesgravamen = totalDesgravamen.add(desgravamen);
+            totalCargosIndirectos = totalCargosIndirectos.add(cargosIndirectos);
 
             if (k == 1) primeraCuota = cuotaTotal;
 
             tabla.add(new CuotaClienteDto(
-                    k, saldoInicial, capital, interes, desgravamen, cuotaTotal, saldoFinal
+                    k, saldoInicial, capital, interes, desgravamen, cargosIndirectos, cuotaTotal, saldoFinal
             ));
 
             saldo = saldoFinal;
         }
 
-        BigDecimal totalPagar = totalCapital.add(totalIntereses).add(totalDesgravamen)
+        BigDecimal totalPagar = totalCapital.add(totalIntereses).add(totalDesgravamen).add(totalCargosIndirectos)
                 .setScale(SCALE, RoundingMode.HALF_UP);
 
         return new SimulacionClienteResponseDto(
@@ -369,9 +478,90 @@ public class SimuladorService {
                 totalIntereses,
                 totalDesgravamen,
                 totalPagar,
-                tabla
+                tabla,
+                usuario,
+                costoTotal,
+                unidadPlazo,
+                totalCargosIndirectos
         );
     }
+
+    /**
+     * Calcula los cargos indirectos y seguros adicionales correspondientes al período k.
+     */
+    private BigDecimal calcularCargosPeriodo(ProductoCreditoEntity producto, BigDecimal saldoInicial, BigDecimal monto, int k, int n) {
+        BigDecimal totalPeriodo = BigDecimal.ZERO;
+
+        // 1. Cargos indirectos de la entidad
+        if (producto.getCargos() != null && !producto.getCargos().isEmpty()) {
+            for (CargoCreditoEntity c : producto.getCargos()) {
+                if (c.getActivo() != null && !c.getActivo()) continue;
+
+                String peri = c.getPeriodicidad() != null ? c.getPeriodicidad().toUpperCase().trim() : "MENSUAL";
+                String base = c.getBaseCalculo() != null ? c.getBaseCalculo().toUpperCase().trim() : "SALDO_DEUDOR";
+                TipoCargo tipo = c.getTipoCargo() != null ? c.getTipoCargo() : TipoCargo.FIJO;
+                BigDecimal val = c.getValor() != null ? c.getValor() : BigDecimal.ZERO;
+
+                if ("UNICO".equals(peri)) {
+                    // Cargo único en la primera cuota
+                    if (k == 1) {
+                        if (tipo == TipoCargo.PORCENTAJE) {
+                            BigDecimal cMonto = monto.multiply(val.divide(BigDecimal.valueOf(100), MC), MC);
+                            totalPeriodo = totalPeriodo.add(cMonto);
+                        } else {
+                            totalPeriodo = totalPeriodo.add(val);
+                        }
+                    }
+                } else {
+                    // Cargo periódico (cada cuota)
+                    if (tipo == TipoCargo.PORCENTAJE) {
+                        if ("MONTO_SOLICITADO".equals(base)) {
+                            BigDecimal cMonto = monto.multiply(val.divide(BigDecimal.valueOf(100), MC), MC);
+                            totalPeriodo = totalPeriodo.add(cMonto);
+                        } else {
+                            // Porcentaje sobre saldo deudor
+                            BigDecimal cSaldo = saldoInicial.multiply(val.divide(BigDecimal.valueOf(100), MC), MC);
+                            totalPeriodo = totalPeriodo.add(cSaldo);
+                        }
+                    } else {
+                        totalPeriodo = totalPeriodo.add(val);
+                    }
+                }
+            }
+        }
+
+        // 2. Seguros adicionales requeridos (ej. Incendio / Terremoto)
+        if (producto.getSeguros() != null && !producto.getSeguros().isEmpty()) {
+            for (SeguroCreditoEntity s : producto.getSeguros()) {
+                if (s.getActivo() != null && !s.getActivo()) continue;
+                if (s.getTipoSeguro() == com.edu.uta.backend.domain.enums.TipoSeguro.DESGRAVAMEN) {
+                    continue; // El desgravamen se computa en su propia columna independiente
+                }
+                BigDecimal pct = s.getValorPorcentaje() != null ? s.getValorPorcentaje() : BigDecimal.ZERO;
+                if (pct.compareTo(BigDecimal.ZERO) > 0) {
+                    BigDecimal seguroPeriodo = saldoInicial.multiply(pct.divide(BigDecimal.valueOf(100), MC), MC);
+                    totalPeriodo = totalPeriodo.add(seguroPeriodo);
+                }
+            }
+        }
+
+        return totalPeriodo.setScale(SCALE, RoundingMode.HALF_UP);
+    }
+
+    private List<SistemaAmortizacion> parseSistemas(String sistemasCsv) {
+        if (sistemasCsv == null || sistemasCsv.isBlank()) {
+            return List.of(SistemaAmortizacion.FRANCES, SistemaAmortizacion.ALEMAN);
+        }
+        List<SistemaAmortizacion> result = new ArrayList<>();
+        for (String part : sistemasCsv.split(",")) {
+            try {
+                result.add(SistemaAmortizacion.valueOf(part.trim().toUpperCase()));
+            } catch (Exception ignored) {}
+        }
+        return result.isEmpty() ? List.of(SistemaAmortizacion.FRANCES) : result;
+    }
+
+    // ─── Simulación Técnica / Avanzada Legada ──────────────────────────────────
 
     public SimulacionResponseDto simular(SimulacionRequestDto req) {
         if (req.productoId() != null) {
