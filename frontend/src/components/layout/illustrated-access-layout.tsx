@@ -1,8 +1,8 @@
 import type { PropsWithChildren } from 'react'
 
 import { useInstitutionSettings } from '@/app/providers/settings-provider'
-import leftIllustration from '@/assets/landing/brunexa-playful-left.svg'
-import rightIllustration from '@/assets/landing/brunexa-playful-right.svg'
+import leftIllustration from '@/assets/landing/brunexa-login-left.svg'
+import rightIllustration from '@/assets/landing/brunexa-login-right.svg'
 import { cn } from '@/lib/utils'
 
 type IllustratedAccessLayoutProps = PropsWithChildren<{
