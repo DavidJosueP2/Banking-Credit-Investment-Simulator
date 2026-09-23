@@ -214,7 +214,7 @@ public class InstitutionSettingsService {
                 Map.entry("backgroundLightColor", "#f2f2f2"),
                 Map.entry("foregroundLightColor", "#202527"),
                 Map.entry("surfaceLightColor", "#ffffff"),
-                Map.entry("mutedLightColor", "#f3f4f4"),
+                Map.entry("mutedLightColor", "#e6e9e8"),
                 Map.entry("mutedTextLightColor", "#586064"),
                 Map.entry("sidebarLightColor", "#f0f2f1"),
                 Map.entry("borderLightColor", "#dadddd"),

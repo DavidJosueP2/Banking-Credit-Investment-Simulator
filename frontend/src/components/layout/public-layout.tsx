@@ -111,7 +111,7 @@ export function PublicLayout() {
         </nav>
       </header>
       <Outlet />
-      <footer className="bg-muted/40 px-5 py-12 sm:px-8">
+      <footer className="bg-card px-5 py-12 dark:bg-muted/40 sm:px-8">
         <div className="mx-auto grid max-w-7xl gap-10 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,0.55fr)_minmax(0,0.55fr)_minmax(0,0.8fr)]">
           <div className="max-w-md">
             <BrandLogo className="h-12 w-44" decorative />

@@ -326,7 +326,7 @@ export function HomePage() {
       </section>}
 
       {landing.perspectiveEnabled === 'true' && (creditVisible || investmentVisible) && (
-        <section className="relative isolate overflow-hidden bg-muted/30 px-5 py-16 sm:px-8 lg:pt-20 lg:pb-0" aria-labelledby="landing-perspective-title">
+        <section className="relative isolate overflow-hidden bg-card px-5 py-16 dark:bg-muted/30 sm:px-8 lg:pt-20 lg:pb-0" aria-labelledby="landing-perspective-title">
           <div className="relative z-10 mx-auto grid max-w-7xl gap-8 lg:grid-cols-[auto_minmax(0,1fr)_minmax(0,1.15fr)] lg:items-center lg:gap-10">
             <div className="flex shrink-0 justify-center lg:self-end">
               <img
@@ -354,7 +354,7 @@ export function HomePage() {
         </section>
       )}
 
-      {creditVisible && <section id="creditos" className="scroll-mt-24 border-t bg-muted/40 px-5 pt-20 pb-10 sm:px-8 lg:pt-28 lg:pb-12">
+      {creditVisible && <section id="creditos" className="scroll-mt-24 border-t bg-muted px-5 pt-20 pb-10 dark:bg-muted/40 sm:px-8 lg:pt-28 lg:pb-12">
         <div className="mx-auto grid max-w-7xl gap-12 lg:grid-cols-2 lg:items-center lg:gap-20">
           <figure>
             <img
@@ -386,7 +386,7 @@ export function HomePage() {
         </div>
       </section>}
 
-      {investmentVisible && <section id="inversiones" className="scroll-mt-24 px-5 pt-10 pb-20 sm:px-8 lg:pt-12 lg:pb-28">
+      {investmentVisible && <section id="inversiones" className="scroll-mt-24 bg-card px-5 pt-10 pb-20 dark:bg-background sm:px-8 lg:pt-12 lg:pb-28">
         <div className="mx-auto grid max-w-7xl gap-12 lg:grid-cols-2 lg:items-center lg:gap-20">
           <div className="max-w-xl lg:order-1">
             <ServiceIcon name={landing.investmentSectionIcon} fallback="trending-up" className="size-7 text-brand-gold" />

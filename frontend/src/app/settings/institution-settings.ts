@@ -203,7 +203,7 @@ export const defaultInstitutionSettings: InstitutionSettings = {
     backgroundLightColor: '#f2f2f2',
     foregroundLightColor: '#202527',
     surfaceLightColor: '#ffffff',
-    mutedLightColor: '#f3f4f4',
+    mutedLightColor: '#e6e9e8',
     mutedTextLightColor: '#586064',
     sidebarLightColor: '#f0f2f1',
     borderLightColor: '#dadddd',
