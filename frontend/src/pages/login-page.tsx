@@ -68,10 +68,10 @@ export function LoginPage() {
   if (account) return <Navigate to={destinationAfterLogin(account, search.get('next'))} replace />
 
   return (
-    <main id="contenido" className="mx-auto flex min-h-[65svh] max-w-7xl items-center px-5 py-16 sm:px-8">
+    <main id="contenido" className="mx-auto flex min-h-[65svh] max-w-7xl items-center justify-center px-5 py-16 sm:px-8">
       <div className="w-full max-w-md">
-        <h1 className="text-3xl sm:text-4xl">Ingresa a Brunexa</h1>
-        <p className="mt-4 max-w-[55ch] leading-7 text-muted-foreground">
+        <h1 className="text-center text-3xl sm:text-4xl">Ingresa a Brunexa</h1>
+        <p className="mt-4 text-center leading-7 text-muted-foreground">
           Accede con tu cuenta para consultar las funciones asignadas a tu perfil.
         </p>
         <form onSubmit={submit} className="mt-8 space-y-5">
@@ -90,13 +90,13 @@ export function LoginPage() {
             {submitting ? 'Ingresando…' : 'Ingresar'}
           </Button>
         </form>
-        <p className="mt-6 text-sm text-muted-foreground">
+        <p className="mt-6 text-center text-sm text-muted-foreground">
           ¿Aún no tienes cuenta?{' '}
           <Link to="/registro" className="text-brand-gold underline underline-offset-4 hover:text-foreground">
             Crear cuenta
           </Link>
         </p>
-        <Link to="/" className="mt-4 inline-block text-sm text-brand-gold underline underline-offset-4 hover:text-foreground">
+        <Link to="/" className="mx-auto mt-4 block w-fit text-sm text-brand-gold underline underline-offset-4 hover:text-foreground">
           Volver al inicio
         </Link>
       </div>

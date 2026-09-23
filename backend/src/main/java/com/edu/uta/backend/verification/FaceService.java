@@ -11,6 +11,7 @@ import software.amazon.awssdk.services.rekognition.RekognitionClient;
 import software.amazon.awssdk.services.rekognition.model.CreateFaceLivenessSessionRequest;
 import software.amazon.awssdk.services.rekognition.model.FaceDetail;
 import software.amazon.awssdk.services.rekognition.model.Image;
+import software.amazon.awssdk.services.rekognition.model.InvalidParameterException;
 import software.amazon.awssdk.services.rekognition.model.QualityFilter;
 import software.amazon.awssdk.services.rekognition.model.ResourceNotFoundException;
 import software.amazon.awssdk.services.rekognition.model.UnindexedFace;
@@ -107,6 +108,22 @@ public class FaceService {
         return response.faceMatches().stream()
                 .findFirst()
                 .map(match -> new Match(match.face().faceId(), match.similarity()));
+    }
+
+    /** Mayor parecido entre el rostro en vivo y los rostros del documento; 0 si no hay rostro comparable. */
+    public double compare(byte[] liveFace, byte[] document) {
+        try {
+            return rekognition.compareFaces(request -> request
+                            .sourceImage(Image.builder().bytes(SdkBytes.fromByteArray(liveFace)).build())
+                            .targetImage(Image.builder().bytes(SdkBytes.fromByteArray(document)).build())
+                            .similarityThreshold(0f))
+                    .faceMatches().stream()
+                    .mapToDouble(match -> match.similarity())
+                    .max().orElse(0);
+        } catch (InvalidParameterException exception) {
+            // Rekognition responde así cuando alguna de las dos imágenes no tiene rostro.
+            return 0;
+        }
     }
 
     public String startLivenessSession() {

@@ -146,6 +146,10 @@ public class IdentityService implements UserDetailsService {
         return accountById(id);
     }
 
+    public void rename(long userId, String fullName) {
+        jdbc.update("UPDATE app_users SET full_name = ? WHERE id = ?", fullName.trim(), userId);
+    }
+
     public boolean emailPending(long userId) {
         Boolean verified = jdbc.query("SELECT email_verified FROM customer_profiles WHERE user_id = ?",
                 rows -> rows.next() ? rows.getBoolean("email_verified") : null, userId);
