@@ -469,7 +469,7 @@ export function HomePage() {
               {landingText(landing.closingDescription, institution.shortName, institution.description)}
             </p>
           </div>
-          <div>
+          <div className="lg:justify-self-end">
             <ul className="space-y-4 text-sm text-foreground">
               {[
                 ...(creditVisible ? [landing.closingBulletOne] : []),
