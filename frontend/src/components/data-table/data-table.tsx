@@ -4,6 +4,7 @@ import {
   type OnChangeFn,
   type PaginationState,
   type RowSelectionState,
+  type RowData,
   type SortingState,
   useTable,
 } from '@tanstack/react-table'
@@ -56,7 +57,7 @@ export interface DataTableSelectionOptions {
   onChange: OnChangeFn<RowSelectionState>
 }
 
-export interface DataTableProps<TData> {
+export interface DataTableProps<TData extends RowData> {
   columns: DataTableColumnDef<TData>[]
   data: TData[]
   getRowId?: (record: TData, index: number) => string
@@ -71,7 +72,7 @@ export interface DataTableProps<TData> {
   'aria-label'?: string
 }
 
-export function DataTable<TData>({
+export function DataTable<TData extends RowData>({
   columns,
   data,
   getRowId,
@@ -206,7 +207,7 @@ export function DataTable<TData>({
   )
 }
 
-export function createSelectionColumn<TData>(): DataTableColumnDef<TData> {
+export function createSelectionColumn<TData extends RowData>(): DataTableColumnDef<TData> {
   return {
     id: 'select',
     header: ({ table }) => (

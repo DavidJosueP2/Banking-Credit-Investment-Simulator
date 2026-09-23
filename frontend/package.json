@@ -10,6 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@aws-amplify/ui-react": "^6.15.6",
+    "@aws-amplify/ui-react-liveness": "^3.6.9",
     "@base-ui/react": "^1.8.0",
     "@fontsource/inter": "5.3.0",
     "@fontsource/libre-baskerville": "5.3.0",
@@ -25,6 +27,7 @@
     "@shadcn/react": "^0.3.1",
     "@tanstack/react-query": "^5.102.8",
     "@tanstack/react-table": "9.2.4",
+    "aws-amplify": "^6.20.0",
     "axios": "^1.20.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -33,6 +36,8 @@
     "date-fns": "^4.4.0",
     "embla-carousel-react": "^8.6.0",
     "input-otp": "^1.5.0",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.8",
     "lucide-react": "^1.46.0",
     "radix-ui": "^1.6.7",
     "react": "^19.2.8",

@@ -1,5 +1,6 @@
 package com.edu.uta.backend.config;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import com.edu.uta.backend.identity.AuthorityRefreshFilter;
@@ -9,6 +10,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.security.authentication.LockedException;
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -31,17 +35,48 @@ public class SecurityConfig {
     SecurityFilterChain securityFilterChain(HttpSecurity http, IdentityService identity) throws Exception {
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .csrf(csrf -> csrf.ignoringRequestMatchers(
+                        "/api/health",
+                        "/api/auth/csrf",
+                        "/api/auth/login",
+                        "/api/auth/logout",
+                        "/api/simulador/**",
+                        "/api/creditos/**",
+                        "/api/public/**"
+                ))
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("/api/health", "/api/auth/csrf", "/api/auth/login", "/api/public/settings/**").permitAll()
+                        .requestMatchers("/api/health", "/api/auth/csrf", "/api/auth/login", "/api/public/settings/**", "/api/public/investments/**", "/api/public/registration/**", "/api/creditos/**", "/api/simulador/**").permitAll()
                         .requestMatchers("/api/auth/me", "/api/auth/logout").authenticated()
+                        .requestMatchers("/api/profile/**", "/api/dev/liveness/**")
+                            .hasAuthority("identity.verification.start")
+                        .requestMatchers("/api/admin/creditos/**").hasAnyAuthority("credit.products.manage", "ROLE_ASESOR", "credit_advisor")
                         .requestMatchers("/api/admin/settings/**").hasAuthority("institution.manage")
+                        .requestMatchers("/api/admin/investments/**").hasAuthority("investment.products.manage")
                         .requestMatchers("/api/admin/**").hasAuthority("users.roles.manage")
                         .anyRequest().denyAll())
                 .formLogin(form -> form
                         .loginProcessingUrl("/api/auth/login")
-                        .usernameParameter("email")
+                        .usernameParameter("username")
                         .successHandler((request, response, authentication) -> response.setStatus(HttpStatus.NO_CONTENT.value()))
-                        .failureHandler((request, response, exception) -> response.sendError(HttpStatus.UNAUTHORIZED.value())))
+                        .failureHandler((request, response, exception) -> {
+                            if (exception instanceof DisabledException) {
+                                response.setStatus(HttpStatus.FORBIDDEN.value());
+                                response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                                response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+                                response.getWriter().write(
+                                        "{\"message\":\"Tu cuenta está bloqueada. Comunícate con un administrador\"}");
+                                return;
+                            }
+                            if (exception instanceof LockedException) {
+                                response.setStatus(HttpStatus.FORBIDDEN.value());
+                                response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                                response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+                                response.getWriter().write(
+                                        "{\"message\":\"Verifica tu correo antes de ingresar\"}");
+                                return;
+                            }
+                            response.sendError(HttpStatus.UNAUTHORIZED.value());
+                        }))
                 .logout(logout -> logout
                         .logoutUrl("/api/auth/logout")
                         .logoutSuccessHandler((request, response, authentication) -> response.setStatus(HttpStatus.NO_CONTENT.value()))
@@ -62,14 +97,17 @@ public class SecurityConfig {
     @Bean
     UrlBasedCorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of(frontendUrl));
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("Content-Type", "X-CSRF-TOKEN"));
+        configuration.setAllowedOriginPatterns(List.of(
+                "http://localhost:*",
+                "http://127.0.0.1:*"
+        ));
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"));
+        configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/api/**", configuration);
+        source.registerCorsConfiguration("/**", configuration);
         return source;
     }
 }

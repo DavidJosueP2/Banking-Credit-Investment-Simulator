@@ -1,0 +1,162 @@
+<svg width="412" height="506" viewBox="0 0 412 506" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- 1. SOFT AMBIENT BACKGROUND DISCS -->
+  <circle cx="180" cy="120" r="78" fill="#F2EFEB"/>
+  <circle cx="290" cy="340" r="70" fill="#F2EFEB"/>
+  <circle cx="90" cy="330" r="65" fill="#F2EFEB"/>
+  <circle cx="365" cy="95" r="16" fill="#00C978"/>
+  <circle cx="18" cy="120" r="16" fill="#64C6FF"/>
+  <circle cx="25" cy="450" r="22" fill="#E5D5C3"/>
+  <circle cx="365" cy="450" r="14" fill="#64C6FF"/>
+
+  <!-- 2. TOP FINANCIAL AGREEMENT / CONTRACT SHEET ("El Formulario" - Más pequeño y más arriba a la izquierda) -->
+  <g transform="translate(45, 25) rotate(-6) scale(0.82)">
+    <rect x="0" y="0" width="138" height="172" rx="14" fill="#FFFFFF"/>
+    <!-- Deep Obsidian Teal Header Band -->
+    <path d="M0 14C0 6.3 6.3 0 14 0H124C131.7 0 138 6.3 138 14V36H0V14Z" fill="#08747B"/>
+    <!-- Gold Micro-seal Accent -->
+    <circle cx="18" cy="18" r="6" fill="#FFCD6C"/>
+    <rect x="32" y="15" width="50" height="6" rx="3" fill="#FFFFFF"/>
+    <!-- Document Information Lines -->
+    <rect x="16" y="50" width="104" height="8" rx="4" fill="#CBD5E1"/>
+    <rect x="16" y="66" width="78" height="7" rx="3.5" fill="#E2E8F0"/>
+    <rect x="16" y="82" width="94" height="7" rx="3.5" fill="#E2E8F0"/>
+    <rect x="16" y="98" width="68" height="7" rx="3.5" fill="#E2E8F0"/>
+    <rect x="16" y="114" width="104" height="2" fill="#F1F5F9"/>
+    <!-- Total Highlight Amount -->
+    <rect x="16" y="125" width="48" height="11" rx="4.5" fill="#00C978"/>
+    <rect x="72" y="125" width="48" height="11" rx="4.5" fill="#FFCD6C"/>
+    <!-- Prominent Red Verification Seal -->
+    <circle cx="112" cy="150" r="15" fill="#FF3E00"/>
+    <circle cx="112" cy="150" r="11" fill="#FF5722"/>
+    <path d="M107 150 L110 154 L118 146" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <!-- 3. UPPER-LEFT GOLDEN 3D COIN ($) -->
+  <g transform="translate(14, 130)">
+    <circle cx="44" cy="44" r="42" fill="#F0BC56"/>
+    <ellipse cx="44" cy="44" rx="40" ry="38" fill="#FFB112"/>
+    <ellipse cx="40" cy="40" rx="38" ry="36" fill="#FFCD6C"/>
+    <g transform="rotate(-30 40 40)">
+      <rect x="30" y="10" width="14" height="60" rx="7" fill="#FFD88B" opacity="0.8"/>
+    </g>
+    <!-- Embossed Dollar Symbol ($) -->
+    <g transform="translate(40, 40)">
+      <path d="M0 -18V18M9 -11H-4C-9 -11 -12 -7 -12 -3C-12 2 -9 5 -2 6L2 7C9 8 12 11 12 15C12 19 9 22 2 22H-9" stroke="#946928" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    </g>
+  </g>
+
+  <!-- 4. VIBRANT MINT SCALLOPED BANK TEMPLE BADGE ("La Casa Verde" - Ligeramente más a la izquierda y abajo para topar con más elementos) -->
+  <g transform="translate(255, 185) scale(0.92)">
+    <g transform="translate(-150, -205)">
+      <!-- Scalloped 24-petal Badge Body in Emerald/Mint Green -->
+      <path d="M176.16 113.42C181.563 111.554 187.531 113.765 190.413 118.701L200.048 135.205C201.569 137.809 204.016 139.744 206.901 140.623L225.182 146.19C230.65 147.855 234.179 153.152 233.609 158.84L231.703 177.855C231.402 180.855 232.245 183.859 234.063 186.266L245.58 201.515C249.025 206.077 248.766 212.436 244.962 216.702L232.244 230.966C230.236 233.217 229.152 236.142 229.208 239.157L229.563 258.264C229.669 263.979 225.721 268.972 220.136 270.187L201.463 274.251C198.516 274.892 195.92 276.622 194.192 279.094L183.248 294.76C179.975 299.446 173.847 301.165 168.614 298.865L151.118 291.177C148.357 289.964 145.24 289.837 142.39 290.822L124.327 297.063C118.925 298.93 112.957 296.719 110.075 291.782L100.44 275.279C98.9193 272.674 96.4721 270.74 93.587 269.861L75.3058 264.294C69.838 262.628 66.3092 257.331 66.8792 251.644L68.7848 232.629C69.0855 229.628 68.2429 226.624 66.4253 224.218L54.9079 208.968C51.4632 204.407 51.722 198.047 55.526 193.781L68.2444 179.518C70.2515 177.267 71.3354 174.342 71.2795 171.326L70.9252 152.219C70.8192 146.505 74.7668 141.512 80.3518 140.296L99.025 136.233C101.972 135.591 104.568 133.862 106.295 131.389L117.24 115.723C120.513 111.038 126.641 109.319 131.874 111.618L149.369 119.306C152.13 120.52 155.248 120.647 158.098 119.662L176.16 113.42Z" fill="#00C978"/>
+      <!-- Inner Disc Glow -->
+      <circle cx="150" cy="205" r="44" fill="#FFFFFF" opacity="0.22"/>
+      <!-- Classical Neoclassical Bank Pillars -->
+      <path d="M132 195L150 183L168 195V199H132V195Z" fill="#FFFFFF"/>
+      <rect x="134" y="202" width="32" height="4" rx="2" fill="#FFFFFF"/>
+      <rect x="136" y="208" width="5" height="15" rx="1.5" fill="#FFFFFF"/>
+      <rect x="144" y="208" width="5" height="15" rx="1.5" fill="#FFFFFF"/>
+      <rect x="152" y="208" width="5" height="15" rx="1.5" fill="#FFFFFF"/>
+      <rect x="160" y="208" width="5" height="15" rx="1.5" fill="#FFFFFF"/>
+      <rect x="132" y="225" width="36" height="4.5" rx="2" fill="#FFFFFF"/>
+    </g>
+  </g>
+
+  <!-- 5. PRIMARY RED BRUNEXA CARD ("La Tarjeta" - Swapped to Bottom, Tilted -10deg as in Login) -->
+  <g transform="translate(160, 290) rotate(-10)">
+    <!-- Base Card Body (Vibrant Red) -->
+    <rect x="-88" y="-55" width="176" height="110" rx="15" fill="#FF3E00"/>
+    <!-- Diagonal Coral Stripe -->
+    <path d="M-88 -55H88V-20C88 -20 30 -10 -15 -16C-60 -22 -88 -14 -88 -14V-55Z" fill="#FF5722"/>
+    <!-- Gold EMV Chip -->
+    <rect x="-68" y="-18" width="26" height="18" rx="4" fill="#F0BC56"/>
+    <rect x="-65" y="-15" width="20" height="12" rx="2" fill="#FFD88B"/>
+    <path d="M-68 -9H-58M-53 -9H-42M-58 -18V0M-53 -18V0" stroke="#946928" stroke-width="0.8" opacity="0.6"/>
+    <!-- Contactless Wave -->
+    <path d="M-32 -14A8 8 0 0 1 -32 -4M-28 -17A13 13 0 0 1 -28 -1" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round"/>
+    <!-- Card Number Mask Dots -->
+    <g fill="#FFFFFF" opacity="0.85">
+      <circle cx="-68" cy="18" r="2"/>
+      <circle cx="-62" cy="18" r="2"/>
+      <circle cx="-56" cy="18" r="2"/>
+      <circle cx="-50" cy="18" r="2"/>
+      <circle cx="-38" cy="18" r="2"/>
+      <circle cx="-32" cy="18" r="2"/>
+      <circle cx="-26" cy="18" r="2"/>
+      <circle cx="-20" cy="18" r="2"/>
+      <circle cx="-8" cy="18" r="2"/>
+      <circle cx="-2" cy="18" r="2"/>
+      <circle cx="4" cy="18" r="2"/>
+      <circle cx="10" cy="18" r="2"/>
+    </g>
+    <!-- Brand Wordmark -->
+    <text x="70" y="40" font-family="'Plus Jakarta Sans', system-ui, sans-serif" font-size="11.5" font-weight="900" fill="#FFFFFF" letter-spacing="1.2" text-anchor="end">BRUNEXA</text>
+  </g>
+
+  <!-- 6. BLUE FINANCIAL ANALYTICS INSPECTOR / LENS -->
+  <g transform="translate(295, 340) rotate(18)">
+    <circle cx="26" cy="26" r="24" fill="#64C6FF"/>
+    <circle cx="26" cy="26" r="18" fill="#E0F2FE"/>
+    <path d="M18 31L24 25L28 28L34 20" stroke="#00C978" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M30 20H34V24" stroke="#00C978" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="23" y="47" width="8" height="20" rx="4" fill="#0284C7"/>
+  </g>
+
+  <!-- 7. LOWER-LEFT WAVY GREEN CASH BANKNOTE -->
+  <g transform="translate(18, 365) rotate(-12)">
+    <rect x="0" y="0" width="115" height="58" rx="10" fill="#00C978"/>
+    <rect x="4" y="4" width="107" height="50" rx="7" fill="#00B368"/>
+    <ellipse cx="57" cy="29" rx="20" ry="15" fill="#009956"/>
+    <circle cx="57" cy="29" r="10" fill="#FFCD6C"/>
+    <text x="57" y="34" fill="#009956" font-family="system-ui, -apple-system, sans-serif" font-size="13" font-weight="900" text-anchor="middle">$</text>
+    <circle cx="12" cy="12" r="3" fill="#FFFFFF" opacity="0.6"/>
+    <circle cx="103" cy="12" r="3" fill="#FFFFFF" opacity="0.6"/>
+    <circle cx="12" cy="46" r="3" fill="#FFFFFF" opacity="0.6"/>
+    <circle cx="103" cy="46" r="3" fill="#FFFFFF" opacity="0.6"/>
+  </g>
+
+  <!-- 8. BOTTOM-LEFT 3D GOLD COIN (Exact Home Style from Hero Left) -->
+  <g transform="translate(-135, 10)">
+    <ellipse cx="230.272" cy="436.342" rx="33.8985" ry="24" transform="rotate(7.51167 230.272 436.342)" fill="#FFB112"/>
+    <ellipse cx="230.592" cy="430.694" rx="33.8985" ry="24" transform="rotate(7.51167 230.592 430.694)" fill="#FFCD6C"/>
+    <mask id="coin_mask_login_bot_left" style="mask-type:alpha" maskUnits="userSpaceOnUse" x="196" y="406" width="69" height="49">
+      <ellipse cx="230.598" cy="430.696" rx="33.8985" ry="24" transform="rotate(7.51167 230.598 430.696)" fill="#FFCD6C"/>
+    </mask>
+    <g mask="url(#coin_mask_login_bot_left)">
+      <rect x="234.745" y="402.416" width="14" height="55" transform="rotate(11.4659 234.745 402.416)" fill="#FFD88B"/>
+    </g>
+    <!-- Embossed Stylized Dollar Symbol on Bottom Coin -->
+    <g transform="translate(230.6, 430.7) rotate(7.5)">
+      <path d="M0 -12V12M5 -8H-3C-5.5 -8 -7 -6.5 -7 -4C-7 -1.5 -5 0 -2 0H2C5 0 7 1.5 7 4C7 6.5 5 8 2 8H-5" stroke="#946928" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    </g>
+  </g>
+
+  <!-- 9. EXACT HERO STARS (Exactly 6 Stars from Hero in Balanced Positions) -->
+  <!-- Star 1 (Top-Right, Puffy Gold Star from Hero Left) -->
+  <g transform="translate(80, 15)">
+    <path d="M264.036 14.4901C262.237 12.4009 264.174 9.2329 266.854 9.88262L272.079 11.1497C272.967 11.3651 273.905 11.1391 274.598 10.5425L278.672 7.03432C280.761 5.23541 283.929 7.17297 283.28 9.85225L282.012 15.0773C281.797 15.9658 282.023 16.9038 282.62 17.5966L286.128 21.6708C287.927 23.7599 285.989 26.928 283.31 26.2782L278.085 25.0112C277.196 24.7957 276.258 25.0218 275.566 25.6183L271.491 29.1265C269.402 30.9255 266.234 28.9879 266.884 26.3086L268.151 21.0836C268.366 20.195 268.14 19.2571 267.544 18.5643L264.036 14.4901Z" fill="#FFCD6C"/>
+  </g>
+  <!-- Star 2 (Top-Left Edge, Curved Gold Star from Hero) -->
+  <g transform="translate(-325, -7)">
+    <path d="M336.871 23.4584C335.763 22.1725 336.956 20.2225 338.605 20.6225L341.821 21.4026C342.368 21.5352 342.946 21.3961 343.372 21.0289L345.88 18.8697C347.166 17.7625 349.116 18.9552 348.716 20.6043L347.936 23.8204C347.803 24.3673 347.942 24.9447 348.309 25.3711L350.469 27.879C351.576 29.165 350.383 31.1149 348.734 30.7149L345.518 29.9349C344.971 29.8022 344.394 29.9413 343.967 30.3085L341.459 32.4678C340.173 33.575 338.223 32.3823 338.623 30.7331L339.403 27.517C339.536 26.9701 339.397 26.3928 339.03 25.9663L336.871 23.4584Z" fill="#FFCD6C"/>
+  </g>
+  <!-- Star 3 (Mid-Left Edge, Diagonal Gold Star from Hero) -->
+  <g transform="translate(-52, -153)">
+    <path d="M62.3375 388.595C61.05 387.489 61.9369 385.382 63.6274 385.531L73.4293 386.39C73.9899 386.44 74.5399 386.215 74.9065 385.788L81.3164 378.323C82.4218 377.036 84.5285 377.923 84.3803 379.613L83.5206 389.415C83.4715 389.976 83.6955 390.526 84.1225 390.892L91.5878 397.302C92.8753 398.408 91.9884 400.514 90.2979 400.366L80.496 399.506C79.9354 399.457 79.3854 399.681 79.0188 400.108L72.6089 407.574C71.5035 408.861 69.3968 407.974 69.545 406.284L70.4047 396.482C70.4538 395.921 70.2297 395.371 69.8028 395.004L62.3375 388.595Z" fill="#FFCD6C"/>
+  </g>
+  <!-- Star 4 (Center-Right, between Casa and Lens) -->
+  <g transform="translate(15, 39)">
+    <g transform="translate(-360, -201) scale(0.75)">
+      <path d="M342.239 207.881C339.499 207.576 338.761 203.937 341.166 202.588L351.276 196.918C352.074 196.471 352.607 195.667 352.708 194.758L353.991 183.238C354.296 180.498 357.936 179.76 359.284 182.164L364.954 192.275C365.401 193.072 366.205 193.605 367.114 193.707L378.635 194.99C381.375 195.295 382.113 198.934 379.708 200.283L369.597 205.953C368.8 206.4 368.267 207.204 368.166 208.113L366.883 219.633C366.577 222.373 362.938 223.111 361.589 220.707L355.92 210.596C355.472 209.799 354.668 209.266 353.76 209.164L342.239 207.881Z" fill="#FFCD6C"/>
+    </g>
+  </g>
+  <!-- Star 5 (Bottom-Center, above bottom coin) -->
+  <g transform="translate(-178, 390)">
+    <path d="M336.871 23.4584C335.763 22.1725 336.956 20.2225 338.605 20.6225L341.821 21.4026C342.368 21.5352 342.946 21.3961 343.372 21.0289L345.88 18.8697C347.166 17.7625 349.116 18.9552 348.716 20.6043L347.936 23.8204C347.803 24.3673 347.942 24.9447 348.309 25.3711L350.469 27.879C351.576 29.165 350.383 31.1149 348.734 30.7149L345.518 29.9349C344.971 29.8022 344.394 29.9413 343.967 30.3085L341.459 32.4678C340.173 33.575 338.223 32.3823 338.623 30.7331L339.403 27.517C339.536 26.9701 339.397 26.3928 339.03 25.9663L336.871 23.4584Z" fill="#FFCD6C"/>
+  </g>
+  <!-- Star 6 (Lower-Right White Sparkle Star from Hero) -->
+  <g transform="translate(-4, 115)">
+    <path d="M338.159 319.123C335.449 318.617 334.981 314.933 337.478 313.766L342.349 311.488C343.177 311.101 343.767 310.338 343.935 309.439L344.922 304.154C345.428 301.444 349.112 300.976 350.28 303.473L352.557 308.343C352.945 309.171 353.707 309.762 354.606 309.93L359.891 310.916C362.601 311.422 363.07 315.106 360.572 316.274L355.702 318.552C354.874 318.939 354.283 319.702 354.115 320.601L353.129 325.886C352.623 328.596 348.939 329.064 347.771 326.567L345.493 321.697C345.106 320.868 344.343 320.278 343.445 320.11L338.159 319.123Z" fill="#FFFFFF"/>
+  </g>
+</svg>

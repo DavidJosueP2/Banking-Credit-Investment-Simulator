@@ -1,6 +1,8 @@
 spring:
   application:
     name: backend
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
   config:
     import: optional:file:.env[.properties]
   datasource:
@@ -34,7 +36,20 @@ spring:
 
 server:
   port: ${SERVER_PORT:8080}
+  servlet:
+    session:
+      cookie:
+        http-only: true
+        same-site: strict
+        secure: ${COOKIE_SECURE:false}
 
 app:
+  biometrics:
+    # Umbral de prueba de vida: 50-60 detecta fotos y pantallas; 80-90, deepfakes y video inyectado.
+    min-liveness: ${BIOMETRICS_MIN_LIVENESS:75}
+    approve-similarity: ${BIOMETRICS_APPROVE_SIMILARITY:99}
+    review-similarity: ${BIOMETRICS_REVIEW_SIMILARITY:90}
+    # Parecido mínimo del rostro en vivo con la foto del documento para aprobar el registro.
+    document-similarity: ${BIOMETRICS_DOCUMENT_SIMILARITY:95}
   cors:
     allowed-origin: ${FRONTEND_URL:http://localhost:5173}

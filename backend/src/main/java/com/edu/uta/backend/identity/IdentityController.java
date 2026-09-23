@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 
+import com.edu.uta.backend.registration.RegistrationService;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -29,17 +30,23 @@ import jakarta.validation.constraints.Size;
 public class IdentityController {
 
     private final IdentityService identity;
+    private final InternalUserService internalUsers;
 
-    public IdentityController(IdentityService identity) {
+    public IdentityController(IdentityService identity, InternalUserService internalUsers) {
         this.identity = identity;
+        this.internalUsers = internalUsers;
     }
 
-    public record CreateUser(@NotBlank @Email String email,
+    public record CreateUser(@NotBlank @Size(min = 4, max = 30) String username,
+                             @NotBlank @Email String email,
                              @NotBlank @Size(max = 120) String fullName,
-                             @NotBlank @Size(min = 12) String password,
+                             @Size(max = 128) String password,
+                             @NotBlank String passwordMode,
                              @Size(min = 1) List<String> roles) {}
 
     public record AssignRoles(@Size(min = 1) List<String> roles) {}
+
+    public record ChangeStatus(boolean enabled) {}
 
     @GetMapping("/auth/csrf")
     public Map<String, String> csrf(CsrfToken token) {
@@ -48,7 +55,7 @@ public class IdentityController {
 
     @GetMapping("/auth/me")
     public IdentityService.Account me(Authentication authentication) {
-        return identity.accountByEmail(authentication.getName());
+        return identity.accountByUsername(authentication.getName());
     }
 
     @GetMapping("/admin/roles")
@@ -71,9 +78,10 @@ public class IdentityController {
 
     @PostMapping("/admin/users")
     @PreAuthorize("hasAuthority('users.roles.manage')")
-    public ResponseEntity<IdentityService.Account> createUser(@Valid @RequestBody CreateUser request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(identity.createAccount(
-                request.email(), request.fullName(), request.password(), request.roles()));
+    public ResponseEntity<InternalUserService.Creation> createUser(@Valid @RequestBody CreateUser request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(internalUsers.create(
+                request.username(), request.email(), request.fullName(), request.password(),
+                request.passwordMode(), request.roles()));
     }
 
     @PutMapping("/admin/users/{id}/roles")
@@ -81,6 +89,19 @@ public class IdentityController {
     public IdentityService.Account assignRoles(@PathVariable long id, @Valid @RequestBody AssignRoles request,
                                                 Authentication authentication) {
         return identity.replaceRoles(id, request.roles(), authentication.getName());
+    }
+
+    @PutMapping("/admin/users/{id}/status")
+    @PreAuthorize("hasAuthority('users.roles.manage')")
+    public IdentityService.Account changeStatus(@PathVariable long id, @RequestBody ChangeStatus request,
+                                                 Authentication authentication) {
+        return identity.setEnabled(id, request.enabled(), authentication.getName());
+    }
+
+    @PostMapping("/admin/users/{id}/verification/resend")
+    @PreAuthorize("hasAuthority('users.roles.manage')")
+    public RegistrationService.PendingVerification resendVerification(@PathVariable long id) {
+        return internalUsers.resendVerification(id);
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
@@ -95,6 +116,6 @@ public class IdentityController {
 
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<Map<String, String>> conflict(DataIntegrityViolationException exception) {
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("message", "El correo ya está registrado"));
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("message", "El correo o el usuario ya están registrados"));
     }
 }

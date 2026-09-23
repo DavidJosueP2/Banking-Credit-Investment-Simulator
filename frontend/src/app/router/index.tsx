@@ -1,3 +1,4 @@
+import { Suspense, lazy } from 'react'
 import { createBrowserRouter } from 'react-router-dom'
 
 import { AdminLayout } from '@/components/layout/admin-layout'
@@ -6,11 +7,20 @@ import { PermissionGate } from '@/components/shared/permission-gate'
 import { AdminHomePage } from '@/pages/admin-home-page'
 import { AccountPage } from '@/pages/account-page'
 import { DevTablePage } from '@/pages/dev-table-page'
+import { EmailVerificationPage } from '@/pages/email-verification-page'
 import { HomePage } from '@/pages/home-page'
 import { InstitutionSettingsPage } from '@/pages/institution-settings-page'
+import { InvestmentAdminPage, InvestmentProductEditorPage } from '@/pages/investment-admin-page'
+import { InvestmentSimulatorPage } from '@/pages/investment-simulator-page'
 import { LoginPage } from '@/pages/login-page'
-import { PlaceholderPage } from '@/pages/placeholder-page'
+import { ProfilePage } from '@/pages/profile-page'
+import { RegistrationPage } from '@/pages/registration-page'
 import { RolePermissionsPage } from '@/pages/role-permissions-page'
+import { SimuladorClientePage } from '@/pages/creditos/simulador-cliente-page'
+import { ConfiguradorCreditoPage } from '@/pages/admin/creditos/configurador-credito-page'
+
+const LivenessDevPage = lazy(() => import('@/pages/liveness-dev-page')
+  .then((module) => ({ default: module.LivenessDevPage })))
 
 export const router = createBrowserRouter([
   {
@@ -19,7 +29,30 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <HomePage /> },
       { path: 'login', element: <LoginPage /> },
+      { path: 'verificar-correo', element: <EmailVerificationPage /> },
+      { path: 'registro', element: <RegistrationPage /> },
       { path: 'cuenta', element: <AccountPage /> },
+      {
+        path: 'perfil',
+        element: (
+          <PermissionGate permission="identity.verification.start">
+            <ProfilePage />
+          </PermissionGate>
+        ),
+      },
+      {
+        path: 'dev/liveness',
+        element: (
+          <PermissionGate permission="identity.verification.start">
+            <Suspense fallback={<div className="px-5 py-16 text-sm text-muted-foreground">Cargando prueba de vida…</div>}>
+              <LivenessDevPage />
+            </Suspense>
+          </PermissionGate>
+        ),
+      },
+      { path: 'inversiones/simulador', element: <InvestmentSimulatorPage /> },
+      { path: 'creditos/simulador', element: <SimuladorClientePage /> },
+      { path: 'simulador', element: <SimuladorClientePage /> },
     ],
   },
   {
@@ -38,10 +71,15 @@ export const router = createBrowserRouter([
         path: 'creditos',
         element: (
           <PermissionGate permission="credit.products.manage">
-            <PlaceholderPage
-              title="Créditos"
-              description="Espacio reservado para la futura administración de productos de crédito."
-            />
+            <ConfiguradorCreditoPage />
+          </PermissionGate>
+        ),
+      },
+      {
+        path: 'configuracion-creditos',
+        element: (
+          <PermissionGate permission="credit.products.manage">
+            <ConfiguradorCreditoPage />
           </PermissionGate>
         ),
       },
@@ -49,10 +87,23 @@ export const router = createBrowserRouter([
         path: 'inversiones',
         element: (
           <PermissionGate permission="investment.products.manage">
-            <PlaceholderPage
-              title="Inversiones"
-              description="Espacio reservado para el futuro módulo administrativo de inversiones."
-            />
+            <InvestmentAdminPage />
+          </PermissionGate>
+        ),
+      },
+      {
+        path: 'inversiones/nuevo',
+        element: (
+          <PermissionGate permission="investment.products.manage">
+            <InvestmentProductEditorPage />
+          </PermissionGate>
+        ),
+      },
+      {
+        path: 'inversiones/:productId/editar',
+        element: (
+          <PermissionGate permission="investment.products.manage">
+            <InvestmentProductEditorPage />
           </PermissionGate>
         ),
       },

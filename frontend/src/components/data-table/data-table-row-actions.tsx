@@ -12,9 +12,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import type { Row } from '@tanstack/react-table'
+import type { Row, RowData } from '@tanstack/react-table'
 
-export interface DataTableRowAction<TData> {
+export interface DataTableRowAction<TData extends RowData> {
   label: string
   onSelect: (record: TData) => void
   icon?: LucideIcon
@@ -23,13 +23,13 @@ export interface DataTableRowAction<TData> {
   disabled?: boolean
 }
 
-interface DataTableRowActionsProps<TData> {
+interface DataTableRowActionsProps<TData extends RowData> {
   row: Row<typeof dataTableFeatures, TData>
   actions: DataTableRowAction<TData>[]
   label?: string
 }
 
-export function DataTableRowActions<TData>({
+export function DataTableRowActions<TData extends RowData>({
   row,
   actions,
   label = 'Acciones del registro',
@@ -65,7 +65,7 @@ export function DataTableRowActions<TData>({
   )
 }
 
-export function createRowActionsColumn<TData>(
+export function createRowActionsColumn<TData extends RowData>(
   getActions: (record: TData) => DataTableRowAction<TData>[],
 ): DataTableColumnDef<TData> {
   return {

@@ -30,7 +30,7 @@ public class AuthorityRefreshFilter extends OncePerRequestFilter {
         if (current != null && current.isAuthenticated() && current.getPrincipal() instanceof UserDetails) {
             try {
                 UserDetails fresh = identity.loadUserByUsername(current.getName());
-                if (!fresh.isEnabled()) {
+                if (!fresh.isEnabled() || !fresh.isAccountNonLocked()) {
                     SecurityContextHolder.clearContext();
                 } else {
                     var updated = UsernamePasswordAuthenticationToken.authenticated(

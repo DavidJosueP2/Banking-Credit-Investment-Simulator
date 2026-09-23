@@ -11,6 +11,10 @@ import markDark from '@/assets/bank/logo-dark-mode.png'
 import markLight from '@/assets/bank/logo.png'
 import creditImage from '@/assets/landing/brunexa-creditos.png'
 import investmentImage from '@/assets/landing/brunexa-inversiones.png'
+import creditPersonFallback from '@/assets/imgs/persona-crédito.png'
+import investmentPersonFallback from '@/assets/imgs/investment-person.png'
+import girlWithDollarFallback from '@/assets/imgs/girl with dollar.png'
+import closingPersonFallback from '@/assets/imgs/young-african-american-woman-holding-piggy-bank-screaming-proud-celebrating-victory-success-very-exc-removebg-preview.png'
 import carouselCommunityImage from '@/assets/landing/carrusel/brooke-cagle--uHVRvDr7pg-unsplash.jpg'
 import carouselIdentityImage from '@/assets/landing/carrusel/debashis-rc-biswas-dyPFnxxUhYk-unsplash.jpg'
 import carouselPerspectiveImage from '@/assets/landing/carrusel/zalfa-imani-1xp5VxvyKL0-unsplash.jpg'
@@ -48,7 +52,7 @@ import { api } from '@/lib/api'
 
 type SettingsTab = SettingsSection | 'media'
 
-const fontOptions = ['Libre Baskerville', 'Inter', 'Georgia', 'Times New Roman', 'Arial', 'system-ui']
+const fontOptions = ['Axiforma', 'Plus Jakarta Sans', 'Libre Baskerville', 'SF Pro Display', 'Inter', 'Georgia', 'Times New Roman', 'Arial', 'system-ui']
 const iconOptions = [
   ['wallet-cards', 'Tarjetas'],
   ['bar-chart', 'Gráfico'],
@@ -142,7 +146,7 @@ const landingGroups: Array<{
   },
   {
     id: 'credit', label: 'Créditos', title: 'Sección de créditos',
-    description: 'Contenido editorial, fotografía, tres puntos clave y estado visible del módulo.',
+    description: 'Contenido editorial, fotografía, tres puntos clave y botón visible del módulo.',
     fields: [
       { key: 'creditTitle', label: 'Título' },
       { key: 'creditDescription', label: 'Descripción', multiline: true },
@@ -151,12 +155,12 @@ const landingGroups: Array<{
       { key: 'creditBulletOne', label: 'Punto clave 1' },
       { key: 'creditBulletTwo', label: 'Punto clave 2' },
       { key: 'creditBulletThree', label: 'Punto clave 3' },
-      { key: 'creditStatusLabel', label: 'Estado del simulador' },
+      { key: 'creditButton', label: 'Texto del botón de crédito' },
     ],
   },
   {
     id: 'investment', label: 'Inversiones', title: 'Sección de inversiones',
-    description: 'Contenido editorial, fotografía, características y estado visible del módulo.',
+    description: 'Contenido editorial, fotografía, características y botón visible del módulo.',
     fields: [
       { key: 'investmentTitle', label: 'Título' },
       { key: 'investmentDescription', label: 'Descripción', multiline: true },
@@ -167,7 +171,7 @@ const landingGroups: Array<{
       { key: 'investmentFeatureOneDescription', label: 'Característica 1 · descripción', multiline: true },
       { key: 'investmentFeatureTwoTitle', label: 'Característica 2 · título' },
       { key: 'investmentFeatureTwoDescription', label: 'Característica 2 · descripción', multiline: true },
-      { key: 'investmentStatusLabel', label: 'Estado del módulo' },
+      { key: 'investmentButton', label: 'Texto del botón de inversión' },
     ],
   },
   {
@@ -201,10 +205,16 @@ const landingGroups: Array<{
   },
   {
     id: 'navigation', label: 'Navegación', title: 'Cabecera y pie de página',
-    description: 'Etiquetas de las rutas públicas y encabezados del pie del sitio.',
+    description: 'Etiquetas y destinos de redirección de la cabecera, así como encabezados del pie del sitio.',
     fields: [
-      { key: 'headerServicesLabel', label: 'Navegación · servicios' },
-      { key: 'headerProcessLabel', label: 'Navegación · proceso' },
+      { key: 'headerHomeLabel', label: 'Cabecera · Inicio / Home (texto)', hint: 'Deja el texto vacío para no mostrar este ítem en la cabecera.' },
+      { key: 'headerHomeHref', label: 'Cabecera · Inicio / Home (redirección)', hint: 'Ejemplo: / para volver a la portada.' },
+      { key: 'headerCreditLabel', label: 'Cabecera · Créditos (texto)', hint: 'Deja el texto vacío para no mostrar este ítem en la cabecera.' },
+      { key: 'headerCreditHref', label: 'Cabecera · Créditos (redirección)', hint: 'Ejemplo: /creditos/simulador' },
+      { key: 'headerInvestmentLabel', label: 'Cabecera · Inversiones (texto)', hint: 'Deja el texto vacío para no mostrar este ítem en la cabecera.' },
+      { key: 'headerInvestmentHref', label: 'Cabecera · Inversiones (redirección)', hint: 'Ejemplo: /inversiones/simulador' },
+      { key: 'headerProcessLabel', label: 'Cabecera · Proceso (texto)', hint: 'Deja el texto vacío para no mostrar este ítem en la cabecera.' },
+      { key: 'headerProcessHref', label: 'Cabecera · Proceso (redirección)', hint: 'Ejemplo: /#proceso o una ruta interna.' },
       { key: 'footerProductsHeading', label: 'Pie · productos' },
       { key: 'footerAccessHeading', label: 'Pie · acceso' },
       { key: 'footerContactHeading', label: 'Pie · contacto' },
@@ -245,6 +255,10 @@ const assetDefinitions: Array<{
   { key: 'carouselInvestmentImage', title: 'Banner · inversiones', description: 'Fotografía del destacado de inversiones.', fallback: carouselPerspectiveImage },
   { key: 'creditImage', title: 'Imagen de créditos', description: 'Fotografía de la sección pública de créditos.', fallback: creditImage },
   { key: 'investmentImage', title: 'Imagen de inversiones', description: 'Fotografía de la sección pública de inversiones.', fallback: investmentImage },
+  { key: 'creditSimulatorImage', title: 'Simulador de créditos · personaje', description: 'Silueta para la franja superior del simulador de créditos.', fallback: creditPersonFallback, compact: true },
+  { key: 'investmentSimulatorImage', title: 'Simulador de inversiones · personaje', description: 'Silueta para la franja superior del simulador de inversiones.', fallback: investmentPersonFallback, compact: true },
+  { key: 'closingImage', title: 'Landing · espacio financiero', description: 'Personaje de la sección final "Tu espacio financiero".', fallback: closingPersonFallback, compact: true },
+  { key: 'perspectiveImage', title: 'Landing · chica del dólar', description: 'Fotografía para la sección "Antes de elegir" en la landing.', fallback: girlWithDollarFallback, compact: true },
 ]
 
 function requestError(error: unknown) {
@@ -503,7 +517,7 @@ export function InstitutionSettingsPage() {
     }
   }
 
-  if (query.isPending || (!draftHydrated.current && !query.isError)) return <p className="py-10 text-sm text-muted-foreground">Cargando configuración institucional…</p>
+  if (query.isPending || (!query.data && !query.isError)) return <p className="py-10 text-sm text-muted-foreground">Cargando configuración institucional…</p>
   if (query.isError) return (
     <div className="py-10">
       <h1 className="text-2xl">No se pudo cargar la configuración</h1>
@@ -660,6 +674,15 @@ export function InstitutionSettingsPage() {
                       </div>
                     ))}
                   </div>
+                  {group.id === 'intro' && <div className="rounded-lg border bg-card px-5">
+                    <ToggleRow
+                      label="Mostrar ilustraciones decorativas"
+                      description="Muestra u oculta las composiciones SVG del hero y los acentos visuales distribuidos en la landing."
+                      checked={draft.landing.decorativeIllustrationsEnabled === 'true'}
+                      onCheckedChange={(value) => update('landing', 'decorativeIllustrationsEnabled', String(value))}
+                      onReset={() => resetField('landing', 'decorativeIllustrationsEnabled')}
+                    />
+                  </div>}
                   {(landingIconFields[group.id]?.length ?? 0) > 0 && <section className="space-y-5" aria-labelledby={`${group.id}-icons-title`}>
                     <div>
                       <h4 id={`${group.id}-icons-title`} className="text-base">Iconos de {group.label.toLowerCase()}</h4>

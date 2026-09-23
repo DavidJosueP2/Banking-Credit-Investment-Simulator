@@ -24,8 +24,12 @@ function resolveAssetUrl(path: string) {
   return new URL(path, baseUrl.origin).toString()
 }
 
-function fontValue(font: string, generic: 'serif' | 'sans-serif') {
-  return font === 'system-ui' ? 'system-ui, sans-serif' : `"${font}", ${generic}`
+const serifFonts = new Set(['Libre Baskerville', 'Georgia', 'Times New Roman'])
+
+function fontValue(font: string) {
+  if (font === 'system-ui') return 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+  if (serifFonts.has(font)) return `"${font}", Georgia, "Times New Roman", serif`
+  return `"${font}", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`
 }
 
 function contrastColor(hex: string) {
@@ -72,15 +76,16 @@ export function SettingsProvider({ children }: PropsWithChildren) {
     root.style.setProperty('--secondary-foreground', dark ? appearance.foregroundDarkColor : appearance.foregroundLightColor)
     root.style.setProperty('--accent', dark ? appearance.mutedDarkColor : appearance.mutedLightColor)
     root.style.setProperty('--accent-foreground', dark ? appearance.foregroundDarkColor : appearance.foregroundLightColor)
-    root.style.setProperty('--sidebar', dark ? appearance.sidebarDarkColor : appearance.sidebarLightColor)
+    const effectiveSidebarDark = appearance.sidebarDarkColor === '#1a292b' ? '#181b1d' : appearance.sidebarDarkColor
+    root.style.setProperty('--sidebar', dark ? effectiveSidebarDark : appearance.sidebarLightColor)
     root.style.setProperty('--sidebar-foreground', dark ? appearance.foregroundDarkColor : appearance.foregroundLightColor)
     root.style.setProperty('--sidebar-accent', dark ? appearance.mutedDarkColor : appearance.mutedLightColor)
     root.style.setProperty('--sidebar-accent-foreground', dark ? appearance.foregroundDarkColor : appearance.foregroundLightColor)
     root.style.setProperty('--sidebar-border', dark ? appearance.borderDarkColor : appearance.borderLightColor)
     root.style.setProperty('--border', dark ? appearance.borderDarkColor : appearance.borderLightColor)
     root.style.setProperty('--input', dark ? appearance.borderDarkColor : appearance.borderLightColor)
-    root.style.setProperty('--font-heading', fontValue(appearance.headingFont, 'serif'))
-    root.style.setProperty('--font-sans', fontValue(appearance.sansFont, 'sans-serif'))
+    root.style.setProperty('--font-heading', fontValue(appearance.headingFont))
+    root.style.setProperty('--font-sans', fontValue(appearance.sansFont))
     document.title = effective.sections.institution.institutionName
   }, [effective.sections.appearance, effective.sections.institution.institutionName, theme])
 

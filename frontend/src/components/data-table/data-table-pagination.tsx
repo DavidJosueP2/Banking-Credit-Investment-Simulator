@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 
 import type { DataTableInstance } from '@/components/data-table/data-table-features'
+import type { RowData } from '@tanstack/react-table'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -15,12 +16,12 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 
-interface DataTablePaginationProps<TData> {
+interface DataTablePaginationProps<TData extends RowData> {
   table: DataTableInstance<TData>
   pageSizeOptions?: number[]
 }
 
-export function DataTablePagination<TData>({
+export function DataTablePagination<TData extends RowData>({
   table,
   pageSizeOptions = [10, 20, 30, 50, 100],
 }: DataTablePaginationProps<TData>) {

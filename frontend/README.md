@@ -184,10 +184,10 @@ Consulta `backend/README.md` para configurar la contraseña inicial y las cuenta
 
 ## Tipografía
 
-El sistema utiliza exclusivamente dos familias, servidas localmente mediante Fontsource:
+El sistema utiliza dos familias predeterminadas, servidas localmente:
 
-- `font-heading`: Libre Baskerville 400 para títulos y encabezados.
-- `font-sans`: Inter 400/500 para texto, navegación, formularios y tablas.
+- `font-heading`: Axiforma 400/500/600/700 para títulos y encabezados.
+- `font-sans`: Plus Jakarta Sans variable 200–800 para texto, navegación, formularios y tablas.
 
 Los elementos `h1`, `h2`, `h3` y los títulos base de shadcn/ui reciben automáticamente la tipografía de encabezado. Los importes y demás datos tabulares utilizan cifras de ancho uniforme.
 
