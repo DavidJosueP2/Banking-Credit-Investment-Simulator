@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class RegistrationService {
 
     private static final Duration CODE_LIFETIME = Duration.ofMinutes(15);
+    private static final Duration RESEND_COOLDOWN = Duration.ofMinutes(1);
     private static final int MAX_ATTEMPTS = 5;
     private static final int MINIMUM_PASSWORD_LENGTH = 12;
 
@@ -73,7 +74,7 @@ public class RegistrationService {
                 birthDate, normalizePhone(request.phone())));
         records.store(userId, evidence, "REGISTRATION");
 
-        return issueChallenge(userId, email);
+        return beginEmailVerification(userId, email);
     }
 
     private String required(String value, String message) {
@@ -84,10 +85,11 @@ public class RegistrationService {
     @Transactional
     public PendingVerification resend(String rawEmail) {
         String email = normalizeEmail(rawEmail);
-        return issueChallenge(identity.accountByEmail(email).id(), email);
+        long userId = identity.accountByEmail(email).id();
+        return beginEmailVerification(userId, email);
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = IllegalArgumentException.class)
     public void verifyEmail(String rawEmail, String code) {
         String email = normalizeEmail(rawEmail);
         long userId = identity.accountByEmail(email).id();
@@ -102,6 +104,7 @@ public class RegistrationService {
         }
         if (!passwords.matches(code == null ? "" : code.trim(), challenge.getCodeHash())) {
             challenge.registerFailedAttempt();
+            verifications.save(challenge);
             throw new IllegalArgumentException("El código no es válido");
         }
         challenge.markVerified();
@@ -112,11 +115,21 @@ public class RegistrationService {
         return verifications.existsByUserIdAndVerifiedAtIsNotNull(userId);
     }
 
-    private PendingVerification issueChallenge(long userId, String email) {
+    @Transactional
+    public PendingVerification beginEmailVerification(long userId, String email) {
+        if (emailVerified(userId)) {
+            throw new IllegalArgumentException("El correo ya está verificado");
+        }
+        verifications.findFirstByUserIdOrderByIdDesc(userId).ifPresent(challenge -> {
+            if (challenge.getCreatedAt() != null
+                    && challenge.getCreatedAt().isAfter(Instant.now().minus(RESEND_COOLDOWN))) {
+                throw new IllegalArgumentException("Espera un minuto antes de solicitar otro código");
+            }
+        });
         String code = String.format("%06d", random.nextInt(1_000_000));
         Instant expiresAt = Instant.now().plus(CODE_LIFETIME);
         verifications.save(new EmailVerification(userId, email, passwords.encode(code), expiresAt));
-        mailer.sendVerificationCode(email, code, CODE_LIFETIME);
+        mailer.sendVerificationCode(email, code, expiresAt);
         return new PendingVerification(email, expiresAt);
     }
 

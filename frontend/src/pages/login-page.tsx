@@ -32,6 +32,7 @@ export function LoginPage() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [needsVerification, setNeedsVerification] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [sessionChecked, setSessionChecked] = useState(false)
 
@@ -46,6 +47,7 @@ export function LoginPage() {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError('')
+    setNeedsVerification(false)
     setSubmitting(true)
     try {
       const signedIn = await login(username.trim(), password)
@@ -55,7 +57,9 @@ export function LoginPage() {
         setError('Usuario o contraseña incorrectos. Revisa tus datos e inténtalo de nuevo.')
       } else if (axios.isAxiosError(cause) && cause.response?.status === 403) {
         const detail = cause.response.data as { message?: string } | undefined
-        setError(detail?.message ?? 'Verifica tu correo antes de ingresar.')
+        const message = detail?.message ?? 'Verifica tu correo antes de ingresar.'
+        setError(message)
+        setNeedsVerification(message.toLowerCase().includes('verifica tu correo'))
       } else {
         setError('No pudimos iniciar sesión. Comprueba la conexión con el servidor e inténtalo de nuevo.')
       }
@@ -86,6 +90,11 @@ export function LoginPage() {
               onChange={(event) => setPassword(event.target.value)} required />
           </div>
           {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+          {needsVerification && (
+            <Link to="/verificar-correo" className="block text-sm text-brand-gold underline underline-offset-4 hover:text-foreground">
+              Ingresar o reenviar el código de verificación
+            </Link>
+          )}
           <Button type="submit" disabled={submitting} className="w-full">
             {submitting ? 'Ingresando…' : 'Ingresar'}
           </Button>

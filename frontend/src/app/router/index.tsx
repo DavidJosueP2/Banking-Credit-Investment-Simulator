@@ -7,6 +7,7 @@ import { PermissionGate } from '@/components/shared/permission-gate'
 import { AdminHomePage } from '@/pages/admin-home-page'
 import { AccountPage } from '@/pages/account-page'
 import { DevTablePage } from '@/pages/dev-table-page'
+import { EmailVerificationPage } from '@/pages/email-verification-page'
 import { HomePage } from '@/pages/home-page'
 import { InstitutionSettingsPage } from '@/pages/institution-settings-page'
 import { InvestmentAdminPage, InvestmentProductEditorPage } from '@/pages/investment-admin-page'
@@ -27,6 +28,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <HomePage /> },
       { path: 'login', element: <LoginPage /> },
+      { path: 'verificar-correo', element: <EmailVerificationPage /> },
       { path: 'registro', element: <RegistrationPage /> },
       { path: 'cuenta', element: <AccountPage /> },
       {

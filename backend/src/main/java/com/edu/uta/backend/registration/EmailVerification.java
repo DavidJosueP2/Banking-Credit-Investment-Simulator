@@ -82,6 +82,10 @@ public class EmailVerification {
         return verifiedAt;
     }
 
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
     public void registerFailedAttempt() {
         this.attempts++;
     }
