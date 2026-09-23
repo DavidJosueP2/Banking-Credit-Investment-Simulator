@@ -1,11 +1,10 @@
-import { ArrowRight, ChartNoAxesCombined, ChevronDown, Landmark, Settings2, TableProperties, UsersRound, type LucideIcon } from 'lucide-react'
+import { ArrowRight, ChartNoAxesCombined, Landmark, Settings2, UsersRound, type LucideIcon } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 import { type Permission } from '@/app/access/permissions'
 import { useAuth } from '@/app/providers/auth-provider'
 import { PageHeader } from '@/components/shared/page-header'
 import { Button } from '@/components/ui/button'
-import { MockDataTable } from '@/pages/dev-table-page'
 
 const managementAreas = [
   {
@@ -73,7 +72,7 @@ export function AdminHomePage() {
           </div>
           <Link
             to="/admin/roles"
-            className="group flex min-h-20 items-center gap-4 rounded-xl border bg-card px-5 py-4 transition-colors hover:border-brand-teal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="group flex min-h-20 items-center gap-4 rounded-xl bg-muted/50 px-5 py-4 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <UsersRound className="size-5 shrink-0 text-brand-teal" aria-hidden="true" />
             <span className="min-w-0 flex-1">
@@ -92,7 +91,7 @@ export function AdminHomePage() {
             <h2 id="areas-title" className="text-xl text-foreground">Áreas de gestión</h2>
             <p className="mt-2 text-sm text-muted-foreground">Módulos y herramientas disponibles según los permisos de tu perfil.</p>
           </div>
-          <div className="divide-y rounded-xl border bg-card">
+          <div className="divide-y rounded-xl bg-muted/50">
             {visibleAreas.map((area) => {
               const content = <>
                 <area.icon className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
@@ -116,21 +115,6 @@ export function AdminHomePage() {
           </div>
         </section>
       )}
-
-      <section aria-labelledby="example-title" className="border-t pt-8">
-        <details className="group">
-          <summary className="flex cursor-pointer list-none items-center gap-3 rounded-md py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
-            <TableProperties className="size-5 text-brand-gold" aria-hidden="true" />
-            <h2 id="example-title" className="flex-1 text-sm font-medium text-foreground">Tabla de ejemplo</h2>
-            <span className="hidden text-sm text-muted-foreground sm:inline">Ver registros</span>
-            <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden="true" />
-          </summary>
-          <div className="space-y-5 pt-5">
-            <p className="text-sm text-muted-foreground">Datos ilustrativos para revisar búsqueda, filtros y paginación; no representan productos vigentes.</p>
-            <MockDataTable />
-          </div>
-        </details>
-      </section>
     </div>
   )
 }

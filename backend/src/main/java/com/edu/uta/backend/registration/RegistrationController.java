@@ -23,6 +23,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import software.amazon.awssdk.core.exception.SdkException;
 
@@ -59,7 +60,7 @@ public class RegistrationController {
     public record VerifyEmail(@NotBlank(message = "Ingresa tu correo")
                               @Email(message = "El correo no es válido") String email,
                               @NotBlank(message = "Ingresa el código")
-                              @Size(min = 6, max = 6, message = "El código debe tener 6 dígitos") String code) {}
+                              @Pattern(regexp = "\\d{6}", message = "El código debe tener 6 dígitos") String code) {}
 
     public record ResendCode(@NotBlank(message = "Ingresa tu correo")
                              @Email(message = "El correo no es válido") String email) {}

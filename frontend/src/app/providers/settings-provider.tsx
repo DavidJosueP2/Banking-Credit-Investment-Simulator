@@ -76,7 +76,8 @@ export function SettingsProvider({ children }: PropsWithChildren) {
     root.style.setProperty('--secondary-foreground', dark ? appearance.foregroundDarkColor : appearance.foregroundLightColor)
     root.style.setProperty('--accent', dark ? appearance.mutedDarkColor : appearance.mutedLightColor)
     root.style.setProperty('--accent-foreground', dark ? appearance.foregroundDarkColor : appearance.foregroundLightColor)
-    root.style.setProperty('--sidebar', dark ? appearance.sidebarDarkColor : appearance.sidebarLightColor)
+    const effectiveSidebarDark = appearance.sidebarDarkColor === '#1a292b' ? '#181b1d' : appearance.sidebarDarkColor
+    root.style.setProperty('--sidebar', dark ? effectiveSidebarDark : appearance.sidebarLightColor)
     root.style.setProperty('--sidebar-foreground', dark ? appearance.foregroundDarkColor : appearance.foregroundLightColor)
     root.style.setProperty('--sidebar-accent', dark ? appearance.mutedDarkColor : appearance.mutedLightColor)
     root.style.setProperty('--sidebar-accent-foreground', dark ? appearance.foregroundDarkColor : appearance.foregroundLightColor)

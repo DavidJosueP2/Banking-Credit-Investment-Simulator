@@ -170,13 +170,13 @@
   --brand-gold-foreground: #1b2122;
   --brand-teal: #70d4cd;
   --brand-teal-foreground: #1b2122;
-  --sidebar: #1a292b;
-  --sidebar-foreground: #e7ebea;
+  --sidebar: #181b1d;
+  --sidebar-foreground: #edf0ef;
   --sidebar-primary: #e5e9e7;
   --sidebar-primary-foreground: #1b2122;
-  --sidebar-accent: #2a3b3d;
+  --sidebar-accent: #272c2e;
   --sidebar-accent-foreground: #edf0ef;
-  --sidebar-border: #3b4b4d;
+  --sidebar-border: #33393b;
   --sidebar-ring: #70d4cd;
 }
 

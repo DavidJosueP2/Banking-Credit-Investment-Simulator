@@ -40,6 +40,7 @@ export interface LandingSection {
   heroDescription: string
   heroCreditButton: string
   heroInvestmentButton: string
+  decorativeIllustrationsEnabled: string
   bannerEnabled: string
   bannerIntervalSeconds: string
   bannerGeneralTitle: string
@@ -199,17 +200,18 @@ export const defaultInstitutionSettings: InstitutionSettings = {
     surfaceDarkColor: '#1c2123',
     mutedDarkColor: '#272c2e',
     mutedTextDarkColor: '#adb6b5',
-    sidebarDarkColor: '#1a292b',
+    sidebarDarkColor: '#181b1d',
     borderDarkColor: '#3d4547',
     headingFont: 'Axiforma',
     sansFont: 'Plus Jakarta Sans',
   },
   landing: {
-    heroTitle: 'Tus decisiones financieras,',
-    heroHighlight: 'más claras.',
+    heroTitle: 'Construimos confianza,',
+    heroHighlight: 'protegemos tú futuro',
     heroDescription: 'Compara opciones de crédito e inversión, revisa sus condiciones y elige con información clara antes de decidir.',
     heroCreditButton: 'Explorar créditos',
     heroInvestmentButton: 'Conocer inversiones',
+    decorativeIllustrationsEnabled: 'true',
     bannerEnabled: 'true',
     bannerIntervalSeconds: '6',
     bannerGeneralTitle: 'Más formas de avanzar con {shortName}.',

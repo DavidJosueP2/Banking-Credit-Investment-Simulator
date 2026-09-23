@@ -2,6 +2,8 @@
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/src/assets/bank/logo-dark-mode.png" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" type="image/png" href="/src/assets/bank/logo.png" media="(prefers-color-scheme: light)" />
     <link rel="icon" type="image/png" href="/src/assets/bank/logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Brunexa Bank</title>
@@ -13,11 +15,22 @@
         } catch {
           // The preferred theme still works when storage is unavailable.
         }
+        const systemDark = matchMedia('(prefers-color-scheme: dark)').matches
         const isDark = storedTheme === 'dark' || (
-          storedTheme !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches
+          storedTheme !== 'light' && systemDark
         )
         document.documentElement.classList.toggle('dark', isDark)
         document.documentElement.style.colorScheme = isDark ? 'dark' : 'light'
+
+        // Match browser tab color scheme immediately
+        const useDarkFavicon = storedTheme === 'dark' || systemDark
+        const faviconUrl = useDarkFavicon ? '/src/assets/bank/logo-dark-mode.png' : '/src/assets/bank/logo.png'
+        document.querySelectorAll('link[rel*="icon"]').forEach(el => el.remove())
+        const link = document.createElement('link')
+        link.rel = 'icon'
+        link.type = 'image/png'
+        link.href = faviconUrl
+        document.head.appendChild(link)
       })()
     </script>
   </head>

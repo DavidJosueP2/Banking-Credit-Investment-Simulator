@@ -29,6 +29,7 @@ public class IdentityService implements UserDetailsService {
     }
 
     public record Account(long id, String username, String email, String fullName, boolean enabled,
+                          boolean emailVerified,
                           List<String> roles, List<String> permissions) {}
 
     public record Role(String code, String label, List<String> permissions) {}
@@ -81,10 +82,10 @@ public class IdentityService implements UserDetailsService {
                     "SELECT id, username, email, full_name, enabled FROM app_users WHERE id = ?",
                     (row, index) -> new Account(row.getLong("id"), row.getString("username"),
                             row.getString("email"), row.getString("full_name"), row.getBoolean("enabled"),
-                            List.of(), List.of()), id);
+                            true, List.of(), List.of()), id);
             if (base == null) throw new NoSuchElementException("Usuario no encontrado");
             return new Account(base.id(), base.username(), base.email(), base.fullName(), base.enabled(),
-                    rolesFor(id), permissionsFor(id));
+                    emailVerified(id), rolesFor(id), permissionsFor(id));
         } catch (EmptyResultDataAccessException exception) {
             throw new NoSuchElementException("Usuario no encontrado");
         }
@@ -113,7 +114,10 @@ public class IdentityService implements UserDetailsService {
     public Account createAccount(String username, String email, String fullName, String password,
                                  List<String> roles) {
         validateRoles(roles);
-        if (password.length() < 12) throw new IllegalArgumentException("La contraseña debe tener al menos 12 caracteres");
+        if (password == null || password.length() < 12) {
+            throw new IllegalArgumentException("La contraseña debe tener al menos 12 caracteres");
+        }
+        if (fullName == null || fullName.isBlank()) throw new IllegalArgumentException("Ingresa el nombre completo");
         String user = validUsername(username);
         if (usernameTaken(user)) throw new IllegalArgumentException("El usuario ya está registrado");
         jdbc.update("INSERT INTO app_users (username, email, full_name, password_hash) VALUES (?, ?, ?, ?)",
@@ -146,14 +150,44 @@ public class IdentityService implements UserDetailsService {
         return accountById(id);
     }
 
+    @Transactional
+    public Account setEnabled(long id, boolean enabled, String actingUsername) {
+        Account target = accountById(id);
+        if (!enabled && target.username().equalsIgnoreCase(actingUsername)) {
+            throw new IllegalArgumentException("No puedes bloquear tu propia cuenta");
+        }
+        if (!enabled && target.roles().contains("administrator")) {
+            Integer count = jdbc.queryForObject(
+                    "SELECT count(DISTINCT u.id) FROM app_users u " +
+                            "JOIN app_user_roles ur ON ur.user_id = u.id " +
+                            "WHERE ur.role_code = 'administrator' AND u.enabled = true",
+                    Integer.class);
+            if (count != null && count <= 1) {
+                throw new IllegalArgumentException("Debe permanecer al menos un administrador activo");
+            }
+        }
+        jdbc.update("UPDATE app_users SET enabled = ? WHERE id = ?", enabled, id);
+        return accountById(id);
+    }
+
     public void rename(long userId, String fullName) {
         jdbc.update("UPDATE app_users SET full_name = ? WHERE id = ?", fullName.trim(), userId);
     }
 
     public boolean emailPending(long userId) {
-        Boolean verified = jdbc.query("SELECT email_verified FROM customer_profiles WHERE user_id = ?",
+        return !emailVerified(userId);
+    }
+
+    public boolean emailVerified(long userId) {
+        Boolean challengeVerified = jdbc.query(
+                "SELECT verified_at IS NOT NULL AS verified FROM email_verifications " +
+                        "WHERE user_id = ? ORDER BY id DESC LIMIT 1",
+                rows -> rows.next() ? rows.getBoolean("verified") : null, userId);
+        if (challengeVerified != null) return challengeVerified;
+
+        Boolean profileVerified = jdbc.query("SELECT email_verified FROM customer_profiles WHERE user_id = ?",
                 rows -> rows.next() ? rows.getBoolean("email_verified") : null, userId);
-        return verified != null && !verified;
+        return profileVerified == null || profileVerified;
     }
 
     public boolean usernameTaken(String username) {

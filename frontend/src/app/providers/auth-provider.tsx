@@ -10,6 +10,7 @@ export interface Account {
   email: string
   fullName: string
   enabled: boolean
+  emailVerified: boolean
   roles: string[]
   permissions: string[]
 }
