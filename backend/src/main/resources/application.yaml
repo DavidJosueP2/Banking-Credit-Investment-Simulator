@@ -47,5 +47,7 @@ app:
     min-liveness: ${BIOMETRICS_MIN_LIVENESS:75}
     approve-similarity: ${BIOMETRICS_APPROVE_SIMILARITY:99}
     review-similarity: ${BIOMETRICS_REVIEW_SIMILARITY:90}
+    # Parecido mínimo del rostro en vivo con la foto del documento para aprobar el registro.
+    document-similarity: ${BIOMETRICS_DOCUMENT_SIMILARITY:95}
   cors:
     allowed-origin: ${FRONTEND_URL:http://localhost:5173}

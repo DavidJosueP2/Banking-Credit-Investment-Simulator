@@ -1,28 +1,23 @@
-import axios from 'axios'
+import { CircleCheck } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 
 import { useAuth } from '@/app/providers/auth-provider'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
 import { Label } from '@/components/ui/label'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import type { VerifiedIdentity } from '@/features/identity-check/identity-check-api'
+import { IdentityFlow } from '@/features/identity-check/identity-flow'
+import { messageFrom } from '@/features/identity-check/utils'
 import {
   idTypeLabels,
   registerAccount,
   resendRegistrationCode,
   verifyRegistrationEmail,
-  type IdType,
 } from '@/features/registration/registration-api'
 
-type Step = 'identity' | 'details' | 'verification' | 'done'
-
-const documentHints: Record<IdType, string> = {
-  CEDULA: 'Ingresa tus 10 dígitos',
-  PASAPORTE: 'Ingresa tu número de pasaporte',
-}
+type Step = 'identity' | 'account' | 'verification' | 'done'
 
 function maximumBirthDate() {
   const date = new Date()
@@ -30,21 +25,15 @@ function maximumBirthDate() {
   return date.toISOString().slice(0, 10)
 }
 
-function messageFrom(cause: unknown, fallback: string) {
-  if (axios.isAxiosError(cause)) {
-    const detail = cause.response?.data as { message?: string } | undefined
-    if (detail?.message) return detail.message
-  }
-  return fallback
+function formatDate(value: string) {
+  return new Date(`${value}T00:00:00`).toLocaleDateString('es-EC', { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
 export function RegistrationPage() {
   const { account } = useAuth()
   const navigate = useNavigate()
   const [step, setStep] = useState<Step>('identity')
-  const [idType, setIdType] = useState<IdType>('CEDULA')
-  const [idNumber, setIdNumber] = useState('')
-  const [acceptedPolicies, setAcceptedPolicies] = useState(false)
+  const [verified, setVerified] = useState<VerifiedIdentity | null>(null)
   const [firstNames, setFirstNames] = useState('')
   const [lastNames, setLastNames] = useState('')
   const [birthDate, setBirthDate] = useState('')
@@ -60,19 +49,10 @@ export function RegistrationPage() {
 
   if (account) return <Navigate to="/cuenta" replace />
 
-  function startDetails(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
+  function identityConfirmed(identity: VerifiedIdentity) {
+    setVerified(identity)
     setError('')
-    const value = idNumber.trim()
-    if (idType === 'CEDULA' && !/^\d{10}$/.test(value)) {
-      setError('La cédula debe tener 10 dígitos')
-      return
-    }
-    if (idType === 'PASAPORTE' && !/^[A-Za-z0-9]{6,20}$/.test(value)) {
-      setError('El pasaporte no es válido')
-      return
-    }
-    setStep('details')
+    setStep('account')
   }
 
   async function createAccount(event: FormEvent<HTMLFormElement>) {
@@ -93,16 +73,15 @@ export function RegistrationPage() {
     setSubmitting(true)
     try {
       await registerAccount({
-        idType,
-        idNumber: idNumber.trim(),
-        firstNames: firstNames.trim(),
-        lastNames: lastNames.trim(),
-        birthDate,
+        firstNames: verified?.firstNames ? null : firstNames.trim(),
+        lastNames: verified?.lastNames ? null : lastNames.trim(),
+        birthDate: verified?.birthDate ? null : birthDate,
         phone: phone.trim(),
         username: username.trim().toLowerCase(),
         email: email.trim(),
         password,
-        acceptedPolicies,
+        // Sin aceptar las políticas no se puede subir el documento, así que aquí ya están aceptadas.
+        acceptedPolicies: true,
       })
       setNotice(`Enviamos un código de 6 dígitos a ${email.trim()}.`)
       setStep('verification')
@@ -143,96 +122,93 @@ export function RegistrationPage() {
   }
 
   return (
-    <main id="contenido" className="mx-auto flex min-h-[65svh] max-w-7xl items-center px-5 py-16 sm:px-8">
-      <div className="w-full max-w-md">
-        <h1 className="text-3xl sm:text-4xl">Crea tu cuenta Brunexa</h1>
-        <p className="mt-4 max-w-[55ch] leading-7 text-muted-foreground">
-          {step === 'identity' && 'Empecemos por tu documento de identidad.'}
-          {step === 'details' && 'Completa tus datos personales y las credenciales de acceso.'}
-          {step === 'verification' && 'Valida tu correo electrónico para terminar.'}
-          {step === 'done' && 'Tu cuenta quedó lista.'}
-        </p>
+    <main id="contenido" className="mx-auto max-w-7xl px-5 py-12 sm:px-8 lg:py-16">
+      <h1 className="text-3xl sm:text-4xl">Crea tu cuenta Brunexa</h1>
 
+      <section className="mt-10">
         {step === 'identity' && (
-          <form onSubmit={startDetails} className="mt-8 space-y-5">
-            <Tabs value={idType} onValueChange={(value) => { setIdType(value as IdType); setIdNumber('') }}>
-              <TabsList className="w-full">
-                <TabsTrigger value="CEDULA" className="flex-1">{idTypeLabels.CEDULA}</TabsTrigger>
-                <TabsTrigger value="PASAPORTE" className="flex-1">{idTypeLabels.PASAPORTE}</TabsTrigger>
-              </TabsList>
-            </Tabs>
-            <div className="space-y-2">
-              <Label htmlFor="registro-documento">Número de identificación</Label>
-              <Input id="registro-documento" inputMode={idType === 'CEDULA' ? 'numeric' : 'text'}
-                placeholder={documentHints[idType]} value={idNumber}
-                onChange={(event) => setIdNumber(event.target.value)} required />
-            </div>
-            <div className="flex items-start gap-3">
-              <Checkbox id="registro-politicas" checked={acceptedPolicies}
-                onCheckedChange={(value) => setAcceptedPolicies(value === true)} />
-              <Label htmlFor="registro-politicas" className="text-sm font-normal leading-6 text-muted-foreground">
-                Acepto el acuerdo de uso de canales electrónicos y las políticas de privacidad y tratamiento de datos personales.
-              </Label>
-            </div>
-            {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-            <Button type="submit" disabled={!acceptedPolicies || !idNumber.trim()} className="w-full">
-              Continuar
-            </Button>
-          </form>
+          <IdentityFlow endpoint="/public/registration/identity" requireConsent onVerified={identityConfirmed} />
         )}
 
-        {step === 'details' && (
-          <form onSubmit={createAccount} className="mt-8 space-y-5">
-            <div className="space-y-2">
-              <Label htmlFor="registro-nombres">Nombres</Label>
-              <Input id="registro-nombres" autoComplete="given-name" value={firstNames}
-                onChange={(event) => setFirstNames(event.target.value)} required />
+        {step === 'account' && verified && (
+          <form onSubmit={createAccount} className="space-y-8">
+            <div className="rounded-lg border border-brand-teal/40 bg-brand-teal/5 p-5">
+              <p className="inline-flex items-center gap-2 text-sm font-medium text-brand-teal">
+                <CircleCheck className="size-4" aria-hidden /> Identidad verificada
+              </p>
+              <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div><dt className="text-sm text-muted-foreground">Documento</dt><dd className="mt-1 font-medium">{idTypeLabels[verified.idType]} {verified.idNumber}</dd></div>
+                {verified.firstNames && <div><dt className="text-sm text-muted-foreground">Nombres</dt><dd className="mt-1 font-medium">{verified.firstNames}</dd></div>}
+                {verified.lastNames && <div><dt className="text-sm text-muted-foreground">Apellidos</dt><dd className="mt-1 font-medium">{verified.lastNames}</dd></div>}
+                {verified.birthDate && <div><dt className="text-sm text-muted-foreground">Fecha de nacimiento</dt><dd className="mt-1 font-medium">{formatDate(verified.birthDate)}</dd></div>}
+              </dl>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="registro-apellidos">Apellidos</Label>
-              <Input id="registro-apellidos" autoComplete="family-name" value={lastNames}
-                onChange={(event) => setLastNames(event.target.value)} required />
+
+            {(!verified.firstNames || !verified.lastNames || !verified.birthDate) && (
+              <div>
+                <p className="text-sm text-muted-foreground">
+                  No alcanzamos a leer estos datos en tu documento. Escríbelos tal como aparecen en él.
+                </p>
+                <div className="mt-4 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                  {!verified.firstNames && (
+                    <div className="space-y-2">
+                      <Label htmlFor="registro-nombres">Nombres</Label>
+                      <Input id="registro-nombres" autoComplete="given-name" value={firstNames}
+                        onChange={(event) => setFirstNames(event.target.value)} required />
+                    </div>
+                  )}
+                  {!verified.lastNames && (
+                    <div className="space-y-2">
+                      <Label htmlFor="registro-apellidos">Apellidos</Label>
+                      <Input id="registro-apellidos" autoComplete="family-name" value={lastNames}
+                        onChange={(event) => setLastNames(event.target.value)} required />
+                    </div>
+                  )}
+                  {!verified.birthDate && (
+                    <div className="space-y-2">
+                      <Label htmlFor="registro-nacimiento">Fecha de nacimiento</Label>
+                      <Input id="registro-nacimiento" type="date" max={maximumBirthDate()} value={birthDate}
+                        onChange={(event) => setBirthDate(event.target.value)} required />
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="grid gap-5 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="registro-usuario">Usuario</Label>
+                <Input id="registro-usuario" autoComplete="username" value={username}
+                  onChange={(event) => setUsername(event.target.value)} required />
+                <p className="text-sm text-muted-foreground">Con este usuario ingresarás a Brunexa.</p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="registro-telefono">Teléfono</Label>
+                <Input id="registro-telefono" type="tel" autoComplete="tel" value={phone}
+                  onChange={(event) => setPhone(event.target.value)} required />
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="registro-correo">Correo electrónico</Label>
+                <Input id="registro-correo" type="email" autoComplete="email" value={email}
+                  onChange={(event) => setEmail(event.target.value)} required />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="registro-clave">Contraseña</Label>
+                <Input id="registro-clave" type="password" autoComplete="new-password" value={password}
+                  onChange={(event) => setPassword(event.target.value)} required />
+                <p className="text-sm text-muted-foreground">Debe tener al menos 12 caracteres.</p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="registro-clave-confirmacion">Confirmar contraseña</Label>
+                <Input id="registro-clave-confirmacion" type="password" autoComplete="new-password"
+                  value={passwordConfirmation}
+                  onChange={(event) => setPasswordConfirmation(event.target.value)} required />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="registro-nacimiento">Fecha de nacimiento</Label>
-              <Input id="registro-nacimiento" type="date" max={maximumBirthDate()} value={birthDate}
-                onChange={(event) => setBirthDate(event.target.value)} required />
-              <p className="text-sm text-muted-foreground">Debes ser mayor de edad.</p>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="registro-telefono">Teléfono</Label>
-              <Input id="registro-telefono" type="tel" autoComplete="tel" value={phone}
-                onChange={(event) => setPhone(event.target.value)} required />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="registro-usuario">Usuario</Label>
-              <Input id="registro-usuario" autoComplete="username" value={username}
-                onChange={(event) => setUsername(event.target.value)} required />
-              <p className="text-sm text-muted-foreground">Con este usuario ingresarás a Brunexa.</p>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="registro-correo">Correo electrónico</Label>
-              <Input id="registro-correo" type="email" autoComplete="email" value={email}
-                onChange={(event) => setEmail(event.target.value)} required />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="registro-clave">Contraseña</Label>
-              <Input id="registro-clave" type="password" autoComplete="new-password" value={password}
-                onChange={(event) => setPassword(event.target.value)} required />
-              <p className="text-sm text-muted-foreground">Debe tener al menos 12 caracteres.</p>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="registro-clave-confirmacion">Confirmar contraseña</Label>
-              <Input id="registro-clave-confirmacion" type="password" autoComplete="new-password"
-                value={passwordConfirmation}
-                onChange={(event) => setPasswordConfirmation(event.target.value)} required />
-            </div>
+
             {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-            <div className="flex gap-3">
-              <Button type="button" variant="outline" className="flex-1" onClick={() => { setError(''); setStep('identity') }}>
-                Volver
-              </Button>
-              <Button type="submit" disabled={submitting} className="flex-1">
+            <div className="flex justify-end">
+              <Button type="submit" disabled={submitting} className="w-full sm:w-48">
                 {submitting ? 'Creando…' : 'Crear cuenta'}
               </Button>
             </div>
@@ -240,7 +216,7 @@ export function RegistrationPage() {
         )}
 
         {step === 'verification' && (
-          <form onSubmit={confirmCode} className="mt-8 space-y-5">
+          <form onSubmit={confirmCode} className="max-w-md space-y-5">
             {notice && <p className="text-sm text-muted-foreground">{notice}</p>}
             <div className="space-y-2">
               <Label htmlFor="registro-codigo">Código de verificación</Label>
@@ -267,20 +243,20 @@ export function RegistrationPage() {
         )}
 
         {step === 'done' && (
-          <div className="mt-8 space-y-5">
+          <div className="max-w-md space-y-5">
             <p className="leading-7">
-              Validamos tu correo. Ya puedes ingresar con el usuario {username.trim().toLowerCase()} y completar tu perfil desde tu cuenta.
+              Validamos tu correo. Ya puedes ingresar con el usuario {username.trim().toLowerCase()}.
             </p>
             <Button type="button" className="w-full" onClick={() => navigate('/login', { replace: true })}>
               Ir a ingresar
             </Button>
           </div>
         )}
+      </section>
 
-        <Link to="/" className="mt-6 inline-block text-sm text-brand-gold underline underline-offset-4 hover:text-foreground">
-          Volver al inicio
-        </Link>
-      </div>
+      <Link to="/" className="mt-6 inline-block text-sm text-brand-gold underline underline-offset-4 hover:text-foreground">
+        Volver al inicio
+      </Link>
     </main>
   )
 }

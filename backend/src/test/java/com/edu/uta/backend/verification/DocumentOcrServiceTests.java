@@ -120,6 +120,118 @@ class DocumentOcrServiceTests {
         assertThat(data.firstNames()).doesNotContain("SILVIA");
     }
 
+    /** Reverso del modelo antiguo: el código dactilar va arriba a la derecha, entre otros datos. */
+    private static List<DocumentOcrService.Line> oldBack() {
+        return List.of(
+                line("INSTRUCCIÓN SUPERIOR", 0.05, 0.10),
+                line("PROFESIÓN / OCUPACIÓN ESTUDIANTE", 0.05, 0.16),
+                line("V4443 V4442", 0.72, 0.10),
+                line("APELLIDOS Y NOMBRES DEL PADRE", 0.05, 0.30),
+                line("I<ECU1805177258<<<<<<<<<<<<<<<", 0.05, 0.80));
+    }
+
+    /** Reverso del modelo nuevo: código dactilar arriba a la derecha y MRZ TD1 al pie. */
+    private static List<DocumentOcrService.Line> newBack() {
+        return List.of(
+                line("APELLIDOS Y NOMBRES DEL PADRE", 0.05, 0.10),
+                line("CÓDIGO DACTILAR", 0.70, 0.08),
+                line("V3343V2222", 0.70, 0.13),
+                line("TIPO SANGRE", 0.70, 0.18),
+                line("I<ECU0647202159<<<<<1850191253", 0.05, 0.78),
+                line("0502102M3308246ECU<SI<<<<<<<<<3", 0.05, 0.85),
+                line("BARRAGAN<POZO<<DAVID<JOSUE<<<<", 0.05, 0.92));
+    }
+
+    @Test
+    @DisplayName("lee la cédula de la MRZ del reverso nuevo junto con el código dactilar")
+    void readsNewBack() {
+        assertThat(service.cedulaFromMrz(newBack())).contains("1850191253");
+        assertThat(service.fingerprintCode(newBack(), "V3343V2222"))
+                .isEqualTo(DocumentOcrService.FingerprintCheck.MATCH);
+    }
+
+    @Test
+    @DisplayName("el reverso antiguo no trae MRZ y una MRZ mal leída se ignora")
+    void ignoresMissingOrMisreadMrz() {
+        assertThat(service.cedulaFromMrz(oldBack())).isEmpty();
+        List<DocumentOcrService.Line> misread = List.of(line("I<ECU0647202158<<<<<1850191253", 0.05, 0.78));
+        assertThat(service.cedulaFromMrz(misread)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("encuentra el código dactilar aunque venga separado por espacios")
+    void findsFingerprintCode() {
+        assertThat(service.fingerprintCode(oldBack(), "V4443V4442"))
+                .isEqualTo(DocumentOcrService.FingerprintCheck.MATCH);
+    }
+
+    @Test
+    @DisplayName("tolera las confusiones típicas del OCR entre letras y números")
+    void toleratesOcrConfusions() {
+        List<DocumentOcrService.Line> lines = List.of(line("CODIGO DACTILAR: V4O43V4Z42", 0.5, 0.1));
+
+        assertThat(service.fingerprintCode(lines, "V4043V4242"))
+                .isEqualTo(DocumentOcrService.FingerprintCheck.MATCH);
+    }
+
+    @Test
+    @DisplayName("distingue un código distinto de uno ilegible")
+    void reportsMismatchAndMissingCode() {
+        assertThat(service.fingerprintCode(oldBack(), "E3333I2222"))
+                .isEqualTo(DocumentOcrService.FingerprintCheck.MISMATCH);
+        assertThat(service.fingerprintCode(List.of(line("ESTADO CIVIL SOLTERO", 0.1, 0.1)), "V4443V4442"))
+                .isEqualTo(DocumentOcrService.FingerprintCheck.NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("normaliza el código escrito por el cliente y rechaza formatos inválidos")
+    void normalizesTypedCode() {
+        assertThat(DocumentOcrService.normalizeFingerprintCode(" v4443-v4442 ")).isEqualTo("V4443V4442");
+        assertThat(DocumentOcrService.normalizeFingerprintCode("V444V4442")).isNull();
+        assertThat(DocumentOcrService.normalizeFingerprintCode(null)).isNull();
+    }
+
+    /** Ejemplo de la especificación ICAO 9303, con ruido alrededor como el que deja Textract. */
+    private static List<DocumentOcrService.Line> passport() {
+        return List.of(
+                line("PASAPORTE / PASSPORT", 0.30, 0.05),
+                line("ERIKSSON", 0.40, 0.20),
+                line("P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<", 0.03, 0.82),
+                line("L898902C36UTO7408122F1204159ZE184226B<<<<<10", 0.03, 0.90));
+    }
+
+    @Test
+    @DisplayName("lee la MRZ del pasaporte con nombres, número y fechas")
+    void readsPassportMrz() {
+        DocumentOcrService.PassportData data = service.parsePassport(passport());
+
+        assertThat(data.number()).isEqualTo("L898902C3");
+        assertThat(data.nationality()).isEqualTo("UTO");
+        assertThat(data.lastNames()).isEqualTo("ERIKSSON");
+        assertThat(data.firstNames()).isEqualTo("ANNA MARIA");
+        assertThat(data.birthDate()).isEqualTo(LocalDate.of(1974, 8, 12));
+        assertThat(data.expiryDate()).isEqualTo(LocalDate.of(2012, 4, 15));
+    }
+
+    @Test
+    @DisplayName("rechaza una MRZ cuyo dígito verificador no cuadra")
+    void rejectsBadCheckDigit() {
+        List<DocumentOcrService.Line> misread = List.of(
+                line("L898902C35UTO7408122F1204159ZE184226B<<<<<10", 0.03, 0.90));
+
+        assertThatThrownBy(() -> service.parsePassport(misread))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("con claridad");
+    }
+
+    @Test
+    @DisplayName("avisa cuando la foto no muestra la MRZ")
+    void failsWithoutMrz() {
+        assertThatThrownBy(() -> service.parsePassport(List.of(line("PASAPORTE", 0.1, 0.1))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("<<<");
+    }
+
     @Test
     @DisplayName("avisa cuando no hay una cédula válida en la imagen")
     void failsWithoutId() {

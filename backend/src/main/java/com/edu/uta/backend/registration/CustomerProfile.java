@@ -94,6 +94,12 @@ public class CustomerProfile {
         return idNumber;
     }
 
+    /** Solo tras verificar el nuevo documento con prueba de vida (ver ProfileService.updateIdentity). */
+    public void replaceDocument(String idType, String idNumber) {
+        this.idType = idType;
+        this.idNumber = idNumber;
+    }
+
     public String getFirstNames() {
         return firstNames;
     }

@@ -164,3 +164,82 @@
     font-variant-numeric: tabular-nums lining-nums;
   }
 }
+
+/* Escaneo de documentos en el ingreso: rejilla, haz que recorre la cédula y esquinas de encuadre. */
+@layer components {
+  .scan-grid {
+    background-color: rgb(0 0 0 / 0.3);
+    background-image:
+      linear-gradient(color-mix(in oklch, var(--brand-teal) 22%, transparent) 1px, transparent 1px),
+      linear-gradient(90deg, color-mix(in oklch, var(--brand-teal) 22%, transparent) 1px, transparent 1px);
+    background-size: 22px 22px;
+    animation: scan-grid-pulse 1.6s ease-in-out infinite alternate;
+  }
+
+  .scan-beam {
+    top: 0;
+    height: 35%;
+    background: linear-gradient(to bottom, transparent, color-mix(in oklch, var(--brand-teal) 35%, transparent));
+    border-bottom: 2px solid var(--brand-teal);
+    box-shadow: 0 6px 18px -2px var(--brand-teal);
+    animation: scan-sweep 1.9s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  }
+
+  .scan-corner {
+    position: absolute;
+    width: 1.5rem;
+    height: 1.5rem;
+    border-color: var(--brand-teal);
+    animation: scan-corner-breathe 1.2s ease-in-out infinite alternate;
+  }
+
+  .scan-dot {
+    animation: scan-dot-blink 0.9s ease-in-out infinite;
+  }
+
+  .face-link {
+    background: linear-gradient(90deg, transparent, var(--brand-teal), transparent);
+    background-size: 200% 100%;
+    animation: face-link-flow 1.3s linear infinite;
+  }
+}
+
+@keyframes scan-sweep {
+  0% { transform: translateY(-100%); opacity: 0; }
+  12% { opacity: 1; }
+  88% { opacity: 1; }
+  100% { transform: translateY(290%); opacity: 0; }
+}
+
+@keyframes scan-grid-pulse {
+  from { opacity: 0.55; }
+  to { opacity: 1; }
+}
+
+@keyframes scan-corner-breathe {
+  from { transform: scale(1); opacity: 0.7; }
+  to { transform: scale(1.12); opacity: 1; }
+}
+
+@keyframes scan-dot-blink {
+  50% { opacity: 0.2; }
+}
+
+@keyframes face-link-flow {
+  from { background-position: 200% 0; }
+  to { background-position: 0 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scan-grid,
+  .scan-corner,
+  .scan-dot,
+  .face-link {
+    animation: none;
+  }
+
+  .scan-beam {
+    animation: none;
+    transform: translateY(140%);
+  }
+}

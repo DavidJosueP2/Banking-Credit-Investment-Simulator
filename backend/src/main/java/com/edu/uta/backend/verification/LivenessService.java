@@ -100,6 +100,6 @@ public class LivenessService {
     private CustomerBiometric requireEnrollment(String username) {
         long userId = identity.accountByUsername(username).id();
         return biometrics.findByUserId(userId).orElseThrow(() -> new NoSuchElementException(
-                "Primero registra tu rostro subiendo el anverso de tu cédula desde Mi perfil"));
+                "Esta cuenta no tiene un rostro registrado"));
     }
 }
