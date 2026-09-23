@@ -2,12 +2,11 @@ import { api } from '@/lib/api'
 
 export type IdType = 'CEDULA' | 'PASAPORTE'
 
+/** El documento viaja en la sesión ya verificada; nombres y fecha solo si el documento no los trajo. */
 export interface RegistrationInput {
-  idType: IdType
-  idNumber: string
-  firstNames: string
-  lastNames: string
-  birthDate: string
+  firstNames: string | null
+  lastNames: string | null
+  birthDate: string | null
   phone: string
   username: string
   email: string

@@ -12,6 +12,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.LockedException;
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -58,6 +59,14 @@ public class SecurityConfig {
                         .usernameParameter("username")
                         .successHandler((request, response, authentication) -> response.setStatus(HttpStatus.NO_CONTENT.value()))
                         .failureHandler((request, response, exception) -> {
+                            if (exception instanceof DisabledException) {
+                                response.setStatus(HttpStatus.FORBIDDEN.value());
+                                response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                                response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+                                response.getWriter().write(
+                                        "{\"message\":\"Tu cuenta está bloqueada. Comunícate con un administrador\"}");
+                                return;
+                            }
                             if (exception instanceof LockedException) {
                                 response.setStatus(HttpStatus.FORBIDDEN.value());
                                 response.setContentType(MediaType.APPLICATION_JSON_VALUE);

@@ -40,6 +40,7 @@ export interface LandingSection {
   heroDescription: string
   heroCreditButton: string
   heroInvestmentButton: string
+  decorativeIllustrationsEnabled: string
   bannerEnabled: string
   bannerIntervalSeconds: string
   bannerGeneralTitle: string
@@ -187,7 +188,7 @@ export const defaultInstitutionSettings: InstitutionSettings = {
     brandSecondaryColor: '#946928',
     brandPrimaryDarkColor: '#70d4cd',
     brandSecondaryDarkColor: '#e1bd78',
-    backgroundLightColor: '#fafafa',
+    backgroundLightColor: '#f2f2f2',
     foregroundLightColor: '#202527',
     surfaceLightColor: '#ffffff',
     mutedLightColor: '#f3f4f4',
@@ -199,17 +200,18 @@ export const defaultInstitutionSettings: InstitutionSettings = {
     surfaceDarkColor: '#1c2123',
     mutedDarkColor: '#272c2e',
     mutedTextDarkColor: '#adb6b5',
-    sidebarDarkColor: '#1a292b',
+    sidebarDarkColor: '#181b1d',
     borderDarkColor: '#3d4547',
-    headingFont: 'Libre Baskerville',
-    sansFont: 'Inter',
+    headingFont: 'Axiforma',
+    sansFont: 'Plus Jakarta Sans',
   },
   landing: {
-    heroTitle: 'Tus decisiones financieras merecen',
-    heroHighlight: 'más claridad.',
-    heroDescription: 'Explora escenarios de crédito e inversión con condiciones administradas por Brunexa, información ordenada y un recorrido pensado para comparar antes de decidir.',
+    heroTitle: 'Construimos confianza,',
+    heroHighlight: 'protegemos tú futuro',
+    heroDescription: 'Compara opciones de crédito e inversión, revisa sus condiciones y elige con información clara antes de decidir.',
     heroCreditButton: 'Explorar créditos',
     heroInvestmentButton: 'Conocer inversiones',
+    decorativeIllustrationsEnabled: 'true',
     bannerEnabled: 'true',
     bannerIntervalSeconds: '6',
     bannerGeneralTitle: 'Más formas de avanzar con {shortName}.',

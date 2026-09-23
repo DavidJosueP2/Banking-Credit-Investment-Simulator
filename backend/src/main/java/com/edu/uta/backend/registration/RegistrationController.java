@@ -4,6 +4,8 @@ import java.time.LocalDate;
 import java.util.Map;
 import java.util.NoSuchElementException;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -16,31 +18,34 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import software.amazon.awssdk.core.exception.SdkException;
 
 @RestController
 @RequestMapping("/api/public/registration")
 public class RegistrationController {
 
-    private final RegistrationService registration;
+    private static final Logger log = LoggerFactory.getLogger(RegistrationController.class);
 
-    public RegistrationController(RegistrationService registration) {
+    private final RegistrationService registration;
+    private final IdentityCheckService identityCheck;
+
+    public RegistrationController(RegistrationService registration, IdentityCheckService identityCheck) {
         this.registration = registration;
+        this.identityCheck = identityCheck;
     }
 
-    public record CreateAccount(@NotBlank(message = "Selecciona el tipo de documento") String idType,
-                                @NotBlank(message = "Ingresa tu número de documento")
-                                @Size(max = 20, message = "El documento es demasiado largo") String idNumber,
-                                @NotBlank(message = "Ingresa tus nombres")
-                                @Size(max = 80, message = "Los nombres son demasiado largos") String firstNames,
-                                @NotBlank(message = "Ingresa tus apellidos")
+    /** El documento y los datos que trae salen de la verificación de identidad guardada en la sesión. */
+    public record CreateAccount(@Size(max = 80, message = "Los nombres son demasiado largos") String firstNames,
                                 @Size(max = 80, message = "Los apellidos son demasiado largos") String lastNames,
-                                @NotNull(message = "Ingresa tu fecha de nacimiento") LocalDate birthDate,
+                                LocalDate birthDate,
+                                @NotBlank(message = "Ingresa tu teléfono")
                                 @Size(max = 20, message = "El teléfono es demasiado largo") String phone,
                                 @NotBlank(message = "Ingresa un usuario")
                                 @Size(min = 4, max = 30, message = "El usuario debe tener entre 4 y 30 caracteres") String username,
@@ -55,16 +60,18 @@ public class RegistrationController {
     public record VerifyEmail(@NotBlank(message = "Ingresa tu correo")
                               @Email(message = "El correo no es válido") String email,
                               @NotBlank(message = "Ingresa el código")
-                              @Size(min = 6, max = 6, message = "El código debe tener 6 dígitos") String code) {}
+                              @Pattern(regexp = "\\d{6}", message = "El código debe tener 6 dígitos") String code) {}
 
     public record ResendCode(@NotBlank(message = "Ingresa tu correo")
                              @Email(message = "El correo no es válido") String email) {}
 
     @PostMapping
-    public ResponseEntity<RegistrationService.PendingVerification> create(@Valid @RequestBody CreateAccount request) {
-        var pending = registration.register(new RegistrationService.Registration(request.idType(),
-                request.idNumber(), request.firstNames(), request.lastNames(), request.birthDate(),
-                request.phone(), request.username(), request.email(), request.password()));
+    public ResponseEntity<RegistrationService.PendingVerification> create(@Valid @RequestBody CreateAccount request,
+                                                                          HttpSession session) {
+        var pending = registration.register(new RegistrationService.Registration(request.firstNames(),
+                request.lastNames(), request.birthDate(), request.phone(), request.username(), request.email(),
+                request.password()), identityCheck.evidence(session, null));
+        identityCheck.finish(session);
         return ResponseEntity.status(HttpStatus.CREATED).body(pending);
     }
 
@@ -108,5 +115,12 @@ public class RegistrationController {
     @ExceptionHandler(NoSuchElementException.class)
     public ResponseEntity<Map<String, String>> missing(NoSuchElementException exception) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", exception.getMessage()));
+    }
+
+    @ExceptionHandler(SdkException.class)
+    public ResponseEntity<Map<String, String>> unavailable(SdkException exception) {
+        log.error("Falló Rekognition al registrar el rostro de un cliente nuevo", exception);
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of("message",
+                "No pudimos registrar tu rostro en este momento. Inténtalo en unos minutos."));
     }
 }

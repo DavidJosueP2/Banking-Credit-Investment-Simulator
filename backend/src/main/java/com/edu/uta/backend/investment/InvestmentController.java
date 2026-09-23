@@ -88,7 +88,7 @@ public class InvestmentController {
     }
 
     private long currentUser(Authentication authentication) {
-        return identity.accountByEmail(authentication.getName()).id();
+        return identity.accountByUsername(authentication.getName()).id();
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

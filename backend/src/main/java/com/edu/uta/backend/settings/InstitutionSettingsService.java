@@ -20,7 +20,8 @@ public class InstitutionSettingsService {
     private static final long MAX_ASSET_SIZE = 5L * 1024L * 1024L;
     private static final Set<String> IMAGE_TYPES = Set.of("image/png", "image/jpeg", "image/webp");
     private static final Set<String> FONT_FAMILIES = Set.of(
-            "Libre Baskerville", "Inter", "Georgia", "Times New Roman", "Arial", "system-ui");
+            "Axiforma", "Plus Jakarta Sans", "Libre Baskerville", "SF Pro Display",
+            "Inter", "Georgia", "Times New Roman", "Arial", "system-ui");
     private static final Set<String> ICONS = Set.of(
             "wallet-cards", "bar-chart", "trending-up", "upload", "landmark", "file-text", "shield", "sliders");
     private static final Set<String> ASSET_KEYS = Set.of(
@@ -209,7 +210,7 @@ public class InstitutionSettingsService {
                 Map.entry("brandSecondaryColor", "#946928"),
                 Map.entry("brandPrimaryDarkColor", "#70d4cd"),
                 Map.entry("brandSecondaryDarkColor", "#e1bd78"),
-                Map.entry("backgroundLightColor", "#fafafa"),
+                Map.entry("backgroundLightColor", "#f2f2f2"),
                 Map.entry("foregroundLightColor", "#202527"),
                 Map.entry("surfaceLightColor", "#ffffff"),
                 Map.entry("mutedLightColor", "#f3f4f4"),
@@ -221,16 +222,17 @@ public class InstitutionSettingsService {
                 Map.entry("surfaceDarkColor", "#1c2123"),
                 Map.entry("mutedDarkColor", "#272c2e"),
                 Map.entry("mutedTextDarkColor", "#adb6b5"),
-                Map.entry("sidebarDarkColor", "#1a292b"),
+                Map.entry("sidebarDarkColor", "#181b1d"),
                 Map.entry("borderDarkColor", "#3d4547"),
-                Map.entry("headingFont", "Libre Baskerville"),
-                Map.entry("sansFont", "Inter")));
+                Map.entry("headingFont", "Axiforma"),
+                Map.entry("sansFont", "Plus Jakarta Sans")));
         defaults.put("landing", Map.ofEntries(
-                Map.entry("heroTitle", "Tus decisiones financieras merecen"),
-                Map.entry("heroHighlight", "más claridad."),
-                Map.entry("heroDescription", "Explora escenarios de crédito e inversión con condiciones administradas por Brunexa, información ordenada y un recorrido pensado para comparar antes de decidir."),
+                Map.entry("heroTitle", "Construimos confianza,"),
+                Map.entry("heroHighlight", "protegemos tú futuro"),
+                Map.entry("heroDescription", "Compara opciones de crédito e inversión, revisa sus condiciones y elige con información clara antes de decidir."),
                 Map.entry("heroCreditButton", "Explorar créditos"),
                 Map.entry("heroInvestmentButton", "Conocer inversiones"),
+                Map.entry("decorativeIllustrationsEnabled", "true"),
                 Map.entry("bannerEnabled", "true"),
                 Map.entry("bannerIntervalSeconds", "6"),
                 Map.entry("bannerGeneralTitle", "Más formas de avanzar con {shortName}."),

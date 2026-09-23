@@ -1,9 +1,8 @@
 import { api } from '@/lib/api'
-
-export type DocumentSide = 'FRONT' | 'BACK'
+import type { IdType } from '@/features/registration/registration-api'
 
 export interface Profile {
-  idType: string
+  idType: IdType
   idNumber: string
   firstNames: string
   lastNames: string
@@ -11,19 +10,6 @@ export interface Profile {
   phone: string | null
   address: string | null
   emailVerified: boolean
-  documentStatus: 'NONE' | 'PENDING' | 'ACCEPTED' | 'REJECTED'
-  backUploaded: boolean
-  biometricEnrolled: boolean
-}
-
-export interface DocumentReview {
-  idNumber: string | null
-  firstNames: string | null
-  lastNames: string | null
-  birthDate: string | null
-  matchesProfile: boolean
-  faceEnrolled: boolean
-  differences: string[]
 }
 
 export interface LivenessOutcome {
@@ -51,32 +37,6 @@ export async function getProfile() {
 
 export async function updateContact(input: { phone: string; address: string }) {
   return (await api.put<Profile>('/profile', input)).data
-}
-
-export async function uploadDocument(side: DocumentSide, file: File, biometricConsent: boolean) {
-  const body = new FormData()
-  body.append('side', side)
-  body.append('file', file)
-  body.append('biometricConsent', String(biometricConsent))
-  return (await api.post<DocumentReview>('/profile/documents', body, {
-    headers: { 'Content-Type': undefined },
-  })).data
-}
-
-export async function enrollFace() {
-  const body = new FormData()
-  body.append('biometricConsent', 'true')
-  return (await api.post<Profile>('/profile/biometrics', body, {
-    headers: { 'Content-Type': undefined },
-  })).data
-}
-
-export async function confirmDocument() {
-  return (await api.post<Profile>('/profile/documents/confirm')).data
-}
-
-export function documentImageUrl(side: DocumentSide) {
-  return `${import.meta.env.VITE_API_BASE_URL}/profile/documents/${side}`
 }
 
 export async function getLivenessCredentials() {

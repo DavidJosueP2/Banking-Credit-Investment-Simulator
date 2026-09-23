@@ -1,4 +1,4 @@
-import { Link, Outlet } from 'react-router-dom'
+import { Link, Outlet, ScrollRestoration } from 'react-router-dom'
 
 import { useAuth } from '@/app/providers/auth-provider'
 import { useInstitutionSettings } from '@/app/providers/settings-provider'
@@ -14,10 +14,11 @@ export function PublicLayout() {
 
   return (
     <div className="min-h-svh">
+      <ScrollRestoration />
       <a href="#contenido" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:bg-background focus:px-4 focus:py-2">
         Ir al contenido
       </a>
-      <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/90">
+      <header className="sticky top-0 z-40 bg-background">
         <div className="mx-auto flex h-18 max-w-7xl items-center justify-between gap-5 px-5 sm:px-8">
           <Link to="/" aria-label={`${institution.institutionName}, inicio`}>
             <BrandLogo className="h-12 w-44 sm:w-48" decorative />
@@ -29,13 +30,13 @@ export function PublicLayout() {
             {landing.processEnabled === 'true' && <a className="hover:text-brand-teal" href="/#proceso">{landing.headerProcessLabel}</a>}
           </nav>
           <div className="flex items-center gap-3">
-            <Link className="hidden rounded-md bg-brand-teal px-4 py-2 text-sm font-medium text-brand-teal-foreground transition-colors hover:bg-brand-teal/90 lg:inline" to={destination}>
+            <Link className="hidden px-1 py-2 text-sm font-medium text-foreground transition-colors hover:text-brand-teal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background lg:inline" to={destination}>
               {account ? hasPermission('admin.dashboard.view') ? 'Ir al panel' : 'Mi cuenta' : 'Ingresar'}
             </Link>
             <ThemeToggle />
           </div>
         </div>
-        <nav className="flex items-center justify-between gap-4 border-t px-5 py-3 text-sm sm:px-8 md:hidden" aria-label="Navegación móvil">
+        <nav className="flex items-center justify-between gap-4 px-5 py-3 text-sm sm:px-8 md:hidden" aria-label="Navegación móvil">
           {credit.moduleEnabled === 'true' && <a href="/#creditos" className="hover:text-brand-teal">{credit.displayName}</a>}
           {investment.moduleEnabled === 'true' && <a href="/#inversiones" className="hover:text-brand-teal">{investment.displayName}</a>}
           <Link to={destination} className="text-brand-teal hover:text-foreground">{account ? 'Mi cuenta' : 'Ingresar'}</Link>

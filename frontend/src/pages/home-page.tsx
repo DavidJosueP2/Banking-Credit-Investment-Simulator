@@ -1,4 +1,5 @@
 import {
+  ArrowLeft,
   ArrowRight,
   BarChart3,
   Check,
@@ -21,16 +22,10 @@ import carouselIdentityImage from '@/assets/landing/carrusel/debashis-rc-biswas-
 import carouselPerspectiveImage from '@/assets/landing/carrusel/zalfa-imani-1xp5VxvyKL0-unsplash.jpg'
 import { useAuth } from '@/app/providers/auth-provider'
 import { useInstitutionSettings } from '@/app/providers/settings-provider'
+import { HeroIllustration, LandingAccent } from '@/components/landing/landing-illustrations'
 import { BrandLogo } from '@/components/shared/brand-logo'
 import { Button } from '@/components/ui/button'
-import {
-  Carousel,
-  type CarouselApi,
-  CarouselContent,
-  CarouselItem,
-  CarouselNext,
-  CarouselPrevious,
-} from '@/components/ui/carousel'
+import { cn } from '@/lib/utils'
 
 const iconRegistry = {
   'wallet-cards': WalletCards,
@@ -70,14 +65,14 @@ export function HomePage() {
   const { account, isPending: authPending, refreshAccount } = useAuth()
   const { settings, assets } = useInstitutionSettings()
   const { institution, landing, credit, investment } = settings
+  const decorativeIllustrationsVisible = landing.decorativeIllustrationsEnabled === 'true'
   const creditVisible = credit.moduleEnabled === 'true'
   const investmentVisible = investment.moduleEnabled === 'true'
-  const [carouselApi, setCarouselApi] = useState<CarouselApi>()
   const [currentSlide, setCurrentSlide] = useState(0)
   const [checkingAccess, setCheckingAccess] = useState(false)
   const carouselSlides = [
     {
-      id: 'brunexa',
+      id: 'general',
       title: landingText(landing.bannerGeneralTitle, institution.shortName, institution.description),
       description: landingText(landing.bannerGeneralDescription, institution.shortName, institution.description),
       image: assets.heroImage ?? carouselIdentityImage,
@@ -106,25 +101,27 @@ export function HomePage() {
   ]
 
   useEffect(() => {
-    if (!carouselApi) return
-
-    const updateCurrentSlide = () => setCurrentSlide(carouselApi.selectedScrollSnap())
-    updateCurrentSlide()
-    carouselApi.on('select', updateCurrentSlide)
-    carouselApi.on('reInit', updateCurrentSlide)
-
-    return () => {
-      carouselApi.off('select', updateCurrentSlide)
-      carouselApi.off('reInit', updateCurrentSlide)
-    }
-  }, [carouselApi])
+    if (currentSlide < carouselSlides.length) return
+    setCurrentSlide(0)
+  }, [carouselSlides.length, currentSlide])
 
   useEffect(() => {
-    if (landing.bannerEnabled !== 'true' || !carouselApi || carouselSlides.length < 2 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    if (landing.bannerEnabled !== 'true' || carouselSlides.length < 2 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
 
-    const timer = window.setTimeout(() => carouselApi.scrollNext(), Number(landing.bannerIntervalSeconds) * 1_000)
+    const timer = window.setTimeout(
+      () => setCurrentSlide((slide) => (slide + 1) % carouselSlides.length),
+      Number(landing.bannerIntervalSeconds) * 1_000,
+    )
     return () => window.clearTimeout(timer)
-  }, [carouselApi, carouselSlides.length, currentSlide, landing.bannerEnabled, landing.bannerIntervalSeconds])
+  }, [carouselSlides.length, currentSlide, landing.bannerEnabled, landing.bannerIntervalSeconds])
+
+  function showPreviousSlide() {
+    setCurrentSlide((slide) => (slide - 1 + carouselSlides.length) % carouselSlides.length)
+  }
+
+  function showNextSlide() {
+    setCurrentSlide((slide) => (slide + 1) % carouselSlides.length)
+  }
 
   const services = [
     {
@@ -176,13 +173,19 @@ export function HomePage() {
 
   return (
     <main id="contenido">
-      <section className="bg-muted/25 px-5 py-16 sm:px-8 sm:py-20 lg:py-24" aria-labelledby="landing-intro-title">
-        <div className="mx-auto max-w-5xl text-center">
-          <BrandLogo variant="mark" className="mx-auto mb-8 size-20 sm:size-24" />
-          <h1 id="landing-intro-title" className="mx-auto max-w-[18ch] text-4xl font-bold leading-[1.12] tracking-[-0.03em] sm:text-5xl lg:text-6xl">
-            {landing.heroTitle} <span className="text-brand-teal">{landing.heroHighlight}</span>
+      <section className="relative isolate grid min-h-[calc(100dvh-7.5rem)] w-full items-center overflow-hidden bg-background md:min-h-[calc(100dvh-4.5rem)] 2xl:grid-cols-[minmax(15rem,1fr)_minmax(0,44rem)_minmax(15rem,1fr)]" aria-labelledby="landing-intro-title">
+        {decorativeIllustrationsVisible && <HeroIllustration side="left" />}
+        <div className="relative z-10 mx-auto w-full px-5 py-14 text-center sm:px-8 sm:py-16 lg:py-20 2xl:col-start-2">
+          <BrandLogo
+            variant="mark"
+            className="mx-auto mb-4 size-8 sm:size-9"
+            decorative
+          />
+          <h1 id="landing-intro-title" className="mx-auto text-balance text-[2.5rem] font-normal leading-[1.1] tracking-[-0.01em] sm:text-[3.25rem] lg:text-[3.75rem] lg:leading-[1.08]">
+            <span className="block">{landing.heroTitle}</span>
+            <span className="block text-brand-teal">{landing.heroHighlight}</span>
           </h1>
-          <p className="mx-auto mt-6 max-w-[68ch] text-base leading-7 text-muted-foreground sm:text-lg sm:leading-8">
+          <p className="mx-auto mt-5 max-w-[60ch] text-balance text-sm leading-6 text-muted-foreground sm:text-base sm:leading-7">
             {landing.heroDescription}
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
@@ -194,58 +197,72 @@ export function HomePage() {
             </Button>}
           </div>
         </div>
+        {decorativeIllustrationsVisible && <HeroIllustration side="right" />}
       </section>
 
-      {landing.bannerEnabled === 'true' && <section>
-        <Carousel
-          opts={{ loop: true }}
-          setApi={setCarouselApi}
-          className="w-full"
-          aria-label="Destacados de Brunexa">
-          <CarouselContent className="ml-0">
-            {carouselSlides.map((slide, index) => (
-              <CarouselItem key={slide.id} className="pl-0">
-                <article className="relative min-h-92 overflow-hidden bg-primary sm:min-h-96 lg:min-h-100">
-                  <img
-                    src={slide.image}
-                    alt={slide.alt}
-                    className="absolute inset-0 size-full object-cover"
-                    fetchPriority={index === 0 ? 'high' : undefined}
-                    loading={index === 0 ? 'eager' : 'lazy'}
-                  />
-                  <div className="absolute inset-0 bg-black/55" aria-hidden="true" />
-                  <div className="relative flex min-h-92 items-center px-8 py-12 sm:min-h-96 sm:px-14 lg:min-h-100 lg:px-20">
-                    <div className="max-w-2xl text-white">
-                      <h2 className="max-w-[19ch] text-3xl tracking-[-0.025em] sm:text-4xl">{slide.title}</h2>
-                      <p className="mt-4 max-w-[58ch] text-sm leading-6 text-white/85 sm:text-base sm:leading-7">
-                        {slide.description}
-                      </p>
-                      {slide.href && slide.action && (
-                        <Button asChild size="lg" variant="gold" className="mt-6">
-                          <a href={slide.href}>{slide.action} <ArrowRight aria-hidden="true" /></a>
-                        </Button>
-                      )}
-                    </div>
+      {landing.bannerEnabled === 'true' && <section aria-label="Destacados de Brunexa">
+        <div className="relative min-h-92 overflow-hidden bg-primary sm:min-h-96 lg:min-h-100">
+          {carouselSlides.map((slide, index) => {
+            const isActive = currentSlide === index
+
+            return (
+              <article
+                key={slide.id}
+                aria-hidden={!isActive}
+                className={cn(
+                  'absolute inset-0 min-h-92 overflow-hidden transition-opacity duration-1000 ease-in-out will-change-[opacity] motion-reduce:transition-none sm:min-h-96 lg:min-h-100',
+                  isActive ? 'z-10 opacity-100' : 'pointer-events-none z-0 opacity-0',
+                )}
+              >
+                <img
+                  src={slide.image}
+                  alt={slide.alt}
+                  className="absolute inset-0 size-full object-cover"
+                  fetchPriority={index === 0 ? 'high' : undefined}
+                  loading={index === 0 ? 'eager' : 'lazy'}
+                />
+                <div className="absolute inset-0 bg-black/55" aria-hidden="true" />
+                <div className="relative flex min-h-92 items-center px-8 py-12 sm:min-h-96 sm:px-14 lg:min-h-100 lg:px-20">
+                  <div className="max-w-2xl text-white">
+                    <h2 className="max-w-[19ch] text-3xl tracking-[-0.025em] sm:text-4xl">{slide.title}</h2>
+                    <p className="mt-4 max-w-[58ch] text-sm leading-6 text-white/85 sm:text-base sm:leading-7">
+                      {slide.description}
+                    </p>
+                    {slide.href && slide.action && (
+                      <Button asChild size="lg" variant="gold" className="mt-6">
+                        <a href={slide.href} tabIndex={isActive ? undefined : -1}>{slide.action} <ArrowRight aria-hidden="true" /></a>
+                      </Button>
+                    )}
                   </div>
-                </article>
-              </CarouselItem>
-            ))}
-          </CarouselContent>
+                </div>
+              </article>
+            )
+          })}
 
           {carouselSlides.length > 1 && (
             <>
-              <CarouselPrevious
+              <button
+                type="button"
+                onClick={showPreviousSlide}
                 aria-label="Ver destacado anterior"
-                className="left-3 border-white/35 bg-black/35 text-white shadow-none hover:bg-black/55 hover:text-white sm:left-5" />
-              <CarouselNext
+                className="absolute left-3 top-1/2 z-20 inline-flex size-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/35 bg-black/35 text-white transition-colors hover:bg-black/55 sm:left-5"
+              >
+                <ArrowLeft className="size-4" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                onClick={showNextSlide}
                 aria-label="Ver siguiente destacado"
-                className="right-3 border-white/35 bg-black/35 text-white shadow-none hover:bg-black/55 hover:text-white sm:right-5" />
-              <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-2" aria-label="Seleccionar destacado">
+                className="absolute right-3 top-1/2 z-20 inline-flex size-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/35 bg-black/35 text-white transition-colors hover:bg-black/55 sm:right-5"
+              >
+                <ArrowRight className="size-4" aria-hidden="true" />
+              </button>
+              <div className="absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 items-center gap-2" aria-label="Seleccionar destacado">
                 {carouselSlides.map((slide, index) => (
                   <button
                     key={slide.id}
                     type="button"
-                    onClick={() => carouselApi?.scrollTo(index)}
+                    onClick={() => setCurrentSlide(index)}
                     className={`h-1.5 rounded-full transition-[width,background-color] ${currentSlide === index ? 'w-7 bg-brand-gold' : 'w-2.5 bg-white/65 hover:bg-white'}`}
                     aria-label={`Ver destacado ${index + 1}`}
                     aria-current={currentSlide === index ? 'true' : undefined}
@@ -254,11 +271,12 @@ export function HomePage() {
               </div>
             </>
           )}
-        </Carousel>
+        </div>
       </section>}
 
-      {landing.servicesEnabled === 'true' && visibleServices.length > 0 && <section id="servicios" className="scroll-mt-24 px-5 py-20 sm:px-8 lg:py-24">
-        <div className="mx-auto max-w-7xl">
+      {landing.servicesEnabled === 'true' && visibleServices.length > 0 && <section id="servicios" className="relative isolate scroll-mt-24 overflow-hidden px-5 py-20 sm:px-8 lg:py-24">
+        {decorativeIllustrationsVisible && <LandingAccent variant="services" className="absolute right-0 top-7 hidden 2xl:block" />}
+        <div className="relative z-10 mx-auto max-w-7xl">
           <div className="grid gap-6 lg:grid-cols-[minmax(0,0.7fr)_minmax(0,1.3fr)] lg:items-end">
             <h2 className="max-w-[14ch] text-3xl tracking-tight sm:text-4xl">{landing.servicesTitle}</h2>
             <p className="max-w-[65ch] leading-7 text-muted-foreground lg:justify-self-end">
@@ -266,16 +284,27 @@ export function HomePage() {
             </p>
           </div>
 
-          <div className="mt-12 divide-y border-y lg:grid lg:grid-cols-4 lg:divide-x lg:divide-y-0">
+          <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {visibleServices.map((service) => (
-              <article key={service.title} className="group px-1 py-8 lg:px-6 lg:first:pl-0 lg:last:pr-0">
-                <service.icon className="size-6 text-brand-teal" aria-hidden="true" />
-                <h3 className="mt-6 text-xl">{service.title}</h3>
-                <p className="mt-3 min-h-18 text-sm leading-6 text-muted-foreground">{service.description}</p>
-                <a href={service.href} className="mt-5 inline-flex items-center gap-2 text-sm font-medium text-brand-gold hover:text-foreground">
-                  {service.linkLabel}
-                  <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
-                </a>
+              <article
+                key={service.title}
+                className="group flex flex-col items-center justify-between rounded-2xl bg-card p-6 text-center sm:p-8"
+              >
+                <div className="flex flex-col items-center">
+                  <div className="flex size-14 items-center justify-center rounded-full bg-muted/80 text-foreground transition-colors group-hover:bg-muted">
+                    <service.icon className="size-6 text-brand-teal" aria-hidden="true" />
+                  </div>
+                  <h3 className="mt-5 text-lg font-medium text-foreground">{service.title}</h3>
+                  <p className="mt-2.5 text-sm leading-relaxed text-muted-foreground">{service.description}</p>
+                </div>
+                <div className="mt-6 pt-2">
+                  <a
+                    href={service.href}
+                    className="inline-flex items-center justify-center text-sm font-medium text-brand-teal transition-colors hover:underline hover:text-brand-teal/80"
+                  >
+                    {service.linkLabel}
+                  </a>
+                </div>
               </article>
             ))}
           </div>
@@ -283,8 +312,9 @@ export function HomePage() {
       </section>}
 
       {landing.perspectiveEnabled === 'true' && (creditVisible || investmentVisible) && (
-        <section className="bg-muted/30 px-5 py-16 sm:px-8 lg:py-20" aria-labelledby="landing-perspective-title">
-          <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:gap-20">
+        <section className="relative isolate overflow-hidden bg-muted/30 px-5 py-16 sm:px-8 lg:py-20" aria-labelledby="landing-perspective-title">
+          {decorativeIllustrationsVisible && <LandingAccent variant="perspective" className="absolute bottom-3 left-0 hidden 2xl:block" />}
+          <div className="relative z-10 mx-auto grid max-w-7xl gap-10 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:gap-20">
             <div>
               <h2 id="landing-perspective-title" className="max-w-[20ch] text-3xl tracking-tight sm:text-4xl">{landing.perspectiveTitle}</h2>
               <p className="mt-5 max-w-[58ch] leading-7 text-muted-foreground">{landing.perspectiveDescription}</p>
@@ -303,7 +333,7 @@ export function HomePage() {
         </section>
       )}
 
-      {creditVisible && <section id="creditos" className="scroll-mt-24 border-t bg-muted/40 px-5 py-20 sm:px-8 lg:py-28">
+      {creditVisible && <section id="creditos" className="scroll-mt-24 border-t bg-muted/40 px-5 pt-20 pb-10 sm:px-8 lg:pt-28 lg:pb-12">
         <div className="mx-auto grid max-w-7xl gap-12 lg:grid-cols-2 lg:items-center lg:gap-20">
           <figure>
             <img
@@ -336,7 +366,7 @@ export function HomePage() {
         </div>
       </section>}
 
-      {investmentVisible && <section id="inversiones" className="scroll-mt-24 px-5 py-20 sm:px-8 lg:py-28">
+      {investmentVisible && <section id="inversiones" className="scroll-mt-24 px-5 pt-10 pb-20 sm:px-8 lg:pt-12 lg:pb-28">
         <div className="mx-auto grid max-w-7xl gap-12 lg:grid-cols-2 lg:items-center lg:gap-20">
           <div className="max-w-xl lg:order-1">
             <ServiceIcon name={landing.investmentSectionIcon} fallback="trending-up" className="size-7 text-brand-gold" />
@@ -344,18 +374,28 @@ export function HomePage() {
             <p className="mt-5 leading-7 text-muted-foreground">
               {landing.investmentDescription} {landing.investmentDetail}
             </p>
-            <div className="mt-8 divide-y border-y">
-              <div className="flex gap-4 py-5">
-                <ServiceIcon name={landing.investmentFeatureOneIcon} fallback="sliders" className="mt-0.5 size-5 shrink-0 text-brand-teal" />
-                <div><h3 className="text-base">{landing.investmentFeatureOneTitle}</h3><p className="mt-1 text-sm leading-6 text-muted-foreground">{landing.investmentFeatureOneDescription}</p></div>
+            <div className="mt-8 grid gap-4 sm:grid-cols-2">
+              <div className="rounded-2xl bg-card p-5 sm:p-6">
+                <div className="flex size-12 items-center justify-center rounded-full bg-muted/80 text-foreground">
+                  <ServiceIcon name={landing.investmentFeatureOneIcon} fallback="sliders" className="size-5 text-brand-teal" />
+                </div>
+                <h3 className="mt-4 text-base font-medium text-foreground">{landing.investmentFeatureOneTitle}</h3>
+                <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{landing.investmentFeatureOneDescription}</p>
               </div>
-              <div className="flex gap-4 py-5">
-                <ServiceIcon name={landing.investmentFeatureTwoIcon} fallback="shield" className="mt-0.5 size-5 shrink-0 text-brand-teal" />
-                <div><h3 className="text-base">{landing.investmentFeatureTwoTitle}</h3><p className="mt-1 text-sm leading-6 text-muted-foreground">{landing.investmentFeatureTwoDescription}</p></div>
+              <div className="rounded-2xl bg-card p-5 sm:p-6">
+                <div className="flex size-12 items-center justify-center rounded-full bg-muted/80 text-foreground">
+                  <ServiceIcon name={landing.investmentFeatureTwoIcon} fallback="shield" className="size-5 text-brand-teal" />
+                </div>
+                <h3 className="mt-4 text-base font-medium text-foreground">{landing.investmentFeatureTwoTitle}</h3>
+                <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{landing.investmentFeatureTwoDescription}</p>
               </div>
             </div>
             <p className="mt-8 text-sm font-medium text-brand-gold">{landing.investmentStatusLabel}</p>
-            {investment.simulatorEnabled === 'true' && <Button asChild size="lg" variant="gold" className="mt-5"><Link to="/inversiones/simulador">Simular mi inversión <ArrowRight aria-hidden="true" /></Link></Button>}
+            {investment.simulatorEnabled === 'true' && (
+              <Button asChild size="lg" variant="gold" className="mt-5">
+                <Link to="/inversiones/simulador">Simular mi inversión <ArrowRight aria-hidden="true" /></Link>
+              </Button>
+            )}
           </div>
 
           <figure className="lg:order-2">
@@ -398,8 +438,9 @@ export function HomePage() {
         </div>
       </section>}
 
-      {landing.closingEnabled === 'true' && <section className="px-5 py-20 sm:px-8 lg:py-24">
-        <div className="mx-auto grid max-w-6xl gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,0.8fr)] lg:items-center">
+      {landing.closingEnabled === 'true' && <section className="relative isolate overflow-hidden px-5 py-20 sm:px-8 lg:py-24">
+        {decorativeIllustrationsVisible && <LandingAccent variant="access" className="absolute right-0 top-1/2 hidden -translate-y-1/2 2xl:block" />}
+        <div className="relative z-10 mx-auto grid max-w-6xl gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,0.8fr)] lg:items-center">
           <div className="max-w-2xl">
             <h2 className="max-w-[22ch] text-3xl tracking-[-0.02em] sm:text-4xl">
               {landing.closingTitle} <span className="text-brand-teal">{landing.closingHighlight}</span>

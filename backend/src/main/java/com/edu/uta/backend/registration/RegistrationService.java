@@ -8,7 +8,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.NoSuchElementException;
 
-import com.edu.uta.backend.identity.EcuadorianId;
 import com.edu.uta.backend.identity.IdentityService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -18,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class RegistrationService {
 
     private static final Duration CODE_LIFETIME = Duration.ofMinutes(15);
+    private static final Duration RESEND_COOLDOWN = Duration.ofMinutes(1);
     private static final int MAX_ATTEMPTS = 5;
     private static final int MINIMUM_PASSWORD_LENGTH = 12;
 
@@ -26,30 +26,36 @@ public class RegistrationService {
     private final IdentityService identity;
     private final PasswordEncoder passwords;
     private final VerificationMailer mailer;
+    private final IdentityRecordService records;
     private final SecureRandom random = new SecureRandom();
 
     public RegistrationService(CustomerProfileRepository profiles, EmailVerificationRepository verifications,
-                               IdentityService identity, PasswordEncoder passwords, VerificationMailer mailer) {
+                               IdentityService identity, PasswordEncoder passwords, VerificationMailer mailer,
+                               IdentityRecordService records) {
         this.profiles = profiles;
         this.verifications = verifications;
         this.identity = identity;
         this.passwords = passwords;
         this.mailer = mailer;
+        this.records = records;
     }
 
-    public record Registration(String idType, String idNumber, String firstNames, String lastNames,
-                               LocalDate birthDate, String phone, String username, String email,
-                               String password) {}
+    /** Nombres y fecha solo se usan si el documento no los trajo legibles. */
+    public record Registration(String firstNames, String lastNames, LocalDate birthDate, String phone,
+                               String username, String email, String password) {}
 
     public record PendingVerification(String email, Instant expiresAt) {}
 
     @Transactional
-    public PendingVerification register(Registration request) {
-        String idType = normalizeIdType(request.idType());
-        String idNumber = request.idNumber() == null ? "" : request.idNumber().trim().toUpperCase(Locale.ROOT);
+    public PendingVerification register(Registration request, IdentityCheckService.Evidence evidence) {
+        IdentityCheckService.VerifiedIdentity document = evidence.identity();
         String email = normalizeEmail(request.email());
-        validateDocument(idType, idNumber);
-        validateBirthDate(request.birthDate());
+        String firstNames = IdentityRecordService.properName(document.firstNames() != null ? document.firstNames()
+                : required(request.firstNames(), "Ingresa tus nombres"));
+        String lastNames = IdentityRecordService.properName(document.lastNames() != null ? document.lastNames()
+                : required(request.lastNames(), "Ingresa tus apellidos"));
+        LocalDate birthDate = document.birthDate() != null ? document.birthDate() : request.birthDate();
+        validateBirthDate(birthDate);
         if (request.password() == null || request.password().length() < MINIMUM_PASSWORD_LENGTH) {
             throw new IllegalArgumentException("La contraseña debe tener al menos 12 caracteres");
         }
@@ -57,27 +63,33 @@ public class RegistrationService {
         if (identity.usernameTaken(request.username())) {
             throw new IllegalArgumentException("El usuario ya está registrado");
         }
-        if (profiles.existsByIdTypeAndIdNumber(idType, idNumber)) {
+        if (profiles.existsByIdTypeAndIdNumber(document.idType(), document.idNumber())) {
             throw new IllegalArgumentException("El documento ya está registrado");
         }
 
-        String firstNames = request.firstNames().trim();
-        String lastNames = request.lastNames().trim();
         var account = identity.createAccount(request.username(), email, firstNames + " " + lastNames,
                 request.password(), List.of("client"));
-        profiles.save(new CustomerProfile(account.id(), idType, idNumber, firstNames, lastNames,
-                request.birthDate(), normalizePhone(request.phone())));
+        long userId = account.id();
+        profiles.save(new CustomerProfile(userId, document.idType(), document.idNumber(), firstNames, lastNames,
+                birthDate, normalizePhone(request.phone())));
+        records.store(userId, evidence, "REGISTRATION");
 
-        return issueChallenge(account.id(), email);
+        return beginEmailVerification(userId, email);
+    }
+
+    private String required(String value, String message) {
+        if (value == null || value.isBlank()) throw new IllegalArgumentException(message);
+        return value.trim();
     }
 
     @Transactional
     public PendingVerification resend(String rawEmail) {
         String email = normalizeEmail(rawEmail);
-        return issueChallenge(identity.accountByEmail(email).id(), email);
+        long userId = identity.accountByEmail(email).id();
+        return beginEmailVerification(userId, email);
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = IllegalArgumentException.class)
     public void verifyEmail(String rawEmail, String code) {
         String email = normalizeEmail(rawEmail);
         long userId = identity.accountByEmail(email).id();
@@ -92,6 +104,7 @@ public class RegistrationService {
         }
         if (!passwords.matches(code == null ? "" : code.trim(), challenge.getCodeHash())) {
             challenge.registerFailedAttempt();
+            verifications.save(challenge);
             throw new IllegalArgumentException("El código no es válido");
         }
         challenge.markVerified();
@@ -102,37 +115,23 @@ public class RegistrationService {
         return verifications.existsByUserIdAndVerifiedAtIsNotNull(userId);
     }
 
-    private PendingVerification issueChallenge(long userId, String email) {
+    @Transactional
+    public PendingVerification beginEmailVerification(long userId, String email) {
+        if (emailVerified(userId)) {
+            throw new IllegalArgumentException("El correo ya está verificado");
+        }
+        verifications.findFirstByUserIdOrderByIdDesc(userId).ifPresent(challenge -> {
+            if (challenge.getCreatedAt() != null
+                    && challenge.getCreatedAt().isAfter(Instant.now().minus(RESEND_COOLDOWN))) {
+                throw new IllegalArgumentException("Espera un minuto antes de solicitar otro código");
+            }
+        });
         String code = String.format("%06d", random.nextInt(1_000_000));
         Instant expiresAt = Instant.now().plus(CODE_LIFETIME);
         verifications.save(new EmailVerification(userId, email, passwords.encode(code), expiresAt));
-        mailer.sendVerificationCode(email, code, CODE_LIFETIME);
+        mailer.sendVerificationCode(email, code, expiresAt);
         return new PendingVerification(email, expiresAt);
     }
-
-    private String normalizeIdType(String idType) {
-        String value = idType == null ? "" : idType.trim().toUpperCase(Locale.ROOT);
-        if (!value.equals("CEDULA") && !value.equals("PASAPORTE")) {
-            throw new IllegalArgumentException("El tipo de documento no es válido");
-        }
-        return value;
-    }
-
-    private void validateDocument(String idType, String idNumber) {
-        if (idType.equals("CEDULA")) {
-            if (!idNumber.matches("\\d{10}")) {
-                throw new IllegalArgumentException("La cédula debe tener 10 dígitos");
-            }
-            if (!EcuadorianId.valid(idNumber)) {
-                throw new IllegalArgumentException("La cédula no es válida");
-            }
-            return;
-        }
-        if (!idNumber.matches("[A-Z0-9]{6,20}")) {
-            throw new IllegalArgumentException("El pasaporte no es válido");
-        }
-    }
-
 
     private void validateBirthDate(LocalDate birthDate) {
         if (birthDate == null) throw new IllegalArgumentException("Ingresa tu fecha de nacimiento");
