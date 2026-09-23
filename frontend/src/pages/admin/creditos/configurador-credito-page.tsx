@@ -6,7 +6,6 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
 import {
-  Building2,
   ShieldAlert,
   Save,
   RefreshCw,
@@ -30,14 +29,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
 import { creditosService } from '@/features/creditos/services/creditos.service'
@@ -720,30 +711,27 @@ export function ConfiguradorCreditoPage() {
 
         {/* ── Catálogo de Productos Parametrizados en la Base de Datos ──────── */}
         <div className="lg:col-span-7 space-y-6">
-          <Card className="shadow-sm border-border bg-card">
-            <CardHeader className="border-b border-border/60 bg-muted/20 pb-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 rounded-lg bg-brand-gold/10 text-brand-gold">
-                    <Building2 className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-base font-bold font-sans text-foreground">
-                      Catálogo de Productos Configurados
-                    </CardTitle>
-                    <CardDescription className="text-xs">
-                      Productos activos disponibles para el simulador de clientes
-                    </CardDescription>
-                  </div>
+          <Card className="rounded-xl border bg-card text-card-foreground shadow-xs">
+            <CardHeader className="border-b pb-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div>
+                  <CardTitle className="text-base text-foreground font-medium">
+                    Productos de crédito configurados
+                  </CardTitle>
+                  <CardDescription className="text-xs text-muted-foreground">
+                    Parámetros oficiales validados conforme a la normativa vigente del BCE y SEPS
+                  </CardDescription>
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center rounded-lg border border-border bg-muted/40 p-0.5 text-xs">
+
+                {/* Filtros de Entidad + Contador */}
+                <div className="flex items-center gap-2.5">
+                  <div className="flex items-center rounded-lg border bg-muted/60 p-0.5 text-xs">
                     <button
                       type="button"
                       onClick={() => setFiltroEntidadTabla('TODOS')}
-                      className={`px-2 py-1 rounded-md transition-all font-sans font-medium text-[11px] ${
+                      className={`px-2.5 py-1 rounded-md transition-colors text-xs ${
                         filtroEntidadTabla === 'TODOS'
-                          ? 'bg-background shadow-xs text-foreground font-semibold'
+                          ? 'bg-background shadow-xs text-foreground font-medium'
                           : 'text-muted-foreground hover:text-foreground'
                       }`}
                     >
@@ -752,9 +740,9 @@ export function ConfiguradorCreditoPage() {
                     <button
                       type="button"
                       onClick={() => setFiltroEntidadTabla('BANCO')}
-                      className={`px-2 py-1 rounded-md transition-all font-sans font-medium text-[11px] ${
+                      className={`px-2.5 py-1 rounded-md transition-colors text-xs ${
                         filtroEntidadTabla === 'BANCO'
-                          ? 'bg-background shadow-xs text-foreground font-semibold'
+                          ? 'bg-background shadow-xs text-foreground font-medium'
                           : 'text-muted-foreground hover:text-foreground'
                       }`}
                     >
@@ -763,16 +751,16 @@ export function ConfiguradorCreditoPage() {
                     <button
                       type="button"
                       onClick={() => setFiltroEntidadTabla('COOPERATIVA')}
-                      className={`px-2 py-1 rounded-md transition-all font-sans font-medium text-[11px] ${
+                      className={`px-2.5 py-1 rounded-md transition-colors text-xs ${
                         filtroEntidadTabla === 'COOPERATIVA'
-                          ? 'bg-background shadow-xs text-foreground font-semibold'
+                          ? 'bg-background shadow-xs text-foreground font-medium'
                           : 'text-muted-foreground hover:text-foreground'
                       }`}
                     >
                       Cooperativas
                     </button>
                   </div>
-                  <Badge variant="secondary" className="font-mono text-xs">
+                  <Badge variant="secondary" className="text-xs">
                     {listaFiltrada.length} activos
                   </Badge>
                 </div>
@@ -782,78 +770,76 @@ export function ConfiguradorCreditoPage() {
             <CardContent className="p-0">
               {cargandoLista ? (
                 <div className="p-12 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
-                  <RefreshCw className="w-4 h-4 animate-spin text-brand-teal" />
+                  <RefreshCw className="size-4 animate-spin text-brand-teal" />
                   <span>Cargando productos configurados desde el servidor…</span>
                 </div>
               ) : listaFiltrada.length === 0 ? (
                 <div className="p-12 text-center text-muted-foreground space-y-3">
-                  <ShieldAlert className="w-10 h-10 mx-auto opacity-40 text-brand-gold" />
-                  <p className="text-sm font-semibold text-foreground">No hay productos disponibles para este filtro</p>
-                  <p className="text-xs max-w-sm mx-auto">
+                  <ShieldAlert className="size-10 mx-auto opacity-40 text-brand-gold" />
+                  <p className="text-sm font-medium text-foreground">No hay productos disponibles para este filtro</p>
+                  <p className="text-xs max-w-sm mx-auto text-muted-foreground">
                     {filtroEntidadTabla === 'TODOS'
-                      ? 'Utiliza el formulario de la izquierda para registrar el primer producto de crédito conforme al marco regulatorio del BCE.'
+                      ? 'Utiliza el formulario para registrar el primer producto de crédito conforme al marco regulatorio del BCE.'
                       : `No se encontraron productos registrados para ${filtroEntidadTabla === 'BANCO' ? 'Bancos' : 'Cooperativas'}.`}
                   </p>
                 </div>
               ) : (
-                <div className="overflow-auto max-h-[560px]">
-                  <Table>
-                    <TableHeader className="sticky top-0 bg-muted/95 backdrop-blur-sm z-10">
-                      <TableRow className="text-xs">
-                        <TableHead className="font-bold">Producto / Entidad</TableHead>
-                        <TableHead className="font-bold">Segmento BCE</TableHead>
-                        <TableHead className="text-right font-bold">Rango Monto</TableHead>
-                        <TableHead className="text-center font-bold">Plazos</TableHead>
-                        <TableHead className="text-right font-bold text-brand-teal">Tasa Anual</TableHead>
-                        <TableHead className="text-right font-bold text-brand-gold">Desgravamen</TableHead>
-                        <TableHead className="font-bold text-center">Sistemas</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
+                <div className="overflow-x-auto max-h-[560px]">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b text-left text-xs bg-muted/50 text-muted-foreground">
+                        <th className="p-3.5 font-medium">Producto / Entidad</th>
+                        <th className="p-3.5 font-medium">Segmento BCE</th>
+                        <th className="p-3.5 text-right font-medium">Rango Monto</th>
+                        <th className="p-3.5 text-center font-medium">Plazos</th>
+                        <th className="p-3.5 text-right font-medium text-brand-teal">Tasa Anual</th>
+                        <th className="p-3.5 text-right font-medium text-brand-gold">Desgravamen</th>
+                        <th className="p-3.5 text-center font-medium">Sistemas</th>
+                      </tr>
+                    </thead>
+                    <tbody>
                       {listaFiltrada.map((c) => (
-                        <TableRow key={`conf-${c.id}`} className="hover:bg-muted/40 transition-colors text-xs font-mono">
-                          <TableCell className="font-sans">
-                            <p className="font-semibold text-foreground">{c.nombre}</p>
-                            <Badge variant="outline" className="text-[10px] mt-0.5 font-normal">
+                        <tr key={`conf-${c.id}`} className="border-b last:border-0 hover:bg-muted/40 transition-colors text-xs">
+                          <td className="p-3.5">
+                            <strong className="block font-medium text-foreground">{c.nombre}</strong>
+                            <Badge variant="outline" className="text-[10px] mt-1 font-normal">
                               {c.entidad}
                             </Badge>
-                          </TableCell>
+                          </td>
 
-                          <TableCell className="font-sans text-xs">
-                            <span className="font-medium text-muted-foreground">
-                              {c.segmentoBce}
-                            </span>
-                          </TableCell>
+                          <td className="p-3.5 text-xs text-muted-foreground">
+                            {c.segmentoBce}
+                          </td>
 
-                          <TableCell className="text-right font-mono">
-                            ${c.montoMin.toLocaleString()} - ${c.montoMax.toLocaleString()}
-                          </TableCell>
+                          <td className="p-3.5 text-right font-medium text-foreground">
+                            ${c.montoMin.toLocaleString()} – ${c.montoMax.toLocaleString()}
+                          </td>
 
-                          <TableCell className="text-center text-muted-foreground font-mono">
-                            {c.plazoMinMeses} - {c.plazoMaxMeses}m
-                          </TableCell>
+                          <td className="p-3.5 text-center text-muted-foreground">
+                            {c.plazoMinMeses} – {c.plazoMaxMeses}m
+                          </td>
 
-                          <TableCell className="text-right font-bold text-brand-teal font-mono">
+                          <td className="p-3.5 text-right font-medium text-brand-teal">
                             {c.tasaInteres}%
-                          </TableCell>
+                          </td>
 
-                          <TableCell className="text-right text-brand-gold font-mono">
+                          <td className="p-3.5 text-right font-medium text-brand-gold">
                             {c.tasaDesgravamenMensual}%
-                          </TableCell>
+                          </td>
 
-                          <TableCell className="text-center font-sans">
+                          <td className="p-3.5 text-center">
                             <div className="flex items-center justify-center gap-1">
                               {c.sistemasPermitidos?.map((s) => (
-                                <Badge key={s} variant="secondary" className="text-[9px] px-1.5 py-0">
+                                <Badge key={s} variant="secondary" className="text-[9px] px-1.5 py-0.5">
                                   {s === 'FRANCES' ? 'FR' : 'AL'}
                                 </Badge>
                               ))}
                             </div>
-                          </TableCell>
-                        </TableRow>
+                          </td>
+                        </tr>
                       ))}
-                    </TableBody>
-                  </Table>
+                    </tbody>
+                  </table>
                 </div>
               )}
             </CardContent>

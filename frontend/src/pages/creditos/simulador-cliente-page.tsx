@@ -28,14 +28,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -336,28 +328,28 @@ export function SimuladorClientePage() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 space-y-8 sm:px-6 lg:px-8">
+    <main id="contenido" className="mx-auto max-w-7xl px-5 py-10 sm:px-8 lg:py-14 space-y-8">
       {/* ── Banner condicional para Asesor ─────────────────────────────── */}
       {isAsesor && (
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-brand-teal/10 border border-brand-teal/20 text-xs">
-          <div className="flex items-center gap-2 text-foreground font-medium">
-            <span className="flex h-2 w-2 rounded-full bg-brand-teal animate-pulse" />
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-xl bg-brand-teal/5 border border-brand-teal/20 text-xs">
+          <div className="flex items-center gap-2.5 text-foreground">
+            <span className="flex size-2 rounded-full bg-brand-teal animate-pulse" />
             <span>
-              Has iniciado sesión como <strong>Asesor Financiero</strong> ({usuario?.nombre}). Tienes acceso al panel de parametrización.
+              Sesión activa como <strong className="font-semibold text-foreground">Asesor Financiero</strong> ({usuario?.nombre}). Puedes gestionar la parametrización institucional.
             </span>
           </div>
-          <Button asChild size="sm" variant="outline" className="text-xs border-brand-teal/40 hover:bg-brand-teal/10 gap-1.5 shrink-0">
+          <Button asChild size="sm" variant="outline" className="border-brand-teal/30 text-brand-teal hover:bg-brand-teal/10 gap-1.5 shrink-0">
             <Link to="/admin/creditos">
               Ir a Configuración de Créditos
-              <ArrowRight className="w-3.5 h-3.5" />
+              <ArrowRight className="size-3.5" />
             </Link>
           </Button>
         </div>
       )}
 
-      {/* ── Encabezado Principal ────────────────────────────────────────── */}
-      <div className="text-center max-w-2xl mx-auto space-y-2">
-        <h1 className="font-heading text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+      {/* ── Encabezado Estándar del Sistema de Diseño ──────────────────── */}
+      <div className="text-center max-w-3xl mx-auto space-y-2">
+        <h1 className="font-heading text-3xl font-normal tracking-tight text-foreground sm:text-4xl">
           Simulador de Crédito
         </h1>
         <p className="text-sm text-muted-foreground">
@@ -365,40 +357,38 @@ export function SimuladorClientePage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* ── Formulario de Entrada (Limpio y Minimalista) ─────────────────── */}
-        <div className="lg:col-span-4 space-y-6">
-          <Card className="shadow-sm border-border bg-card">
-            <CardHeader className="border-b border-border/60 bg-muted/20 pb-4">
-              <div className="flex items-center gap-2">
-                <div className="p-2 rounded-lg bg-brand-teal/10 text-brand-teal">
-                  <Calculator className="w-5 h-5" />
+      <div className="mt-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        {/* ── Formulario de Parámetros (Sticky Desktop) ─────────────────── */}
+        <div className="lg:col-span-4 space-y-6 lg:sticky lg:top-24">
+          <Card className="rounded-xl border bg-card shadow-xs">
+            <CardHeader className="border-b pb-4">
+              <div className="flex items-center gap-3">
+                <div className="flex size-9 items-center justify-center rounded-lg bg-brand-teal/10 text-brand-teal">
+                  <Calculator className="size-5" />
                 </div>
                 <div>
-                  <CardTitle className="text-base font-bold font-sans text-foreground">
+                  <CardTitle className="text-base text-foreground font-sans font-medium">
                     Datos del Préstamo
                   </CardTitle>
-                  <CardDescription className="text-xs">
+                  <CardDescription className="text-xs text-muted-foreground">
                     Selecciona tu entidad y las condiciones del financiamiento
                   </CardDescription>
                 </div>
               </div>
             </CardHeader>
 
-            <CardContent className="pt-5">
+            <CardContent className="pt-6">
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
                 
-                {/* ── TAREA 1: FLUJO DE SELECCIÓN EN CASCADA ────────────────── */}
-
-                {/* Combo Box 1: Tipo de Institución (Obligatorio) */}
+                {/* Combo Box 1: Tipo de Institución */}
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold text-foreground flex items-center justify-between">
-                    <span className="flex items-center gap-1.5">
-                      <Landmark className="w-3.5 h-3.5 text-brand-teal" />
-                      1. Tipo de Institución *
-                    </span>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-medium text-foreground flex items-center gap-1.5">
+                      <Landmark className="size-3.5 text-brand-teal" />
+                      1. Tipo de Institución
+                    </Label>
                     <span className="text-[10px] text-brand-teal font-medium">Obligatorio</span>
-                  </Label>
+                  </div>
                   <Controller
                     name="tipoInstitucion"
                     control={control}
@@ -406,7 +396,6 @@ export function SimuladorClientePage() {
                       <Select
                         onValueChange={(val: 'Banco' | 'Cooperativa') => {
                           field.onChange(val)
-                          // Al cambiar de tipo, buscar si hay entidades de este tipo
                           const primera = entidadesDisponibles.find(
                             (e) => e.tipo.toLowerCase() === val.toLowerCase()
                           )
@@ -429,15 +418,15 @@ export function SimuladorClientePage() {
                   )}
                 </div>
 
-                {/* Combo Box 2: Entidad Específica (Obligatorio) */}
+                {/* Combo Box 2: Entidad Específica */}
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold text-foreground flex items-center justify-between">
-                    <span className="flex items-center gap-1.5">
-                      <Building2 className="w-3.5 h-3.5 text-brand-teal" />
-                      2. Entidad Financiera Específica *
-                    </span>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-medium text-foreground flex items-center gap-1.5">
+                      <Building2 className="size-3.5 text-brand-teal" />
+                      2. Entidad Financiera Específica
+                    </Label>
                     <span className="text-[10px] text-brand-teal font-medium">Obligatorio</span>
-                  </Label>
+                  </div>
                   <Controller
                     name="entidadId"
                     control={control}
@@ -471,27 +460,27 @@ export function SimuladorClientePage() {
                   )}
                 </div>
 
-                {/* 3. Campos Informativos (Solo Lectura) */}
+                {/* Tarjeta de Tasas Oficiales Extraídas */}
                 {entidadSeleccionada && (
-                  <div className="grid grid-cols-2 gap-2.5 p-3 rounded-xl bg-brand-teal/5 border border-brand-teal/20 text-xs transition-all">
+                  <div className="grid grid-cols-2 gap-3 p-3.5 rounded-xl bg-muted/40 border border-border text-xs">
                     <div className="space-y-0.5">
-                      <div className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
-                        <Percent className="w-3 h-3 text-brand-teal" />
-                        <span>Tasa de Interés Nominal</span>
+                      <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                        <Percent className="size-3 text-brand-teal" />
+                        <span>Tasa Nominal</span>
                       </div>
-                      <div className="font-mono font-bold text-sm text-foreground">
+                      <div className="font-sans font-semibold text-sm text-foreground">
                         {entidadSeleccionada.tasaNominal.toFixed(2)}%{' '}
                         <span className="text-[10px] font-normal text-muted-foreground">anual</span>
                       </div>
-                      <p className="text-[10px] text-muted-foreground">Extraída de base oficial</p>
+                      <p className="text-[10px] text-muted-foreground">Regulación BCE</p>
                     </div>
 
                     <div className="space-y-0.5">
-                      <div className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
-                        <ShieldCheck className="w-3 h-3 text-brand-teal" />
-                        <span>Seguro Desgravamen</span>
+                      <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                        <ShieldCheck className="size-3 text-brand-teal" />
+                        <span>Desgravamen</span>
                       </div>
-                      <div className="font-mono font-bold text-sm text-foreground">
+                      <div className="font-sans font-semibold text-sm text-foreground">
                         {entidadSeleccionada.desgravamen.toFixed(4)}%{' '}
                         <span className="text-[10px] font-normal text-muted-foreground">mensual</span>
                       </div>
@@ -500,21 +489,21 @@ export function SimuladorClientePage() {
                   </div>
                 )}
 
-                {/* ── TAREA 2: CONSERVACIÓN EXACTA DE PARÁMETROS RESTANTES ── */}
-
                 {/* Monto Solicitado */}
                 <div className="space-y-2">
-                  <Label htmlFor="monto" className="text-xs font-semibold text-foreground flex items-center justify-between">
-                    <span>Monto Solicitado ($ USD) *</span>
-                    <span className="font-mono text-brand-teal font-medium">{fmt(montoActual)}</span>
-                  </Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="monto" className="text-xs font-medium text-foreground">
+                      Monto Solicitado ($ USD)
+                    </Label>
+                    <span className="font-sans text-brand-teal font-medium text-xs">{fmt(montoActual)}</span>
+                  </div>
                   <div className="relative">
-                    <span className="absolute left-3 top-2.5 text-muted-foreground font-semibold text-xs">$</span>
+                    <span className="absolute left-3 top-2 text-muted-foreground text-xs font-medium">$</span>
                     <Input
                       id="monto"
                       type="number"
                       step="50"
-                      className="pl-7 text-xs font-mono"
+                      className="pl-7 text-xs"
                       {...register('monto', { valueAsNumber: true })}
                     />
                   </div>
@@ -522,16 +511,16 @@ export function SimuladorClientePage() {
                     <p className="text-[11px] text-destructive">{errors.monto.message}</p>
                   )}
 
-                  {/* Botones de montos rápidos */}
+                  {/* Chips de montos sugeridos */}
                   <div className="flex flex-wrap gap-1.5 pt-1">
                     {[1000, 3000, 5000, 10000, 20000].map((val) => (
                       <button
                         key={val}
                         type="button"
                         onClick={() => setValue('monto', val)}
-                        className={`text-[11px] font-mono px-2 py-0.5 rounded-md border transition-all ${
+                        className={`text-[11px] px-2.5 py-1 rounded-md border transition-all ${
                           montoActual === val
-                            ? 'bg-brand-teal text-brand-teal-foreground border-brand-teal'
+                            ? 'bg-brand-teal text-brand-teal-foreground border-brand-teal font-medium shadow-2xs'
                             : 'bg-background hover:bg-muted/60 text-muted-foreground border-border'
                         }`}
                       >
@@ -543,8 +532,8 @@ export function SimuladorClientePage() {
 
                 {/* Frecuencia de Pago */}
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold text-foreground">
-                    Frecuencia de Pago *
+                  <Label className="text-xs font-medium text-foreground">
+                    Frecuencia de Pago
                   </Label>
                   <div className="grid grid-cols-2 gap-2 pt-0.5">
                     <button
@@ -553,9 +542,9 @@ export function SimuladorClientePage() {
                         setValue('frecuencia', 'MENSUAL')
                         setValue('plazo', 24)
                       }}
-                      className={`py-2 px-3 rounded-lg border text-xs font-medium transition-all ${
+                      className={`py-2 px-3 rounded-lg border text-xs transition-colors ${
                         frecuenciaActual === 'MENSUAL'
-                          ? 'border-brand-teal bg-brand-teal/10 text-brand-teal font-semibold'
+                          ? 'border-brand-teal bg-brand-teal/10 text-brand-teal font-medium shadow-2xs'
                           : 'border-border text-muted-foreground hover:bg-muted/40'
                       }`}
                     >
@@ -567,9 +556,9 @@ export function SimuladorClientePage() {
                         setValue('frecuencia', 'ANUAL')
                         setValue('plazo', 3)
                       }}
-                      className={`py-2 px-3 rounded-lg border text-xs font-medium transition-all ${
+                      className={`py-2 px-3 rounded-lg border text-xs transition-colors ${
                         frecuenciaActual === 'ANUAL'
-                          ? 'border-brand-teal bg-brand-teal/10 text-brand-teal font-semibold'
+                          ? 'border-brand-teal bg-brand-teal/10 text-brand-teal font-medium shadow-2xs'
                           : 'border-border text-muted-foreground hover:bg-muted/40'
                       }`}
                     >
@@ -580,21 +569,21 @@ export function SimuladorClientePage() {
 
                 {/* Plazo */}
                 <div className="space-y-2">
-                  <Label htmlFor="plazo" className="text-xs font-semibold text-foreground flex items-center justify-between">
-                    <span>
-                      Plazo en {frecuenciaActual === 'ANUAL' ? 'Años' : 'Meses'} *
-                    </span>
-                    <span className="font-mono text-muted-foreground text-xs">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="plazo" className="text-xs font-medium text-foreground">
+                      Plazo en {frecuenciaActual === 'ANUAL' ? 'Años' : 'Meses'}
+                    </Label>
+                    <span className="text-muted-foreground text-xs">
                       {watch('plazo')} {frecuenciaActual === 'ANUAL' ? 'años' : 'meses'}
                     </span>
-                  </Label>
+                  </div>
                   <div className="relative">
-                    <Calendar className="absolute left-3 top-2.5 w-3.5 h-3.5 text-muted-foreground" />
+                    <Calendar className="absolute left-3 top-2.5 size-3.5 text-muted-foreground" />
                     <Input
                       id="plazo"
                       type="number"
                       min="1"
-                      className="pl-8 text-xs font-mono"
+                      className="pl-8 text-xs"
                       {...register('plazo', { valueAsNumber: true })}
                     />
                   </div>
@@ -610,9 +599,9 @@ export function SimuladorClientePage() {
                             key={p}
                             type="button"
                             onClick={() => setValue('plazo', p)}
-                            className={`text-[11px] font-mono px-2 py-0.5 rounded-md border transition-all ${
+                            className={`text-[11px] px-2.5 py-0.5 rounded-md border transition-all ${
                               watch('plazo') === p
-                                ? 'bg-brand-teal text-brand-teal-foreground border-brand-teal'
+                                ? 'bg-brand-teal text-brand-teal-foreground border-brand-teal font-medium shadow-2xs'
                                 : 'bg-background hover:bg-muted/60 text-muted-foreground border-border'
                             }`}
                           >
@@ -624,9 +613,9 @@ export function SimuladorClientePage() {
                             key={p}
                             type="button"
                             onClick={() => setValue('plazo', p)}
-                            className={`text-[11px] font-mono px-2 py-0.5 rounded-md border transition-all ${
+                            className={`text-[11px] px-2.5 py-0.5 rounded-md border transition-all ${
                               watch('plazo') === p
-                                ? 'bg-brand-teal text-brand-teal-foreground border-brand-teal'
+                                ? 'bg-brand-teal text-brand-teal-foreground border-brand-teal font-medium shadow-2xs'
                                 : 'bg-background hover:bg-muted/60 text-muted-foreground border-border'
                             }`}
                           >
@@ -638,69 +627,70 @@ export function SimuladorClientePage() {
 
                 {/* Sistema de Amortización */}
                 <div className="space-y-2">
-                  <Label className="text-xs font-semibold text-foreground">
-                    Sistema de Amortización *
+                  <Label className="text-xs font-medium text-foreground">
+                    Sistema de Amortización
                   </Label>
                   <div className="space-y-2 pt-0.5">
                     <div
                       onClick={() => setValue('sistema', 'FRANCES')}
-                      className={`p-3 rounded-lg border cursor-pointer transition-all ${
+                      className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
                         sistemaActual === 'FRANCES'
-                          ? 'border-brand-teal bg-brand-teal/5 shadow-xs'
+                          ? 'border-brand-teal bg-brand-teal/5 shadow-2xs'
                           : 'border-border hover:bg-muted/30'
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <span className="font-semibold text-xs text-foreground">
+                        <span className="font-medium text-xs text-foreground">
                           Sistema Francés (Cuota Fija)
                         </span>
                         {sistemaActual === 'FRANCES' && (
-                          <CheckCircle2 className="w-4 h-4 text-brand-teal" />
+                          <CheckCircle2 className="size-4 text-brand-teal" />
                         )}
                       </div>
-                      <p className="text-[11px] text-muted-foreground mt-1">
-                        Pagas la misma cuota periódica siempre. El interés disminuye y el abono a capital aumenta con cada pago.
+                      <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+                        Cuota constante en cada periodo. El interés decrece progresivamente mientras que el abono al capital aumenta.
                       </p>
                     </div>
 
                     <div
                       onClick={() => setValue('sistema', 'ALEMAN')}
-                      className={`p-3 rounded-lg border cursor-pointer transition-all ${
+                      className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
                         sistemaActual === 'ALEMAN'
-                          ? 'border-brand-teal bg-brand-teal/5 shadow-xs'
+                          ? 'border-brand-teal bg-brand-teal/5 shadow-2xs'
                           : 'border-border hover:bg-muted/30'
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <span className="font-semibold text-xs text-foreground">
+                        <span className="font-medium text-xs text-foreground">
                           Sistema Alemán (Capital Constante)
                         </span>
                         {sistemaActual === 'ALEMAN' && (
-                          <CheckCircle2 className="w-4 h-4 text-brand-teal" />
+                          <CheckCircle2 className="size-4 text-brand-teal" />
                         )}
                       </div>
-                      <p className="text-[11px] text-muted-foreground mt-1">
-                        El abono a capital es igual en todas las cuotas. Las primeras cuotas son más altas y van disminuyendo mes a mes.
+                      <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+                        Abono de capital idéntico en cada mes. Las cuotas iniciales son mayores y descienden con el tiempo.
                       </p>
                     </div>
                   </div>
                 </div>
 
-                {/* Botón Calcular */}
+                {/* Botón Principal */}
                 <div className="pt-2">
                   <Button
                     type="submit"
-                    className="w-full gap-2 bg-brand-teal text-brand-teal-foreground hover:bg-brand-teal/90 shadow-sm font-semibold text-sm transition-all"
+                    variant="brand"
+                    className="w-full gap-2 font-medium text-sm"
                     disabled={mutation.isPending}
                   >
                     {mutation.isPending ? (
                       <>
-                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <RefreshCw className="size-4 animate-spin" />
                         <span>Calculando tabla oficial…</span>
                       </>
                     ) : (
                       <>
-                        <Calculator className="w-4 h-4" />
+                        <Calculator className="size-4" />
                         <span>Calcular Amortización</span>
                       </>
                     )}
@@ -711,180 +701,174 @@ export function SimuladorClientePage() {
           </Card>
         </div>
 
-        {/* ── Resultados: Métricas, Acciones y Tabla con 7 Columnas ───────── */}
+        {/* ── Panel de Resultados ──────────────────────────────────────── */}
         <div className="lg:col-span-8 space-y-6">
           {resultado ? (
             <div className="space-y-6">
-              {/* Barra de Producto + Botón Descarga PDF Oficial */}
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 rounded-xl border border-border bg-card">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-heading text-lg font-bold text-foreground">
+              {/* Barra de Producto + Botón Descarga */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-5 rounded-xl border bg-card">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2.5">
+                    <h2 className="font-heading text-lg font-normal text-foreground">
                       {resultado.nombreProducto}
-                    </span>
-                    <Badge variant="outline" className="font-normal text-xs">
+                    </h2>
+                    <Badge variant="outline" className="text-xs">
                       {resultado.entidad}
                     </Badge>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Segmento BCE: <strong>{resultado.segmentoBce}</strong> • Tasa Nominal: <strong>{resultado.tasaInteresAnual}%</strong> • Desgravamen: <strong>{resultado.tasaDesgravamenMensual}%</strong> mensual
+                  <p className="text-xs text-muted-foreground">
+                    Segmento BCE: <strong className="text-foreground font-medium">{resultado.segmentoBce}</strong> · Tasa Nominal: <strong className="text-foreground font-medium">{resultado.tasaInteresAnual}%</strong> · Desgravamen: <strong className="text-foreground font-medium">{resultado.tasaDesgravamenMensual}%</strong> mensual
                   </p>
                 </div>
 
-                {/* Botón de Descargar PDF */}
                 <Button
                   onClick={() => exportarSimulacionPdf(resultado, usuario?.nombre)}
-                  className="gap-2 bg-brand-teal text-brand-teal-foreground hover:bg-brand-teal/90 font-semibold text-xs shadow-sm shrink-0"
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 shrink-0 border-brand-teal/30 text-brand-teal hover:bg-brand-teal/10"
                 >
-                  <Download className="w-4 h-4" />
+                  <Download className="size-4" />
                   <span>Descargar PDF</span>
                 </Button>
               </div>
 
               {/* 4 Métricas Clave */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <Card className="border-border bg-brand-teal/5">
-                  <CardContent className="pt-4 pb-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-brand-teal">
-                      Cuota {resultado.frecuencia === 'ANUAL' ? 'Anual' : 'Mensual'}
-                    </p>
-                    <p className="text-xl font-bold font-mono text-foreground mt-0.5">
-                      {fmt(resultado.cuotaPeriodica)}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">
-                      {resultado.sistema === 'FRANCES' ? 'Cuota constante' : 'Primera cuota estimada'}
-                    </p>
-                  </CardContent>
-                </Card>
+                <div className="rounded-xl border bg-card p-4 space-y-1">
+                  <span className="text-[11px] font-medium uppercase tracking-wider text-brand-teal">
+                    Cuota {resultado.frecuencia === 'ANUAL' ? 'Anual' : 'Mensual'}
+                  </span>
+                  <p className="text-2xl font-normal text-foreground font-sans tracking-tight">
+                    {fmt(resultado.cuotaPeriodica)}
+                  </p>
+                  <span className="text-[10px] text-muted-foreground block">
+                    {resultado.sistema === 'FRANCES' ? 'Cuota constante' : 'Primera cuota estimada'}
+                  </span>
+                </div>
 
-                <Card className="border-border bg-card">
-                  <CardContent className="pt-4 pb-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      Total Interés
-                    </p>
-                    <p className="text-xl font-bold font-mono text-foreground mt-0.5">
-                      {fmt(resultado.totalIntereses)}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">Costo por financiamiento</p>
-                  </CardContent>
-                </Card>
+                <div className="rounded-xl border bg-card p-4 space-y-1">
+                  <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                    Total Interés
+                  </span>
+                  <p className="text-2xl font-normal text-foreground font-sans tracking-tight">
+                    {fmt(resultado.totalIntereses)}
+                  </p>
+                  <span className="text-[10px] text-muted-foreground block">
+                    Costo financiero
+                  </span>
+                </div>
 
-                <Card className="border-border bg-card">
-                  <CardContent className="pt-4 pb-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-brand-gold">
-                      Total Desgravamen
-                    </p>
-                    <p className="text-xl font-bold font-mono text-foreground mt-0.5">
-                      {fmt(resultado.totalDesgravamen)}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">Sobre saldo deudor</p>
-                  </CardContent>
-                </Card>
+                <div className="rounded-xl border bg-card p-4 space-y-1">
+                  <span className="text-[11px] font-medium uppercase tracking-wider text-brand-gold">
+                    Total Desgravamen
+                  </span>
+                  <p className="text-2xl font-normal text-foreground font-sans tracking-tight">
+                    {fmt(resultado.totalDesgravamen)}
+                  </p>
+                  <span className="text-[10px] text-muted-foreground block">
+                    Sobre saldo deudor
+                  </span>
+                </div>
 
-                <Card className="border-border bg-muted/30">
-                  <CardContent className="pt-4 pb-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      Total a Pagar
-                    </p>
-                    <p className="text-xl font-bold font-mono text-foreground mt-0.5">
-                      {fmt(resultado.totalPagar)}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">{resultado.totalCuotas} cuotas totales</p>
-                  </CardContent>
-                </Card>
+                <div className="rounded-xl border bg-muted/40 p-4 space-y-1">
+                  <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                    Total a Pagar
+                  </span>
+                  <p className="text-2xl font-normal text-foreground font-sans tracking-tight">
+                    {fmt(resultado.totalPagar)}
+                  </p>
+                  <span className="text-[10px] text-muted-foreground block">
+                    {resultado.totalCuotas} cuotas totales
+                  </span>
+                </div>
               </div>
 
-              {/* ── Tabla de Amortización con las 7 Columnas Exactas ────────── */}
-              <Card className="shadow-sm border-border bg-card overflow-hidden">
-                <CardHeader className="border-b border-border/60 bg-muted/20 pb-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle className="text-base font-bold font-sans flex items-center gap-2 text-foreground">
-                        <CheckCircle2 className="w-4 h-4 text-brand-teal" />
-                        Tabla Oficial de Amortización
-                      </CardTitle>
-                      <CardDescription className="text-xs">
-                        Cronograma detallado con desglose de capital, interés y seguro de desgravamen
-                      </CardDescription>
-                    </div>
-                    <Badge variant="outline" className="font-mono text-xs">
-                      {resultado.totalCuotas} cuotas
-                    </Badge>
+              {/* ── Tabla Oficial de Amortización (7 Columnas) ──────────── */}
+              <div className="overflow-hidden rounded-xl border bg-card">
+                <div className="flex items-center justify-between border-b px-5 py-4">
+                  <div>
+                    <h3 className="text-sm font-medium text-foreground">
+                      Tabla Oficial de Amortización
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Cronograma detallado con desglose de capital, interés y seguro de desgravamen
+                    </p>
                   </div>
-                </CardHeader>
+                  <Badge variant="secondary" className="text-xs">
+                    {resultado.totalCuotas} cuotas
+                  </Badge>
+                </div>
 
-                <CardContent className="p-0">
-                  <div className="overflow-auto max-h-[520px]">
-                    <Table>
-                      <TableHeader className="sticky top-0 bg-muted/95 backdrop-blur-sm z-10">
-                        <TableRow className="text-xs font-semibold">
-                          <TableHead className="w-16 text-center font-bold">No. Cuota</TableHead>
-                          <TableHead className="text-right font-bold">Saldo Inicial</TableHead>
-                          <TableHead className="text-right font-bold text-foreground">Capital</TableHead>
-                          <TableHead className="text-right font-bold text-muted-foreground">Interés</TableHead>
-                          <TableHead className="text-right font-bold text-brand-gold">Desgravamen</TableHead>
-                          <TableHead className="text-right font-bold text-brand-teal">Cuota Total</TableHead>
-                          <TableHead className="text-right font-bold">Saldo Final</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {resultado.tablaCuotas.map((c) => (
-                          <TableRow
-                            key={`cuota-row-${c.numeroCuota}`}
-                            className="hover:bg-muted/40 transition-colors font-mono text-xs"
-                          >
-                            <TableCell className="text-center font-semibold text-muted-foreground">
-                              {c.numeroCuota}
-                            </TableCell>
-                            <TableCell className="text-right text-muted-foreground">
-                              {fmt(c.saldoInicial)}
-                            </TableCell>
-                            <TableCell className="text-right font-medium text-foreground">
-                              {fmt(c.capital)}
-                            </TableCell>
-                            <TableCell className="text-right text-muted-foreground">
-                              {fmt(c.interes)}
-                            </TableCell>
-                            <TableCell className="text-right text-brand-gold">
-                              {fmt(c.desgravamen)}
-                            </TableCell>
-                            <TableCell className="text-right font-bold text-foreground bg-brand-teal/5">
-                              {fmt(c.cuotaTotal)}
-                            </TableCell>
-                            <TableCell className="text-right text-muted-foreground">
-                              {fmt(c.saldoFinal)}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </CardContent>
-              </Card>
+                <div className="overflow-x-auto max-h-[520px]">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b text-left text-xs bg-muted/50 text-muted-foreground">
+                        <th className="p-3.5 text-center font-medium">No.</th>
+                        <th className="p-3.5 text-right font-medium">Saldo Inicial</th>
+                        <th className="p-3.5 text-right font-medium text-foreground">Capital</th>
+                        <th className="p-3.5 text-right font-medium">Interés</th>
+                        <th className="p-3.5 text-right font-medium text-brand-gold">Desgravamen</th>
+                        <th className="p-3.5 text-right font-medium text-brand-teal">Cuota Total</th>
+                        <th className="p-3.5 text-right font-medium">Saldo Final</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {resultado.tablaCuotas.map((c) => (
+                        <tr
+                          key={`cuota-row-${c.numeroCuota}`}
+                          className="border-b last:border-0 hover:bg-muted/40 transition-colors text-xs"
+                        >
+                          <td className="p-3.5 text-center text-muted-foreground font-medium">
+                            {c.numeroCuota}
+                          </td>
+                          <td className="p-3.5 text-right text-muted-foreground">
+                            {fmt(c.saldoInicial)}
+                          </td>
+                          <td className="p-3.5 text-right font-medium text-foreground">
+                            {fmt(c.capital)}
+                          </td>
+                          <td className="p-3.5 text-right text-muted-foreground">
+                            {fmt(c.interes)}
+                          </td>
+                          <td className="p-3.5 text-right text-brand-gold">
+                            {fmt(c.desgravamen)}
+                          </td>
+                          <td className="p-3.5 text-right font-semibold text-foreground bg-brand-teal/5">
+                            {fmt(c.cuotaTotal)}
+                          </td>
+                          <td className="p-3.5 text-right text-muted-foreground">
+                            {fmt(c.saldoFinal)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           ) : (
             /* Estado Inicial / Vacío */
-            <div className="flex flex-col items-center justify-center min-h-[460px] border-2 border-dashed border-border rounded-2xl p-8 text-center bg-card space-y-4">
-              <div className="w-16 h-16 rounded-2xl bg-brand-teal/10 flex items-center justify-center text-brand-teal">
-                <Calculator className="w-8 h-8 opacity-80" />
+            <div className="flex flex-col items-center justify-center min-h-[460px] rounded-2xl border border-dashed border-border bg-card/50 p-8 text-center space-y-4">
+              <div className="flex size-14 items-center justify-center rounded-2xl bg-brand-teal/10 text-brand-teal">
+                <Calculator className="size-7 opacity-80" />
               </div>
               <div className="max-w-md space-y-1.5">
-                <h3 className="text-lg font-bold font-heading text-foreground">
+                <h3 className="font-heading text-xl font-normal text-foreground">
                   Tu simulación aparecerá aquí
                 </h3>
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  Selecciona la institución financiera, ingresa el monto y plazo deseado, y presiona <strong>"Calcular Amortización"</strong> para ver tu tabla oficial con seguro de desgravamen y descargar el reporte en PDF.
+                  Selecciona la institución financiera, ingresa el monto y plazo deseado, y presiona <strong className="text-foreground font-medium">"Calcular Amortización"</strong> para ver tu tabla oficial con seguro de desgravamen y descargar el reporte en PDF.
                 </p>
               </div>
               <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
-                <Badge variant="secondary" className="text-xs">Normativa BCE 2026</Badge>
-                <Badge variant="secondary" className="text-xs">Desgravamen sobre saldo</Badge>
-                <Badge variant="secondary" className="text-xs">Exportación PDF Oficial</Badge>
+                <Badge variant="outline" className="text-xs">Normativa BCE 2026</Badge>
+                <Badge variant="outline" className="text-xs">Desgravamen sobre saldo</Badge>
+                <Badge variant="outline" className="text-xs">Exportación PDF Oficial</Badge>
               </div>
             </div>
           )}
         </div>
       </div>
-    </div>
+    </main>
   )
 }
