@@ -32,10 +32,7 @@ export function BrandLogo({
       <img
         src={darkSource}
         alt={alt}
-        className={cn(
-          'hidden h-full w-full object-contain dark:block',
-          isFull && !assets.fullLogoDark && 'dark:scale-[1.6]',
-        )}
+        className="hidden h-full w-full object-contain dark:block"
       />
     </span>
   )

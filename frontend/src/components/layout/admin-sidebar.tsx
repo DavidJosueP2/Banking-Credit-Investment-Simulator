@@ -169,15 +169,15 @@ export function AdminSidebar() {
       <SidebarHeader className="pt-4">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild size="lg" tooltip="Brunexa Bank" className="justify-start px-2 group-data-[collapsible=icon]:justify-center">
-              <Link to="/admin" aria-label="Brunexa Bank, panel administrativo" className="flex items-center justify-start">
+            <SidebarMenuButton asChild size="lg" tooltip="Brunexa Bank" className="justify-start px-2 hover:bg-transparent group-data-[collapsible=icon]:justify-center">
+              <Link to="/admin" aria-label="Brunexa Bank, panel administrativo" className="flex w-full items-center justify-start">
                 <BrandLogo
                   variant="mark"
                   className="hidden size-8 group-data-[collapsible=icon]:block"
                   decorative
                 />
                 <BrandLogo
-                  className="h-10 w-36 group-data-[collapsible=icon]:hidden [&_img]:object-left"
+                  className="h-9 w-36 group-data-[collapsible=icon]:hidden [&_img]:object-left"
                   decorative
                 />
               </Link>
