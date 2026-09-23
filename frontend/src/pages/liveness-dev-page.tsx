@@ -2,11 +2,11 @@ import '@aws-amplify/ui-react/styles.css'
 
 import { FaceLivenessDetector } from '@aws-amplify/ui-react-liveness'
 import axios from 'axios'
-import { Amplify } from 'aws-amplify'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
+import { applyLivenessCredentials } from '@/features/identity-check/liveness-credentials'
 import {
   createLivenessSession,
   getLivenessCredentials,
@@ -47,24 +47,7 @@ export function LivenessDevPage() {
     setStarting(true)
     try {
       const credentials = await getLivenessCredentials()
-      Amplify.configure(
-        { Auth: { Cognito: { identityPoolId: '', allowGuestAccess: true } } } as never,
-        {
-          Auth: {
-            credentialsProvider: {
-              getCredentialsAndIdentityId: async () => ({
-                credentials: {
-                  accessKeyId: credentials.accessKeyId,
-                  secretAccessKey: credentials.secretAccessKey,
-                  sessionToken: credentials.sessionToken,
-                  expiration: new Date(credentials.expiration),
-                },
-              }),
-              clearCredentialsAndIdentityId: () => undefined,
-            },
-          },
-        },
-      )
+      applyLivenessCredentials(credentials)
       setRegion(credentials.region)
       const session = await createLivenessSession()
       setSessionId(session.sessionId)
