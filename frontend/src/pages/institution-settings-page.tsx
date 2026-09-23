@@ -14,6 +14,7 @@ import investmentImage from '@/assets/landing/brunexa-inversiones.png'
 import creditPersonFallback from '@/assets/imgs/persona-crédito.png'
 import investmentPersonFallback from '@/assets/imgs/investment-person.png'
 import girlWithDollarFallback from '@/assets/imgs/girl with dollar.png'
+import closingPersonFallback from '@/assets/imgs/young-african-american-woman-holding-piggy-bank-screaming-proud-celebrating-victory-success-very-exc-removebg-preview.png'
 import carouselCommunityImage from '@/assets/landing/carrusel/brooke-cagle--uHVRvDr7pg-unsplash.jpg'
 import carouselIdentityImage from '@/assets/landing/carrusel/debashis-rc-biswas-dyPFnxxUhYk-unsplash.jpg'
 import carouselPerspectiveImage from '@/assets/landing/carrusel/zalfa-imani-1xp5VxvyKL0-unsplash.jpg'
@@ -255,7 +256,8 @@ const assetDefinitions: Array<{
   { key: 'creditImage', title: 'Imagen de créditos', description: 'Fotografía de la sección pública de créditos.', fallback: creditImage },
   { key: 'investmentImage', title: 'Imagen de inversiones', description: 'Fotografía de la sección pública de inversiones.', fallback: investmentImage },
   { key: 'creditSimulatorImage', title: 'Simulador de créditos · personaje', description: 'Silueta para la franja superior del simulador de créditos.', fallback: creditPersonFallback, compact: true },
-  { key: 'investmentSimulatorImage', title: 'Simulador de inversiones · personaje', description: 'Silueta para el simulador de inversiones y espacio financiero.', fallback: investmentPersonFallback, compact: true },
+  { key: 'investmentSimulatorImage', title: 'Simulador de inversiones · personaje', description: 'Silueta para la franja superior del simulador de inversiones.', fallback: investmentPersonFallback, compact: true },
+  { key: 'closingImage', title: 'Landing · espacio financiero', description: 'Personaje de la sección final "Tu espacio financiero".', fallback: closingPersonFallback, compact: true },
   { key: 'perspectiveImage', title: 'Landing · chica del dólar', description: 'Fotografía para la sección "Antes de elegir" en la landing.', fallback: girlWithDollarFallback, compact: true },
 ]
 

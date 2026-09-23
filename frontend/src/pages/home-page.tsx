@@ -18,7 +18,7 @@ import { toast } from 'sonner'
 import creditImage from '@/assets/landing/brunexa-creditos.png'
 import investmentImage from '@/assets/landing/brunexa-inversiones.png'
 import girlWithDollarImage from '@/assets/imgs/girl with dollar.png'
-import investmentPersonImage from '@/assets/imgs/investment-person.png'
+import closingPersonImage from '@/assets/imgs/young-african-american-woman-holding-piggy-bank-screaming-proud-celebrating-victory-success-very-exc-removebg-preview.png'
 import carouselCommunityImage from '@/assets/landing/carrusel/brooke-cagle--uHVRvDr7pg-unsplash.jpg'
 import carouselIdentityImage from '@/assets/landing/carrusel/debashis-rc-biswas-dyPFnxxUhYk-unsplash.jpg'
 import carouselPerspectiveImage from '@/assets/landing/carrusel/zalfa-imani-1xp5VxvyKL0-unsplash.jpg'
@@ -326,13 +326,13 @@ export function HomePage() {
       </section>}
 
       {landing.perspectiveEnabled === 'true' && (creditVisible || investmentVisible) && (
-        <section className="relative isolate overflow-hidden bg-muted/30 px-5 py-16 sm:px-8 lg:py-20" aria-labelledby="landing-perspective-title">
+        <section className="relative isolate overflow-hidden bg-muted/30 px-5 py-16 sm:px-8 lg:pt-20 lg:pb-0" aria-labelledby="landing-perspective-title">
           <div className="relative z-10 mx-auto grid max-w-7xl gap-8 lg:grid-cols-[auto_minmax(0,1fr)_minmax(0,1.15fr)] lg:items-center lg:gap-10">
-            <div className="flex shrink-0 justify-center">
+            <div className="flex shrink-0 justify-center lg:self-end">
               <img
                 src={assets.perspectiveImage ?? girlWithDollarImage}
                 alt="Persona con billete"
-                className="h-44 sm:h-52 lg:h-64 w-auto object-contain drop-shadow-xs select-none pointer-events-none"
+                className="pointer-events-none h-52 w-auto select-none object-contain object-bottom drop-shadow-xs sm:h-60 lg:h-80 xl:h-[22rem]"
                 loading="lazy"
               />
             </div>
@@ -459,7 +459,7 @@ export function HomePage() {
         </div>
       </section>}
 
-      {landing.closingEnabled === 'true' && <section className="relative isolate overflow-hidden px-5 py-20 sm:px-8 lg:py-24">
+      {landing.closingEnabled === 'true' && <section className="relative isolate overflow-hidden px-5 py-20 sm:px-8 lg:pt-24 lg:pb-0">
         <div className="relative z-10 mx-auto grid max-w-7xl gap-10 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_auto] lg:items-center lg:gap-12">
           <div className="max-w-2xl">
             <h2 className="max-w-[22ch] text-3xl tracking-[-0.02em] sm:text-4xl">
@@ -485,11 +485,11 @@ export function HomePage() {
               {!checkingAccess && <ArrowRight aria-hidden="true" />}
             </Button>
           </div>
-          <div className="flex shrink-0 justify-center lg:justify-end">
+          <div className="flex shrink-0 justify-center lg:self-end lg:justify-end">
             <img
-              src={assets.investmentSimulatorImage ?? investmentPersonImage}
-              alt="Persona ahorrando e invirtiendo"
-              className="h-44 sm:h-52 lg:h-64 w-auto object-contain drop-shadow-xs select-none pointer-events-none"
+              src={assets.closingImage ?? closingPersonImage}
+              alt="Mujer celebrando mientras sostiene una alcancía"
+              className="pointer-events-none h-52 w-auto select-none object-contain object-bottom drop-shadow-xs sm:h-60 lg:h-80 xl:h-[22rem]"
               loading="lazy"
             />
           </div>

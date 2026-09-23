@@ -28,7 +28,7 @@ public class InstitutionSettingsService {
             "fullLogoLight", "fullLogoDark", "markLogoLight", "markLogoDark",
             "heroImage", "carouselCreditImage", "carouselInvestmentImage",
             "creditImage", "investmentImage",
-            "creditSimulatorImage", "investmentSimulatorImage", "perspectiveImage");
+            "creditSimulatorImage", "investmentSimulatorImage", "closingImage", "perspectiveImage");
 
     private static final Map<String, Map<String, String>> DEFAULTS = defaults();
 

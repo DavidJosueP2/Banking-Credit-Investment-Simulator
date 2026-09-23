@@ -95,7 +95,7 @@ export function PublicLayout() {
             ))}
           </nav>
           <div className="flex items-center gap-3">
-            <Link className="hidden px-1 py-2 text-sm font-medium text-foreground transition-colors hover:text-brand-teal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background lg:inline" to={destination}>
+            <Link className="hidden px-1 py-2 text-sm font-medium text-brand-teal transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background lg:inline" to={destination}>
               {account ? hasPermission('admin.dashboard.view') ? 'Ir al panel' : 'Mi cuenta' : 'Ingresar'}
             </Link>
             <ThemeToggle />

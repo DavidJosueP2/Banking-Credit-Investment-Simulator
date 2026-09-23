@@ -176,6 +176,7 @@ export type AssetKey =
   | 'investmentImage'
   | 'creditSimulatorImage'
   | 'investmentSimulatorImage'
+  | 'closingImage'
   | 'perspectiveImage'
 
 export interface SettingsResponse {
