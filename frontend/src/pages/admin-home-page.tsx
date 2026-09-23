@@ -12,7 +12,7 @@ const managementAreas = [
     description: 'Tipos de crédito, tasas y cobros asociados.',
     icon: Landmark,
     permission: 'credit.products.manage',
-    status: 'En preparación',
+    url: '/admin/creditos',
   },
   {
     title: 'Productos de inversión',
@@ -35,7 +35,7 @@ const managementAreas = [
   description: string
   icon: LucideIcon
   permission: Permission
-  status: string
+  status?: string
   url?: string
 }>
 
@@ -99,9 +99,11 @@ export function AdminHomePage() {
                   <h3 className="text-base text-foreground">{area.title}</h3>
                   <p className="mt-1 text-sm text-muted-foreground">{area.description}</p>
                 </div>
-                <span className={`ml-9 shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium sm:ml-0 ${area.url ? 'border-brand-teal/40 text-brand-teal' : 'border-brand-gold/40 text-brand-gold'}`}>
-                  {area.status}
-                </span>
+                {area.status && (
+                  <span className={`ml-9 shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium sm:ml-0 ${area.url ? 'border-brand-teal/40 text-brand-teal' : 'border-brand-gold/40 text-brand-gold'}`}>
+                    {area.status}
+                  </span>
+                )}
                 {area.url && <ArrowRight className="size-4 shrink-0 text-brand-teal" aria-hidden="true" />}
               </>
               return area.url ? (

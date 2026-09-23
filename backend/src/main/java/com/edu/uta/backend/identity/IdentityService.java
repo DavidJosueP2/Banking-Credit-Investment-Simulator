@@ -48,6 +48,14 @@ public class IdentityService implements UserDetailsService {
             if (account == null) throw new UsernameNotFoundException("Cuenta no encontrada");
             var authorities = permissionsFor(account.id()).stream()
                     .map(SimpleGrantedAuthority::new).collect(Collectors.toList());
+            for (String role : rolesFor(account.id())) {
+                authorities.add(new SimpleGrantedAuthority(role));
+                authorities.add(new SimpleGrantedAuthority("ROLE_" + role.toUpperCase(Locale.ROOT)));
+                if ("credit_advisor".equalsIgnoreCase(role)) {
+                    authorities.add(new SimpleGrantedAuthority("ROLE_ASESOR"));
+                    authorities.add(new SimpleGrantedAuthority("ASESOR"));
+                }
+            }
             return User.withUsername(account.username()).password(account.passwordHash())
                     .disabled(!account.enabled()).accountLocked(emailPending(account.id()))
                     .authorities(authorities).build();

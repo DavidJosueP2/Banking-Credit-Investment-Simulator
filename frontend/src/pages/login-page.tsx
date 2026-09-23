@@ -19,11 +19,11 @@ const protectedDestinations: Record<string, string> = {
 }
 
 function destinationAfterLogin(account: Account, requested: string | null) {
-  const fallback = account.permissions.includes('admin.dashboard.view') ? '/admin' : '/cuenta'
+  const fallback = account.permissions?.includes('admin.dashboard.view') ? '/admin' : '/cuenta'
   if (requested === '/cuenta') return requested
   const permission = requested ? protectedDestinations[requested] : undefined
-  if (requested?.startsWith('/admin/') && !account.permissions.includes('admin.dashboard.view')) return fallback
-  if (requested && permission && account.permissions.includes(permission)) return requested
+  if (requested?.startsWith('/admin/') && !account.permissions?.includes('admin.dashboard.view')) return fallback
+  if (requested && permission && account.permissions?.includes(permission)) return requested
   return fallback
 }
 

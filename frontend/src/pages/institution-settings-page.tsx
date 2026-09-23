@@ -503,7 +503,7 @@ export function InstitutionSettingsPage() {
     }
   }
 
-  if (query.isPending || (!draftHydrated.current && !query.isError)) return <p className="py-10 text-sm text-muted-foreground">Cargando configuración institucional…</p>
+  if (query.isPending || (!query.data && !query.isError)) return <p className="py-10 text-sm text-muted-foreground">Cargando configuración institucional…</p>
   if (query.isError) return (
     <div className="py-10">
       <h1 className="text-2xl">No se pudo cargar la configuración</h1>
