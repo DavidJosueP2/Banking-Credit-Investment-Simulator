@@ -660,6 +660,15 @@ export function InstitutionSettingsPage() {
                       </div>
                     ))}
                   </div>
+                  {group.id === 'intro' && <div className="rounded-lg border bg-card px-5">
+                    <ToggleRow
+                      label="Mostrar ilustraciones decorativas"
+                      description="Muestra u oculta las composiciones SVG del hero y los acentos visuales distribuidos en la landing."
+                      checked={draft.landing.decorativeIllustrationsEnabled === 'true'}
+                      onCheckedChange={(value) => update('landing', 'decorativeIllustrationsEnabled', String(value))}
+                      onReset={() => resetField('landing', 'decorativeIllustrationsEnabled')}
+                    />
+                  </div>}
                   {(landingIconFields[group.id]?.length ?? 0) > 0 && <section className="space-y-5" aria-labelledby={`${group.id}-icons-title`}>
                     <div>
                       <h4 id={`${group.id}-icons-title`} className="text-base">Iconos de {group.label.toLowerCase()}</h4>

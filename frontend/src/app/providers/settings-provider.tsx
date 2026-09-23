@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
 import { createContext, useContext, useEffect, useMemo, type PropsWithChildren } from 'react'
 
-import defaultFavicon from '@/assets/bank/logo.png'
+import defaultDarkFavicon from '@/assets/bank/logo-dark-mode.png'
+import defaultLightFavicon from '@/assets/bank/logo.png'
 import { useTheme } from '@/app/providers/theme-provider'
 import {
   defaultInstitutionSettings,
@@ -76,7 +77,8 @@ export function SettingsProvider({ children }: PropsWithChildren) {
     root.style.setProperty('--secondary-foreground', dark ? appearance.foregroundDarkColor : appearance.foregroundLightColor)
     root.style.setProperty('--accent', dark ? appearance.mutedDarkColor : appearance.mutedLightColor)
     root.style.setProperty('--accent-foreground', dark ? appearance.foregroundDarkColor : appearance.foregroundLightColor)
-    root.style.setProperty('--sidebar', dark ? appearance.sidebarDarkColor : appearance.sidebarLightColor)
+    const effectiveSidebarDark = appearance.sidebarDarkColor === '#1a292b' ? '#181b1d' : appearance.sidebarDarkColor
+    root.style.setProperty('--sidebar', dark ? effectiveSidebarDark : appearance.sidebarLightColor)
     root.style.setProperty('--sidebar-foreground', dark ? appearance.foregroundDarkColor : appearance.foregroundLightColor)
     root.style.setProperty('--sidebar-accent', dark ? appearance.mutedDarkColor : appearance.mutedLightColor)
     root.style.setProperty('--sidebar-accent-foreground', dark ? appearance.foregroundDarkColor : appearance.foregroundLightColor)
@@ -89,9 +91,44 @@ export function SettingsProvider({ children }: PropsWithChildren) {
   }, [effective.sections.appearance, effective.sections.institution.institutionName, theme])
 
   useEffect(() => {
-    const favicon = document.querySelector<HTMLLinkElement>('link[rel="icon"]')
-    if (favicon) favicon.href = assets.markLogoLight ?? defaultFavicon
-  }, [assets.markLogoLight])
+    const darkIcon = assets.markLogoDark ?? defaultDarkFavicon
+    const lightIcon = assets.markLogoLight ?? defaultLightFavicon
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+
+    const applyFavicon = () => {
+      document.querySelectorAll<HTMLLinkElement>('link[rel*="icon"]').forEach((el) => el.remove())
+
+      const shouldUseDark = theme === 'dark' || mediaQuery.matches
+      const targetIcon = shouldUseDark ? darkIcon : lightIcon
+
+      const linkDark = document.createElement('link')
+      linkDark.rel = 'icon'
+      linkDark.type = 'image/png'
+      linkDark.href = darkIcon
+      linkDark.media = '(prefers-color-scheme: dark)'
+      document.head.appendChild(linkDark)
+
+      const linkLight = document.createElement('link')
+      linkLight.rel = 'icon'
+      linkLight.type = 'image/png'
+      linkLight.href = lightIcon
+      linkLight.media = '(prefers-color-scheme: light)'
+      document.head.appendChild(linkLight)
+
+      const linkDirect = document.createElement('link')
+      linkDirect.rel = 'icon'
+      linkDirect.type = 'image/png'
+      linkDirect.href = targetIcon
+      document.head.appendChild(linkDirect)
+    }
+
+    applyFavicon()
+    mediaQuery.addEventListener('change', applyFavicon)
+
+    return () => {
+      mediaQuery.removeEventListener('change', applyFavicon)
+    }
+  }, [assets.markLogoDark, assets.markLogoLight, theme])
 
   return (
     <SettingsContext.Provider value={{

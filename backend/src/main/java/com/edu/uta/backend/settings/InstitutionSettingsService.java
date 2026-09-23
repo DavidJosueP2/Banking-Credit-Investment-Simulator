@@ -222,7 +222,7 @@ public class InstitutionSettingsService {
                 Map.entry("surfaceDarkColor", "#1c2123"),
                 Map.entry("mutedDarkColor", "#272c2e"),
                 Map.entry("mutedTextDarkColor", "#adb6b5"),
-                Map.entry("sidebarDarkColor", "#1a292b"),
+                Map.entry("sidebarDarkColor", "#181b1d"),
                 Map.entry("borderDarkColor", "#3d4547"),
                 Map.entry("headingFont", "Axiforma"),
                 Map.entry("sansFont", "Plus Jakarta Sans")));
@@ -232,6 +232,7 @@ public class InstitutionSettingsService {
                 Map.entry("heroDescription", "Compara opciones de crédito e inversión, revisa sus condiciones y elige con información clara antes de decidir."),
                 Map.entry("heroCreditButton", "Explorar créditos"),
                 Map.entry("heroInvestmentButton", "Conocer inversiones"),
+                Map.entry("decorativeIllustrationsEnabled", "true"),
                 Map.entry("bannerEnabled", "true"),
                 Map.entry("bannerIntervalSeconds", "6"),
                 Map.entry("bannerGeneralTitle", "Más formas de avanzar con {shortName}."),
