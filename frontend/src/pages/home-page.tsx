@@ -17,12 +17,14 @@ import { toast } from 'sonner'
 
 import creditImage from '@/assets/landing/brunexa-creditos.png'
 import investmentImage from '@/assets/landing/brunexa-inversiones.png'
+import girlWithDollarImage from '@/assets/imgs/girl with dollar.png'
+import closingPersonImage from '@/assets/imgs/young-african-american-woman-holding-piggy-bank-screaming-proud-celebrating-victory-success-very-exc-removebg-preview.png'
 import carouselCommunityImage from '@/assets/landing/carrusel/brooke-cagle--uHVRvDr7pg-unsplash.jpg'
 import carouselIdentityImage from '@/assets/landing/carrusel/debashis-rc-biswas-dyPFnxxUhYk-unsplash.jpg'
 import carouselPerspectiveImage from '@/assets/landing/carrusel/zalfa-imani-1xp5VxvyKL0-unsplash.jpg'
 import { useAuth } from '@/app/providers/auth-provider'
 import { useInstitutionSettings } from '@/app/providers/settings-provider'
-import { HeroIllustration, LandingAccent } from '@/components/landing/landing-illustrations'
+import { HeroIllustration } from '@/components/landing/landing-illustrations'
 import { BrandLogo } from '@/components/shared/brand-logo'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -77,7 +79,7 @@ export function HomePage() {
       description: landingText(landing.bannerGeneralDescription, institution.shortName, institution.description),
       image: assets.heroImage ?? carouselIdentityImage,
       alt: landing.bannerGeneralImageAlt,
-      href: creditVisible ? '#creditos' : investmentVisible ? '#inversiones' : undefined,
+      href: creditVisible ? '/creditos/simulador' : investmentVisible ? '/inversiones/simulador' : undefined,
       action: creditVisible ? landing.bannerGeneralButton : investmentVisible ? landing.bannerGeneralInvestmentButton : undefined,
     },
     ...(creditVisible ? [{
@@ -86,7 +88,7 @@ export function HomePage() {
       description: landing.bannerCreditDescription,
       image: assets.carouselCreditImage ?? carouselCommunityImage,
       alt: landing.bannerCreditImageAlt,
-      href: '#creditos',
+      href: '/creditos/simulador',
       action: landing.bannerCreditButton,
     }] : []),
     ...(investmentVisible ? [{
@@ -95,7 +97,7 @@ export function HomePage() {
       description: landing.bannerInvestmentDescription,
       image: assets.carouselInvestmentImage ?? carouselPerspectiveImage,
       alt: landing.bannerInvestmentImageAlt,
-      href: '#inversiones',
+      href: '/inversiones/simulador',
       action: landing.bannerInvestmentButton,
     }] : []),
   ]
@@ -128,19 +130,19 @@ export function HomePage() {
       title: landing.creditServiceTitle,
       description: landing.creditServiceDescription,
       icon: serviceIcon(landing.creditServiceIcon, 'wallet-cards'),
-      href: '#creditos', linkLabel: landing.creditServiceButton, area: 'credit',
+      href: '/creditos/simulador', linkLabel: landing.creditServiceButton, area: 'credit',
     },
     {
       title: landing.amortizationServiceTitle,
       description: landing.amortizationServiceDescription,
       icon: serviceIcon(landing.amortizationServiceIcon, 'bar-chart'),
-      href: '#creditos', linkLabel: landing.amortizationServiceButton, area: 'credit',
+      href: '/creditos/simulador', linkLabel: landing.amortizationServiceButton, area: 'credit',
     },
     {
       title: landing.investmentServiceTitle,
       description: landing.investmentServiceDescription,
       icon: serviceIcon(landing.investmentServiceIcon, 'trending-up'),
-      href: '#inversiones', linkLabel: landing.investmentServiceButton, area: 'investment',
+      href: '/inversiones/simulador', linkLabel: landing.investmentServiceButton, area: 'investment',
     },
     {
       title: landing.applicationServiceTitle,
@@ -190,10 +192,10 @@ export function HomePage() {
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             {creditVisible && <Button asChild size="lg" variant="brand">
-              <a href="#creditos">{landing.heroCreditButton} <ArrowRight aria-hidden="true" /></a>
+              <Link to="/creditos/simulador">{landing.heroCreditButton} <ArrowRight aria-hidden="true" /></Link>
             </Button>}
             {investmentVisible && <Button asChild size="lg" variant="gold-outline">
-              <a href="#inversiones">{landing.heroInvestmentButton}</a>
+              <Link to="/inversiones/simulador">{landing.heroInvestmentButton}</Link>
             </Button>}
           </div>
         </div>
@@ -230,7 +232,11 @@ export function HomePage() {
                     </p>
                     {slide.href && slide.action && (
                       <Button asChild size="lg" variant="gold" className="mt-6">
-                        <a href={slide.href} tabIndex={isActive ? undefined : -1}>{slide.action} <ArrowRight aria-hidden="true" /></a>
+                        {slide.href.startsWith('#') ? (
+                          <a href={slide.href} tabIndex={isActive ? undefined : -1}>{slide.action} <ArrowRight aria-hidden="true" /></a>
+                        ) : (
+                          <Link to={slide.href} tabIndex={isActive ? undefined : -1}>{slide.action} <ArrowRight aria-hidden="true" /></Link>
+                        )}
                       </Button>
                     )}
                   </div>
@@ -275,7 +281,6 @@ export function HomePage() {
       </section>}
 
       {landing.servicesEnabled === 'true' && visibleServices.length > 0 && <section id="servicios" className="relative isolate scroll-mt-24 overflow-hidden px-5 py-20 sm:px-8 lg:py-24">
-        {decorativeIllustrationsVisible && <LandingAccent variant="services" className="absolute right-0 top-7 hidden 2xl:block" />}
         <div className="relative z-10 mx-auto max-w-7xl">
           <div className="grid gap-6 lg:grid-cols-[minmax(0,0.7fr)_minmax(0,1.3fr)] lg:items-end">
             <h2 className="max-w-[14ch] text-3xl tracking-tight sm:text-4xl">{landing.servicesTitle}</h2>
@@ -298,12 +303,21 @@ export function HomePage() {
                   <p className="mt-2.5 text-sm leading-relaxed text-muted-foreground">{service.description}</p>
                 </div>
                 <div className="mt-6 pt-2">
-                  <a
-                    href={service.href}
-                    className="inline-flex items-center justify-center text-sm font-medium text-brand-teal transition-colors hover:underline hover:text-brand-teal/80"
-                  >
-                    {service.linkLabel}
-                  </a>
+                  {service.href.startsWith('#') ? (
+                    <a
+                      href={service.href}
+                      className="inline-flex items-center justify-center text-sm font-medium text-brand-teal transition-colors hover:underline hover:text-brand-teal/80"
+                    >
+                      {service.linkLabel}
+                    </a>
+                  ) : (
+                    <Link
+                      to={service.href}
+                      className="inline-flex items-center justify-center text-sm font-medium text-brand-teal transition-colors hover:underline hover:text-brand-teal/80"
+                    >
+                      {service.linkLabel}
+                    </Link>
+                  )}
                 </div>
               </article>
             ))}
@@ -312,9 +326,16 @@ export function HomePage() {
       </section>}
 
       {landing.perspectiveEnabled === 'true' && (creditVisible || investmentVisible) && (
-        <section className="relative isolate overflow-hidden bg-muted/30 px-5 py-16 sm:px-8 lg:py-20" aria-labelledby="landing-perspective-title">
-          {decorativeIllustrationsVisible && <LandingAccent variant="perspective" className="absolute bottom-3 left-0 hidden 2xl:block" />}
-          <div className="relative z-10 mx-auto grid max-w-7xl gap-10 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:gap-20">
+        <section className="relative isolate overflow-hidden bg-card px-5 py-16 dark:bg-muted/30 sm:px-8 lg:pt-20 lg:pb-0" aria-labelledby="landing-perspective-title">
+          <div className="relative z-10 mx-auto grid max-w-7xl gap-8 lg:grid-cols-[auto_minmax(0,1fr)_minmax(0,1.15fr)] lg:items-center lg:gap-10">
+            <div className="flex shrink-0 justify-center lg:self-end">
+              <img
+                src={assets.perspectiveImage ?? girlWithDollarImage}
+                alt="Persona con billete"
+                className="pointer-events-none h-52 w-auto select-none object-contain object-bottom drop-shadow-xs sm:h-60 lg:h-80 xl:h-[22rem]"
+                loading="lazy"
+              />
+            </div>
             <div>
               <h2 id="landing-perspective-title" className="max-w-[20ch] text-3xl tracking-tight sm:text-4xl">{landing.perspectiveTitle}</h2>
               <p className="mt-5 max-w-[58ch] leading-7 text-muted-foreground">{landing.perspectiveDescription}</p>
@@ -333,7 +354,7 @@ export function HomePage() {
         </section>
       )}
 
-      {creditVisible && <section id="creditos" className="scroll-mt-24 border-t bg-muted/40 px-5 pt-20 pb-10 sm:px-8 lg:pt-28 lg:pb-12">
+      {creditVisible && <section id="creditos" className="scroll-mt-24 border-t bg-muted px-5 pt-20 pb-10 dark:bg-muted/40 sm:px-8 lg:pt-28 lg:pb-12">
         <div className="mx-auto grid max-w-7xl gap-12 lg:grid-cols-2 lg:items-center lg:gap-20">
           <figure>
             <img
@@ -356,17 +377,16 @@ export function HomePage() {
                 <li key={index} className="flex gap-3"><Check className="mt-0.5 size-4 shrink-0 text-brand-teal" aria-hidden="true" /><span>{bullet}</span></li>
               ))}
             </ul>
-            <p className="mt-8 text-sm font-medium text-brand-gold">{landing.creditStatusLabel}</p>
-            <Button asChild size="lg" variant="gold" className="mt-5">
-              <Link to="/simulador">
-                Simular mi crédito <ArrowRight aria-hidden="true" />
+            <Button asChild size="lg" variant="gold" className="mt-8">
+              <Link to="/creditos/simulador">
+                {landingText(landing.creditButton || 'Simular mi crédito', institution.shortName, institution.description)} <ArrowRight aria-hidden="true" />
               </Link>
             </Button>
           </div>
         </div>
       </section>}
 
-      {investmentVisible && <section id="inversiones" className="scroll-mt-24 px-5 pt-10 pb-20 sm:px-8 lg:pt-12 lg:pb-28">
+      {investmentVisible && <section id="inversiones" className="scroll-mt-24 bg-card px-5 pt-10 pb-20 dark:bg-background sm:px-8 lg:pt-12 lg:pb-28">
         <div className="mx-auto grid max-w-7xl gap-12 lg:grid-cols-2 lg:items-center lg:gap-20">
           <div className="max-w-xl lg:order-1">
             <ServiceIcon name={landing.investmentSectionIcon} fallback="trending-up" className="size-7 text-brand-gold" />
@@ -390,10 +410,11 @@ export function HomePage() {
                 <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{landing.investmentFeatureTwoDescription}</p>
               </div>
             </div>
-            <p className="mt-8 text-sm font-medium text-brand-gold">{landing.investmentStatusLabel}</p>
             {investment.simulatorEnabled === 'true' && (
-              <Button asChild size="lg" variant="gold" className="mt-5">
-                <Link to="/inversiones/simulador">Simular mi inversión <ArrowRight aria-hidden="true" /></Link>
+              <Button asChild size="lg" variant="gold" className="mt-8">
+                <Link to="/inversiones/simulador">
+                  {landingText(landing.investmentButton || 'Simular mi inversión', institution.shortName, institution.description)} <ArrowRight aria-hidden="true" />
+                </Link>
               </Button>
             )}
           </div>
@@ -438,9 +459,8 @@ export function HomePage() {
         </div>
       </section>}
 
-      {landing.closingEnabled === 'true' && <section className="relative isolate overflow-hidden px-5 py-20 sm:px-8 lg:py-24">
-        {decorativeIllustrationsVisible && <LandingAccent variant="access" className="absolute right-0 top-1/2 hidden -translate-y-1/2 2xl:block" />}
-        <div className="relative z-10 mx-auto grid max-w-6xl gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,0.8fr)] lg:items-center">
+      {landing.closingEnabled === 'true' && <section className="relative isolate overflow-hidden px-5 py-20 sm:px-8 lg:pt-24 lg:pb-0">
+        <div className="relative z-10 mx-auto grid max-w-7xl gap-10 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_auto] lg:items-center lg:gap-12">
           <div className="max-w-2xl">
             <h2 className="max-w-[22ch] text-3xl tracking-[-0.02em] sm:text-4xl">
               {landing.closingTitle} <span className="text-brand-teal">{landing.closingHighlight}</span>
@@ -449,7 +469,7 @@ export function HomePage() {
               {landingText(landing.closingDescription, institution.shortName, institution.description)}
             </p>
           </div>
-          <div>
+          <div className="lg:justify-self-end">
             <ul className="space-y-4 text-sm text-foreground">
               {[
                 ...(creditVisible ? [landing.closingBulletOne] : []),
@@ -464,6 +484,14 @@ export function HomePage() {
               {checkingAccess ? 'Comprobando acceso…' : closingAccessLabel}
               {!checkingAccess && <ArrowRight aria-hidden="true" />}
             </Button>
+          </div>
+          <div className="flex shrink-0 justify-center lg:self-end lg:justify-end">
+            <img
+              src={assets.closingImage ?? closingPersonImage}
+              alt="Mujer celebrando mientras sostiene una alcancía"
+              className="pointer-events-none h-52 w-auto select-none object-contain object-bottom drop-shadow-xs sm:h-60 lg:h-80 xl:h-[22rem]"
+              loading="lazy"
+            />
           </div>
         </div>
       </section>}

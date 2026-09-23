@@ -27,7 +27,8 @@ public class InstitutionSettingsService {
     private static final Set<String> ASSET_KEYS = Set.of(
             "fullLogoLight", "fullLogoDark", "markLogoLight", "markLogoDark",
             "heroImage", "carouselCreditImage", "carouselInvestmentImage",
-            "creditImage", "investmentImage");
+            "creditImage", "investmentImage",
+            "creditSimulatorImage", "investmentSimulatorImage", "closingImage", "perspectiveImage");
 
     private static final Map<String, Map<String, String>> DEFAULTS = defaults();
 
@@ -213,7 +214,7 @@ public class InstitutionSettingsService {
                 Map.entry("backgroundLightColor", "#f2f2f2"),
                 Map.entry("foregroundLightColor", "#202527"),
                 Map.entry("surfaceLightColor", "#ffffff"),
-                Map.entry("mutedLightColor", "#f3f4f4"),
+                Map.entry("mutedLightColor", "#e6e9e8"),
                 Map.entry("mutedTextLightColor", "#586064"),
                 Map.entry("sidebarLightColor", "#f0f2f1"),
                 Map.entry("borderLightColor", "#dadddd"),
@@ -282,7 +283,7 @@ public class InstitutionSettingsService {
                 Map.entry("creditBulletOne", "Sistemas de amortización francés y alemán."),
                 Map.entry("creditBulletTwo", "Detalle de capital, interés, cuotas y cobros indirectos."),
                 Map.entry("creditBulletThree", "Tabla completa preparada para consulta y descarga."),
-                Map.entry("creditStatusLabel", "Simulador en preparación"),
+                Map.entry("creditButton", "Simular mi crédito"),
                 Map.entry("investmentTitle", "Inversiones pensadas para proyectar con contexto."),
                 Map.entry("investmentDescription", "Explora cómo cambian los resultados según el monto, el plazo y las condiciones vigentes."),
                 Map.entry("investmentSectionIcon", "trending-up"),
@@ -295,7 +296,7 @@ public class InstitutionSettingsService {
                 Map.entry("investmentFeatureTwoTitle", "Continuidad segura"),
                 Map.entry("investmentFeatureTwoDescription", "La solicitud se vinculará a una cuenta identificada."),
                 Map.entry("investmentFeatureTwoIcon", "shield"),
-                Map.entry("investmentStatusLabel", "Simulador de inversión disponible"),
+                Map.entry("investmentButton", "Simular mi inversión"),
                 Map.entry("processEnabled", "true"),
                 Map.entry("processTitle", "Un recorrido ordenado, desde la consulta hasta la solicitud."),
                 Map.entry("processDescription", "Cada etapa conserva la información necesaria para que el siguiente paso sea comprensible y verificable."),
@@ -313,8 +314,16 @@ public class InstitutionSettingsService {
                 Map.entry("closingBulletTwo", "Inversiones pensadas para tus metas"),
                 Map.entry("closingBulletThree", "Información clara para decidir con calma"),
                 Map.entry("closingButton", "Ingresar a {shortName}"),
+                Map.entry("headerHomeLabel", "Home"),
+                Map.entry("headerHomeHref", "/"),
                 Map.entry("headerServicesLabel", "Servicios"),
+                Map.entry("headerServicesHref", "/#servicios"),
+                Map.entry("headerCreditLabel", "Créditos"),
+                Map.entry("headerCreditHref", "/creditos/simulador"),
+                Map.entry("headerInvestmentLabel", "Inversiones"),
+                Map.entry("headerInvestmentHref", "/inversiones/simulador"),
                 Map.entry("headerProcessLabel", "Cómo funciona"),
+                Map.entry("headerProcessHref", "/#proceso"),
                 Map.entry("footerProductsHeading", "Productos"),
                 Map.entry("footerAccessHeading", "Acceso"),
                 Map.entry("footerContactHeading", "Contacto"),
