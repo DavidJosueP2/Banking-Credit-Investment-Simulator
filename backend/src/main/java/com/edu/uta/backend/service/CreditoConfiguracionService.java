@@ -186,6 +186,29 @@ public class CreditoConfiguracionService {
                 ));
             }
         }
+
+        // ─── Validación Legal Diferenciada por Entidad (Bancos vs Cooperativas) ───
+        if (dto.entidad() != null) {
+            String entidadNorm = dto.entidad().trim().toLowerCase(Locale.ROOT);
+            if (entidadNorm.contains("banco")) {
+                if (dto.tasaDesgravamenMensual() != null && dto.tasaDesgravamenMensual().compareTo(new BigDecimal("0.0650")) > 0) {
+                    throw new NormativaFinancieraException(String.format(Locale.ROOT,
+                            "Para Bancos, la tasa de desgravamen mensual (%.4f%%) excede el tope legal de 0.0650%% mensual fijado por la Superintendencia de Bancos.",
+                            dto.tasaDesgravamenMensual()));
+                }
+                if (key.startsWith("MICROCREDITO")) {
+                    throw new NormativaFinancieraException("Los segmentos de Microcrédito corresponden normativamente al sector cooperativo y microfinanciero, no a Banca Comercial.");
+                }
+            } else if (entidadNorm.contains("cooperativa")) {
+                if (dto.tasaDesgravamenMensual() != null &&
+                        (dto.tasaDesgravamenMensual().compareTo(new BigDecimal("0.0400")) < 0 ||
+                         dto.tasaDesgravamenMensual().compareTo(new BigDecimal("0.1200")) > 0)) {
+                    throw new NormativaFinancieraException(String.format(Locale.ROOT,
+                            "Para Cooperativas, la tasa de desgravamen mensual (%.4f%%) debe ubicarse en el rango normativo de la SEPS (0.0400%% a 0.1200%% mensual).",
+                            dto.tasaDesgravamenMensual()));
+                }
+            }
+        }
     }
 
     private String normalizarSegmentoKey(String input) {
