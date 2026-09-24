@@ -24,24 +24,23 @@ public class ProductoCreditoEntity {
     @JoinColumn(name = "tipo_credito_id", nullable = false)
     private TipoCreditoEntity tipoCredito;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 100)
-    private SegmentoCreditoBCE nombre;
+    @Column(nullable = false, length = 200)
+    private String nombre;
 
     public String getNombre() {
-        return nombre != null ? nombre.getDescripcion() : null;
-    }
-
-    public SegmentoCreditoBCE getNombreEnum() {
         return nombre;
     }
 
-    public void setNombre(String nombreStr) {
-        this.nombre = SegmentoCreditoBCE.fromString(nombreStr);
+    public void setNombre(String nombre) {
+        this.nombre = nombre;
     }
 
-    public void setNombre(SegmentoCreditoBCE nombre) {
-        this.nombre = nombre;
+    public void setNombre(SegmentoCreditoBCE nombreEnum) {
+        this.nombre = nombreEnum != null ? nombreEnum.getDescripcion() : null;
+    }
+
+    public SegmentoCreditoBCE getNombreEnum() {
+        return SegmentoCreditoBCE.fromString(this.nombre);
     }
 
     @Column(columnDefinition = "TEXT")

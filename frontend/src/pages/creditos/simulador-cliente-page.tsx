@@ -541,6 +541,8 @@ export function SimuladorClientePage() {
                       id="monto"
                       type="number"
                       step="50"
+                      min={productoSeleccionado.montoMin}
+                      max={productoSeleccionado.montoMax}
                       className="pl-7 text-xs"
                       {...register('monto', { valueAsNumber: true })}
                     />
