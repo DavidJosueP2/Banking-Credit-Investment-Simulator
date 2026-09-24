@@ -1,5 +1,7 @@
 package com.edu.uta.backend.domain.enums;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonValue;
 import lombok.Getter;
 
 @Getter
@@ -28,6 +30,12 @@ public enum SegmentoCreditoBCE {
         return descripcion != null ? descripcion : name();
     }
 
+    @JsonValue
+    public String toValue() {
+        return name();
+    }
+
+    @JsonCreator
     public static SegmentoCreditoBCE fromString(String valor) {
         if (valor == null || valor.isBlank()) {
             return CONSUMO_PRIORITARIO;

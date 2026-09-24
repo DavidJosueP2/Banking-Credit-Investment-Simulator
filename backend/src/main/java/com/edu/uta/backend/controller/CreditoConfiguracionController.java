@@ -32,6 +32,17 @@ public class CreditoConfiguracionController {
     }
 
     /**
+     * Permite al asesor/administrador actualizar un producto de crédito existente según normativa BCE.
+     */
+    @PutMapping("/{id}")
+    public ResponseEntity<ConfigurarCreditoResponseDto> actualizar(
+            @PathVariable Long id,
+            @Valid @RequestBody ConfigurarCreditoRequestDto dto
+    ) {
+        return ResponseEntity.ok(service.actualizar(id, dto));
+    }
+
+    /**
      * Lista todos los créditos configurados en el banco o cooperativa.
      */
     @GetMapping
