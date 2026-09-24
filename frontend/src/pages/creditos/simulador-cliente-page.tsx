@@ -24,6 +24,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import creditPersonImage from '@/assets/imgs/persona-crédito.png'
+import { SimulatorHeroBanner } from '@/components/shared/simulator-hero-banner'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import {
   Select,
@@ -78,62 +80,112 @@ const simuladorSchema = z.object({
 
 type SimuladorFormData = z.infer<typeof simuladorSchema>
 
-// ─── Exportación Oficial a PDF (8 Columnas y Resumen Normativo) ──────────────
+// ─── Exportación Oficial a PDF con Paleta Corporativa Moderna ────────────────
 function exportarSimulacionPdf(data: SimulacionClienteResponse, clienteNombre?: string | null) {
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
 
-  // Cabecera Corporativa Brand Teal
-  doc.setFillColor(8, 116, 123)
-  doc.rect(0, 0, 297, 24, 'F')
+  // Paleta Corporativa Oficial
+  const primaryTeal = [8, 116, 123] // #08747b
+  const secondaryGold = [148, 105, 40] // #946928
+  const textDark = [32, 37, 39] // #202527
+  const textMuted = [88, 96, 100] // #586064
+  const bgSurface = [248, 250, 250] // #f8fafa
+  const borderLight = [218, 221, 221] // #dadddd
 
+  // 1. Barra de Cabecera Corporativa Brand Teal
+  doc.setFillColor(primaryTeal[0], primaryTeal[1], primaryTeal[2])
+  doc.rect(0, 0, 297, 22, 'F')
+
+  // Línea dorada de acento
+  doc.setFillColor(secondaryGold[0], secondaryGold[1], secondaryGold[2])
+  doc.rect(0, 22, 297, 1.5, 'F')
+
+  // Título en cabecera
   doc.setTextColor(255, 255, 255)
-  doc.setFontSize(15)
+  doc.setFontSize(14)
   doc.setFont('helvetica', 'bold')
-  doc.text('TABLA OFICIAL DE AMORTIZACIÓN — SIMULADOR DE CRÉDITO', 14, 11)
+  doc.text('TABLA OFICIAL DE AMORTIZACIÓN — SISTEMA FINANCIERO', 14, 11)
 
-  doc.setFontSize(8.5)
+  doc.setFontSize(8)
   doc.setFont('helvetica', 'normal')
-  doc.text('Sistema Financiero Ecuatoriano • Normativa del Banco Central del Ecuador (BCE)', 14, 17)
-  doc.text(
-    `Emisión: ${new Date().toLocaleDateString('es-EC')} ${new Date().toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' })}`,
-    220,
-    17
-  )
+  doc.text('Normativa Oficial de Regulación BCE / SB • Simulación Oficial de Crédito y Desgravamen', 14, 17)
 
-  // Resumen Operativo
-  doc.setTextColor(32, 37, 39)
-  doc.setFontSize(9.5)
+  const fechaEmision = `${new Date().toLocaleDateString('es-EC')} ${new Date().toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' })}`
+  doc.text(`Emisión: ${fechaEmision}`, 283, 15, { align: 'right' })
+
+  // 2. Título de Sección y Solicitante
+  doc.setTextColor(textDark[0], textDark[1], textDark[2])
+  doc.setFontSize(10)
   doc.setFont('helvetica', 'bold')
-  doc.text('CONDICIONES GENERALES DEL CRÉDITO' + (clienteNombre ? ` — Solicitante: ${clienteNombre}` : ''), 14, 32)
+  const tituloCondiciones = 'CONDICIONES GENERALES DE LA OPERACIÓN' + (clienteNombre ? ` — Solicitante: ${clienteNombre}` : '')
+  doc.text(tituloCondiciones, 14, 30)
 
-  doc.setFontSize(8.5)
+  // 3. Grid de Parámetros (2 columnas de datos estructurados en caja)
+  doc.setFillColor(bgSurface[0], bgSurface[1], bgSurface[2])
+  doc.setDrawColor(borderLight[0], borderLight[1], borderLight[2])
+  doc.setLineWidth(0.3)
+  doc.roundedRect(14, 33, 145, 25, 2, 2, 'FD')
+
+  doc.setFontSize(8)
   doc.setFont('helvetica', 'normal')
-
-  const col1X = 14
-  const col2X = 85
-  const col3X = 158
-  const col4X = 230
-
-  doc.text(`Tipo de Crédito: ${data.nombreProducto}`, col1X, 38)
-  if (data.costoTotal) {
-    doc.text(`Costo del Bien / Servicio: ${fmt(data.costoTotal)}`, col1X, 44)
-  }
-  doc.text(`Segmento BCE: ${data.segmentoBce || 'Oficial'}`, col1X, 50)
-
-  doc.text(`Monto Solicitado: ${fmt(data.monto)}`, col2X, 38)
-  doc.text(`Frecuencia: ${data.frecuencia}`, col2X, 44)
-  doc.text(`Plazo: ${data.totalCuotas} ${data.frecuencia === 'ANUAL' ? 'años' : 'meses'}`, col2X, 50)
-
-  doc.text(`Tasa Nominal Anual: ${data.tasaInteresAnual}%`, col3X, 38)
-  doc.text(`Seguro Desgravamen: ${data.tasaDesgravamenMensual}% mensual`, col3X, 44)
-  doc.text(`Sistema: ${data.sistema === 'FRANCES' ? 'Francés (Cuota Fija)' : 'Alemán (Capital Fijo)'}`, col3X, 50)
+  doc.setTextColor(textMuted[0], textMuted[1], textMuted[2])
+  doc.text('Producto:', 18, 38)
+  doc.text('Entidad:', 18, 43)
+  doc.text('Segmento BCE:', 18, 48)
+  doc.text('Sistema:', 18, 53)
 
   doc.setFont('helvetica', 'bold')
-  doc.text(`Cuota Inicial: ${fmt(data.cuotaPeriodica)}`, col4X, 38)
-  doc.text(`Cargos Indirectos: ${fmt(data.totalCargosIndirectos || 0)}`, col4X, 44)
-  doc.text(`Total a Pagar: ${fmt(data.totalPagar)}`, col4X, 50)
+  doc.setTextColor(textDark[0], textDark[1], textDark[2])
+  doc.text(`${data.nombreProducto}`, 46, 38)
+  doc.text(`${data.entidad || 'Banco Comercial'}`, 46, 43)
+  doc.text(`${data.segmentoBce || 'General'}`, 46, 48)
+  doc.text(`${data.sistema === 'FRANCES' ? 'Francés (Cuota Fija)' : 'Alemán (Capital Fijo)'}`, 46, 53)
 
-  // 8 Columnas Exactas Oficiales
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(textMuted[0], textMuted[1], textMuted[2])
+  doc.text('Plazo:', 92, 38)
+  doc.text('Frecuencia:', 92, 43)
+  doc.text('Tasa Nominal:', 92, 48)
+  doc.text('Desgravamen:', 92, 53)
+
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(textDark[0], textDark[1], textDark[2])
+  doc.text(`${data.totalCuotas} ${data.frecuencia === 'ANUAL' ? 'años' : 'meses'}`, 120, 38)
+  doc.text(`${data.frecuencia}`, 120, 43)
+  doc.text(`${data.tasaInteresAnual}% anual`, 120, 48)
+  doc.text(`${data.tasaDesgravamenMensual}% mensual`, 120, 53)
+
+  // 4. Tarjetas KPI de Resumen Financiero a la derecha (4 bloques)
+  const kpiX = 165
+  const kpiW = 28
+  const kpiH = 25
+  const kpiGap = 3
+
+  const kpis = [
+    { label: 'MONTO FINANCIADO', value: fmt(data.monto), color: textDark, isTotal: false },
+    { label: 'TOTAL INTERESES', value: fmt(data.totalIntereses), color: primaryTeal, isTotal: false },
+    { label: 'DESGRAVAMEN', value: fmt(data.totalDesgravamen), color: secondaryGold, isTotal: false },
+    { label: 'TOTAL A PAGAR', value: fmt(data.totalPagar), color: textDark, isTotal: true },
+  ]
+
+  kpis.forEach((kpi, idx) => {
+    const x = kpiX + idx * (kpiW + kpiGap)
+    doc.setFillColor(kpi.isTotal ? 232 : 248, kpi.isTotal ? 244 : 250, kpi.isTotal ? 244 : 250)
+    doc.setDrawColor(borderLight[0], borderLight[1], borderLight[2])
+    doc.roundedRect(x, 33, kpiW, kpiH, 1.5, 1.5, 'FD')
+
+    doc.setFontSize(6.5)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(textMuted[0], textMuted[1], textMuted[2])
+    doc.text(kpi.label, x + kpiW / 2, 40, { align: 'center' })
+
+    doc.setFontSize(8.5)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(kpi.color[0], kpi.color[1], kpi.color[2])
+    doc.text(kpi.value, x + kpiW / 2, 49, { align: 'center' })
+  })
+
+  // 5. Tabla Oficial de Amortización con desglose completo
   const head = [[
     'No.',
     'Saldo Inicial',
@@ -159,41 +211,50 @@ function exportarSimulacionPdf(data: SimulacionClienteResponse, clienteNombre?: 
   autoTable(doc, {
     head,
     body,
-    startY: 55,
+    startY: 62,
+    margin: { left: 14, right: 14 },
     theme: 'grid',
     styles: {
-      fontSize: 8,
+      fontSize: 7.5,
       cellPadding: 2,
       halign: 'right',
       font: 'helvetica',
       textColor: [32, 37, 39],
+      lineColor: [225, 230, 230],
+      lineWidth: 0.15,
     },
     headStyles: {
       fillColor: [8, 116, 123],
       textColor: [255, 255, 255],
       fontStyle: 'bold',
       halign: 'right',
+      fontSize: 7.5,
+      cellPadding: 2.5,
     },
     alternateRowStyles: {
-      fillColor: [248, 250, 250],
+      fillColor: [248, 251, 251],
     },
     columnStyles: {
-      0: { halign: 'center', cellWidth: 15 },
-      6: { fontStyle: 'bold', fillColor: [240, 248, 248] },
+      0: { halign: 'center', cellWidth: 12 },
+      6: { fontStyle: 'bold', fillColor: [235, 246, 246], textColor: [8, 116, 123] },
+    },
+    didDrawPage: (pageData) => {
+      // Pie de página en cada hoja
+      doc.setFontSize(7)
+      doc.setFont('helvetica', 'italic')
+      doc.setTextColor(textMuted[0], textMuted[1], textMuted[2])
+      doc.text(
+        '* Simulación referencial calculada con tasas vigentes de la Junta de Política y Regulación Financiera y Banco Central del Ecuador (BCE).',
+        14,
+        202
+      )
+      const pageStr = `Página ${pageData.pageNumber} de ${doc.getNumberOfPages()}`
+      doc.setFont('helvetica', 'normal')
+      doc.text(pageStr, 283, 202, { align: 'right' })
     },
   })
 
-  const finalY = (doc as any).lastAutoTable?.finalY || 180
-  doc.setFontSize(7.5)
-  doc.setFont('helvetica', 'italic')
-  doc.setTextColor(120, 130, 133)
-  doc.text(
-    '* Simulación referencial calculada con tasas y cargos vigentes según resolución del Banco Central del Ecuador (BCE) y Junta de Política y Regulación Financiera.',
-    14,
-    Math.min(finalY + 8, 200)
-  )
-
-  const nombreArchivo = `Amortizacion_${data.nombreProducto.replace(/\s+/g, '_')}_${data.monto}USD.pdf`
+  const nombreArchivo = `Amortizacion_${(data.nombreProducto || 'Credito').replace(/\s+/g, '_')}_${data.monto}USD.pdf`
   doc.save(nombreArchivo)
 }
 
@@ -357,486 +418,533 @@ export function SimuladorClientePage() {
   }
 
   return (
-    <main id="contenido" className="mx-auto max-w-7xl px-5 py-10 sm:px-8 lg:py-14 space-y-8">
-      {/* ── Banner condicional para Asesor / Administrador ─────────────── */}
-      {isAsesor && (
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-xl bg-brand-teal/5 border border-brand-teal/20 text-xs">
-          <div className="flex items-center gap-2.5 text-foreground">
-            <span className="flex size-2 rounded-full bg-brand-teal animate-pulse" />
-            <span>
-              Sesión activa como <strong className="font-semibold text-foreground">Asesor Financiero</strong> ({usuario?.nombre}). La configuración y cargos de cada crédito provienen de la parametrización interna.
-            </span>
+    <main id="contenido" className="space-y-0">
+      {/* ── Hero Banner de develop con Persona e Información Institucional ── */}
+      <SimulatorHeroBanner
+        breadcrumbs={[
+          { label: 'Inicio', href: '/' },
+          { label: 'Servicios', href: '/#servicios' },
+          { label: 'Simulador de crédito' },
+        ]}
+        accentBadge="Simulador Oficial BCE"
+        title="Simulador de Crédito"
+        description="Calcula tu cronograma de pagos oficial conforme a la normativa vigente del Banco Central del Ecuador (BCE), con seguro de desgravamen y cargos transparentes."
+        imageSrc={creditPersonImage}
+        imageAlt="Persona simulando su crédito"
+      />
+
+      <div className="mx-auto max-w-7xl px-5 py-8 sm:px-8 lg:py-10 space-y-8">
+        {/* ── Banner condicional para Asesor / Administrador ─────────────── */}
+        {isAsesor && (
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-xl bg-brand-teal/5 border border-brand-teal/20 text-xs">
+            <div className="flex items-center gap-2.5 text-foreground">
+              <span className="flex size-2 rounded-full bg-brand-teal animate-pulse" />
+              <span>
+                Sesión activa como <strong className="font-semibold text-foreground">Asesor Financiero</strong> ({usuario?.nombre}). La configuración y cargos de cada crédito provienen de la parametrización interna.
+              </span>
+            </div>
+            <Button asChild size="sm" variant="outline" className="border-brand-teal/30 text-brand-teal hover:bg-brand-teal/10 gap-1.5 shrink-0">
+              <Link to="/admin/creditos">
+                Administrar Productos
+                <ArrowRight className="size-3.5" />
+              </Link>
+            </Button>
           </div>
-          <Button asChild size="sm" variant="outline" className="border-brand-teal/30 text-brand-teal hover:bg-brand-teal/10 gap-1.5 shrink-0">
-            <Link to="/admin/creditos">
-              Administrar Productos
-              <ArrowRight className="size-3.5" />
-            </Link>
-          </Button>
-        </div>
-      )}
+        )}
 
-      {/* ── Encabezado Principal ────────────────────────────────────────── */}
-      <div className="text-center max-w-3xl mx-auto space-y-2">
-        <h1 className="font-heading text-3xl font-normal tracking-tight text-foreground sm:text-4xl">
-          Simulador de Crédito
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Calcula tu cronograma de pagos oficial conforme a la normativa vigente del Banco Central del Ecuador (BCE), con seguro de desgravamen y cargos indirectos transparentes.
-        </p>
-      </div>
-
-      {/* ── Layout de Dos Columnas (Formulario vs Resumen) ─────────────── */}
-      <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-        {/* ── Columna Izquierda: Formulario de Parámetros ──────────────── */}
-        <div className="space-y-6">
-          <Card className="rounded-xl border bg-card shadow-xs">
-            <CardHeader className="border-b pb-4">
-              <div className="flex items-center gap-3">
-                <div className="flex size-9 items-center justify-center rounded-lg bg-brand-teal/10 text-brand-teal">
-                  <Calculator className="size-5" />
-                </div>
-                <div>
-                  <CardTitle className="text-base text-foreground font-sans font-medium">
-                    Parámetros del Crédito
-                  </CardTitle>
-                  <CardDescription className="text-xs text-muted-foreground">
-                    Ingresa las condiciones deseadas para tu financiamiento
-                  </CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-
-            <CardContent className="pt-6">
-              <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-                
-                {/* 1. ComboBox Único: Tipo de Crédito (Cargado dinámicamente desde BD) */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-xs font-medium text-foreground flex items-center gap-1.5">
-                      <Receipt className="size-3.5 text-brand-teal" />
-                      Tipo de crédito
-                    </Label>
-                    <span className="text-[10px] text-brand-teal font-medium">Configuración oficial</span>
-                  </div>
-                  <Controller
-                    name="productoId"
-                    control={control}
-                    render={({ field }) => (
-                      <Select
-                        onValueChange={(val) => field.onChange(Number(val))}
-                        value={field.value ? String(field.value) : ''}
-                      >
-                        <SelectTrigger className="w-full text-xs">
-                          <SelectValue placeholder="Seleccione un tipo de crédito" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {productosDisponibles.map((prod) => (
-                            <SelectItem key={prod.id} value={String(prod.id)}>
-                              {prod.nombre}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                  />
-                  {errors.productoId && (
-                    <p className="text-[11px] text-destructive">{errors.productoId.message}</p>
-                  )}
-                  {productoSeleccionado.descripcion && (
-                    <p className="text-[11px] text-muted-foreground leading-snug">
-                      {productoSeleccionado.descripcion}
-                    </p>
-                  )}
-                </div>
-
-                {/* Tarjeta de Solo Lectura: Tasa Nominal, Desgravamen y Cargos */}
-                <div className="p-3.5 rounded-xl bg-muted/40 border border-border space-y-2.5 text-xs">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-0.5">
-                      <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                        <Percent className="size-3 text-brand-teal" />
-                        <span>Tasa Nominal</span>
-                      </div>
-                      <div className="font-sans font-semibold text-sm text-foreground">
-                        {productoSeleccionado.tasaNominal.toFixed(2)}%{' '}
-                        <span className="text-[10px] font-normal text-muted-foreground">anual</span>
-                      </div>
-                      <p className="text-[10px] text-muted-foreground">Regulación BCE</p>
-                    </div>
-
-                    <div className="space-y-0.5">
-                      <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                        <ShieldCheck className="size-3 text-brand-teal" />
-                        <span>Desgravamen</span>
-                      </div>
-                      <div className="font-sans font-semibold text-sm text-foreground">
-                        {productoSeleccionado.desgravamen.toFixed(4)}%{' '}
-                        <span className="text-[10px] font-normal text-muted-foreground">mensual</span>
-                      </div>
-                      <p className="text-[10px] text-muted-foreground">Sobre saldo deudor</p>
-                    </div>
-                  </div>
-
-                  {/* Cargos Indirectos Asociados (si existen) */}
-                  {productoSeleccionado.cargosIndirectos && productoSeleccionado.cargosIndirectos.length > 0 && (
-                    <div className="pt-2 border-t border-border/60">
-                      <div className="flex items-center gap-1 text-[11px] text-muted-foreground mb-1">
-                        <FileCheck2 className="size-3 text-brand-gold" />
-                        <span className="font-medium text-foreground">Cargos Indirectos aplicables:</span>
-                      </div>
-                      <div className="space-y-1">
-                        {productoSeleccionado.cargosIndirectos.map((c, i) => (
-                          <div key={i} className="flex justify-between text-[11px] text-muted-foreground">
-                            <span>• {c.nombre}:</span>
-                            <span className="font-medium text-foreground">
-                              {c.tipoCargo === 'PORCENTAJE' ? `${c.valor}% (${c.baseCalculo.toLowerCase()})` : `$${c.valor} (${c.periodicidad.toLowerCase()})`}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* 2. Campo: ¿Cuánto cuesta el bien/servicio? */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="costoTotal" className="text-xs font-medium text-foreground flex items-center gap-1.5">
-                      <ShoppingBag className="size-3.5 text-brand-teal" />
-                      ¿Cuánto cuesta el bien/servicio?
-                    </Label>
-                    <span className="font-sans text-muted-foreground text-xs">{fmt(costoTotalActual)}</span>
-                  </div>
-                  <div className="relative">
-                    <span className="absolute left-3 top-2 text-muted-foreground text-xs font-medium">$</span>
-                    <Input
-                      id="costoTotal"
-                      type="number"
-                      step="50"
-                      className="pl-7 text-xs"
-                      {...register('costoTotal', { valueAsNumber: true })}
-                    />
-                  </div>
-                  {errors.costoTotal && (
-                    <p className="text-[11px] text-destructive">{errors.costoTotal.message}</p>
-                  )}
-                  <p className="text-[10px] text-muted-foreground">
-                    Valor total del bien, vehículo, inmueble o servicio a adquirir.
-                  </p>
-                </div>
-
-                {/* 3. Campo: ¿Cuánto desea prestar? */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="monto" className="text-xs font-medium text-foreground flex items-center gap-1.5">
-                      <Coins className="size-3.5 text-brand-teal" />
-                      ¿Cuánto desea prestar?
-                    </Label>
-                    <span className="font-sans text-brand-teal font-medium text-xs">{fmt(montoActual)}</span>
-                  </div>
-                  <div className="relative">
-                    <span className="absolute left-3 top-2 text-muted-foreground text-xs font-medium">$</span>
-                    <Input
-                      id="monto"
-                      type="number"
-                      step="50"
-                      min={productoSeleccionado.montoMin}
-                      max={productoSeleccionado.montoMax}
-                      className="pl-7 text-xs"
-                      {...register('monto', { valueAsNumber: true })}
-                    />
-                  </div>
-                  {errors.monto && (
-                    <p className="text-[11px] text-destructive">{errors.monto.message}</p>
-                  )}
-                  <div className="flex justify-between items-center text-[10px] text-muted-foreground pt-0.5">
-                    <span>Mín: {fmt(productoSeleccionado.montoMin)}</span>
-                    <span>Máx: {fmt(productoSeleccionado.montoMax)}</span>
-                  </div>
-                </div>
-
-                {/* 4. Campo: Plazo (¿En cuánto tiempo desea pagar?) */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="plazo" className="text-xs font-medium text-foreground flex items-center gap-1.5">
-                      <Calendar className="size-3.5 text-brand-teal" />
-                      ¿En cuánto tiempo desea pagar?
-                    </Label>
-                    <span className="text-muted-foreground text-xs">
-                      {plazoActual} {etiquetaPlazo}
-                    </span>
-                  </div>
-                  <div className="relative">
-                    <Input
-                      id="plazo"
-                      type="number"
-                      min={productoSeleccionado.plazoMin}
-                      max={productoSeleccionado.plazoMax}
-                      className="text-xs pr-16"
-                      {...register('plazo', { valueAsNumber: true })}
-                    />
-                    <span className="absolute right-3 top-2 text-xs text-muted-foreground font-medium uppercase">
-                      {etiquetaPlazo}
-                    </span>
-                  </div>
-                  {errors.plazo && (
-                    <p className="text-[11px] text-destructive">{errors.plazo.message}</p>
-                  )}
-                  <div className="flex justify-between text-[10px] text-muted-foreground pt-0.5">
-                    <span>Mín: {productoSeleccionado.plazoMin} {etiquetaPlazo}</span>
-                    <span>Máx: {productoSeleccionado.plazoMax} {etiquetaPlazo}</span>
-                  </div>
-                </div>
-
-                {/* 5. Campo: Sistema de Amortización (Filtrado según producto) */}
-                <div className="space-y-2">
-                  <Label className="text-xs font-medium text-foreground">
-                    Sistema de Amortización
-                  </Label>
-                  <div className="space-y-2 pt-0.5">
-                    {/* Opción Francés */}
-                    {productoSeleccionado.sistemasPermitidos.includes('FRANCES') && (
-                      <div
-                        onClick={() => setValue('sistema', 'FRANCES')}
-                        className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
-                          sistemaActual === 'FRANCES'
-                            ? 'border-brand-teal bg-brand-teal/5 shadow-2xs'
-                            : 'border-border hover:bg-muted/30'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium text-xs text-foreground">
-                            Sistema Francés (Cuota Fija)
-                          </span>
-                          {sistemaActual === 'FRANCES' && (
-                            <CheckCircle2 className="size-4 text-brand-teal" />
-                          )}
-                        </div>
-                        <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
-                          Cuota constante en cada período. El interés decrece progresivamente mientras que el abono al capital aumenta.
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Opción Alemán */}
-                    {productoSeleccionado.sistemasPermitidos.includes('ALEMAN') && (
-                      <div
-                        onClick={() => setValue('sistema', 'ALEMAN')}
-                        className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
-                          sistemaActual === 'ALEMAN'
-                            ? 'border-brand-teal bg-brand-teal/5 shadow-2xs'
-                            : 'border-border hover:bg-muted/30'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium text-xs text-foreground">
-                            Sistema Alemán (Capital Constante)
-                          </span>
-                          {sistemaActual === 'ALEMAN' && (
-                            <CheckCircle2 className="size-4 text-brand-teal" />
-                          )}
-                        </div>
-                        <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
-                          Abono de capital idéntico en cada período. Las cuotas iniciales son mayores y descienden progresivamente.
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Mensaje si el producto permite solo uno */}
-                    {productoSeleccionado.sistemasPermitidos.length === 1 && (
-                      <p className="text-[10px] text-muted-foreground italic flex items-center gap-1">
-                        <Info className="size-3 text-brand-teal" />
-                        Este tipo de crédito está configurado exclusivamente para operar bajo el sistema seleccionado.
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Botón Principal de Simulación */}
-                <div className="pt-2 relative z-10">
-                  <Button
-                    type="submit"
-                    variant="brand"
-                    className="w-full gap-2 font-medium text-sm cursor-pointer transition-all hover:bg-brand-teal/90 active:scale-[0.99] relative z-10"
-                    disabled={mutation.isPending}
-                  >
-                    {mutation.isPending ? (
-                      <>
-                        <RefreshCw className="size-4 animate-spin" />
-                        <span>Calculando amortización oficial…</span>
-                      </>
-                    ) : (
-                      <>
-                        <Calculator className="size-4" />
-                        <span>Simular crédito</span>
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* ── Columna Derecha: Tarjeta de Resumen o Estado Inicial (Sticky Desktop) ── */}
-        <div className="space-y-6 lg:sticky lg:top-24">
-          {resultado ? (
-            <Card className="rounded-xl border bg-card shadow-xs overflow-hidden">
+        {/* ── Layout de Dos Columnas (Formulario vs Resumen y Tabla) ─────── */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          {/* ── Columna Izquierda: Formulario de Parámetros (5 Cols) ─────── */}
+          <div className="lg:col-span-5 space-y-6">
+            <Card className="rounded-xl border bg-card shadow-xs">
               <CardHeader className="border-b pb-4">
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex size-9 items-center justify-center rounded-lg bg-brand-teal/10 text-brand-teal">
+                    <Calculator className="size-5" />
+                  </div>
                   <div>
                     <CardTitle className="text-base text-foreground font-sans font-medium">
-                      Resumen del Crédito
+                      Parámetros del Crédito
                     </CardTitle>
                     <CardDescription className="text-xs text-muted-foreground">
-                      {resultado.nombreProducto} · {resultado.totalCuotas} {resultado.frecuencia === 'ANUAL' ? 'años' : 'meses'} · Tasa: {resultado.tasaInteresAnual}%
+                      Ingresa las condiciones deseadas para tu financiamiento
                     </CardDescription>
                   </div>
-                  <Badge variant="outline" className="text-xs shrink-0">
-                    {resultado.sistema === 'FRANCES' ? 'Francés (Cuota Fija)' : 'Alemán (Capital Fijo)'}
-                  </Badge>
                 </div>
               </CardHeader>
 
-              <CardContent className="p-6 space-y-5">
-                {/* 1. Cuota Mensual Destacada */}
-                <div className="rounded-xl bg-brand-teal/5 border border-brand-teal/20 p-5 text-center sm:text-left space-y-1.5">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-xs font-semibold uppercase tracking-wider text-brand-teal">
-                      Cuota {resultado.frecuencia === 'ANUAL' ? 'Anual' : 'Mensual'} Estimada
-                    </span>
-                    <Badge variant="outline" className="text-[11px] border-brand-teal/40 text-brand-teal bg-brand-teal/10">
-                      {resultado.sistema === 'FRANCES' ? 'Cuota Fija' : 'Primera Cuota'}
-                    </Badge>
-                  </div>
-                  <div className="text-3xl sm:text-4xl font-semibold tracking-tight text-foreground font-sans">
-                    {fmt(resultado.cuotaPeriodica)}
-                  </div>
-                  <p className="text-[11px] text-muted-foreground">
-                    {resultado.sistema === 'FRANCES'
-                      ? 'Cuota regular constante calculada bajo el sistema francés.'
-                      : 'Monto de la primera cuota estimada. El valor decrece periódicamente.'}
-                  </p>
-                </div>
-
-                {/* 2. Desglose de la Cuota (Capital + Interés + Seguro de Desgravamen) */}
-                <div className="rounded-xl bg-muted/40 border border-border/70 p-4 space-y-2.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium text-foreground">
-                      Desglose de la cuota {resultado.sistema === 'ALEMAN' && '(Cuota 1)'}
-                    </span>
-                    <span className="text-[10px] text-muted-foreground">
-                      Capital + Interés + Seguro
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-2 text-center">
-                    <div className="rounded-lg bg-background/80 p-2 border border-border/60">
-                      <span className="text-[10px] text-muted-foreground uppercase tracking-wide block">
-                        Capital
-                      </span>
-                      <span className="text-xs sm:text-sm font-semibold text-foreground font-sans">
-                        {fmt(resultado.tablaCuotas[0]?.capital)}
-                      </span>
+              <CardContent className="pt-6">
+                <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+                  
+                  {/* 1. ComboBox Único: Tipo de Crédito (Cargado dinámicamente desde BD) */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-medium text-foreground flex items-center gap-1.5">
+                        <Receipt className="size-3.5 text-brand-teal" />
+                        Tipo de crédito
+                      </Label>
+                      <span className="text-[10px] text-brand-teal font-medium">Configuración oficial</span>
                     </div>
-
-                    <div className="rounded-lg bg-background/80 p-2 border border-border/60">
-                      <span className="text-[10px] text-muted-foreground uppercase tracking-wide block">
-                        Interés
-                      </span>
-                      <span className="text-xs sm:text-sm font-semibold text-foreground font-sans">
-                        {fmt(resultado.tablaCuotas[0]?.interes)}
-                      </span>
-                    </div>
-
-                    <div className="rounded-lg bg-background/80 p-2 border border-border/60">
-                      <span className="text-[10px] text-brand-gold uppercase tracking-wide block">
-                        Seguro
-                      </span>
-                      <span className="text-xs sm:text-sm font-semibold text-brand-gold font-sans">
-                        {fmt(resultado.tablaCuotas[0]?.desgravamen)}
-                      </span>
-                    </div>
+                    <Controller
+                      name="productoId"
+                      control={control}
+                      render={({ field }) => (
+                        <Select
+                          onValueChange={(val) => field.onChange(Number(val))}
+                          value={field.value ? String(field.value) : ''}
+                        >
+                          <SelectTrigger className="w-full text-xs">
+                            <SelectValue placeholder="Seleccione un tipo de crédito" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {productosDisponibles.map((prod) => (
+                              <SelectItem key={prod.id} value={String(prod.id)}>
+                                {prod.nombre}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
+                    {errors.productoId && (
+                      <p className="text-[11px] text-destructive">{errors.productoId.message}</p>
+                    )}
+                    {productoSeleccionado.descripcion && (
+                      <p className="text-[11px] text-muted-foreground leading-snug">
+                        {productoSeleccionado.descripcion}
+                      </p>
+                    )}
                   </div>
 
-                  <div className="flex items-center justify-center gap-1.5 text-[11px] text-muted-foreground pt-0.5">
-                    <span className="font-medium text-foreground">{fmt(resultado.tablaCuotas[0]?.capital)}</span>
-                    <span>+</span>
-                    <span className="font-medium text-foreground">{fmt(resultado.tablaCuotas[0]?.interes)}</span>
-                    <span>+</span>
-                    <span className="font-medium text-brand-gold">{fmt(resultado.tablaCuotas[0]?.desgravamen)}</span>
-                    <span>=</span>
-                    <span className="font-semibold text-brand-teal">{fmt(resultado.cuotaPeriodica)}</span>
-                  </div>
-                </div>
+                  {/* Tarjeta de Solo Lectura: Tasa Nominal, Desgravamen y Cargos */}
+                  <div className="p-3.5 rounded-xl bg-muted/40 border border-border space-y-2.5 text-xs">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                          <Percent className="size-3 text-brand-teal" />
+                          <span>Tasa Nominal</span>
+                        </div>
+                        <div className="font-sans font-semibold text-sm text-foreground">
+                          {productoSeleccionado.tasaNominal.toFixed(2)}%{' '}
+                          <span className="text-[10px] font-normal text-muted-foreground">anual</span>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground">Regulación BCE</p>
+                      </div>
 
-                {/* 3. Detalle General del Crédito */}
-                <div className="space-y-2.5 pt-1">
-                  <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Detalle General
-                  </h4>
-                  <div className="rounded-xl border border-border/70 divide-y divide-border/60 overflow-hidden bg-card/60">
-                    <div className="flex justify-between items-center px-4 py-2.5 text-xs">
-                      <span className="text-muted-foreground">Capital total prestado</span>
-                      <span className="font-medium text-foreground">{fmt(resultado.monto)}</span>
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                          <ShieldCheck className="size-3 text-brand-teal" />
+                          <span>Desgravamen</span>
+                        </div>
+                        <div className="font-sans font-semibold text-sm text-foreground">
+                          {productoSeleccionado.desgravamen.toFixed(4)}%{' '}
+                          <span className="text-[10px] font-normal text-muted-foreground">mensual</span>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground">Sobre saldo deudor</p>
+                      </div>
                     </div>
-                    <div className="flex justify-between items-center px-4 py-2.5 text-xs">
-                      <span className="text-muted-foreground">Total de intereses</span>
-                      <span className="font-medium text-foreground">{fmt(resultado.totalIntereses)}</span>
-                    </div>
-                    <div className="flex justify-between items-center px-4 py-2.5 text-xs">
-                      <span className="text-muted-foreground">Total de seguro (Desgravamen)</span>
-                      <span className="font-medium text-brand-gold">{fmt(resultado.totalDesgravamen)}</span>
-                    </div>
-                    {Boolean(resultado.totalCargosIndirectos) && (
-                      <div className="flex justify-between items-center px-4 py-2.5 text-xs">
-                        <span className="text-muted-foreground">Total cargos indirectos</span>
-                        <span className="font-medium text-foreground">{fmt(resultado.totalCargosIndirectos)}</span>
+
+                    {/* Cargos Indirectos Asociados (si existen) */}
+                    {productoSeleccionado.cargosIndirectos && productoSeleccionado.cargosIndirectos.length > 0 && (
+                      <div className="pt-2 border-t border-border/60">
+                        <div className="flex items-center gap-1 text-[11px] text-muted-foreground mb-1">
+                          <FileCheck2 className="size-3 text-brand-gold" />
+                          <span className="font-medium text-foreground">Cargos Indirectos aplicables:</span>
+                        </div>
+                        <div className="space-y-1">
+                          {productoSeleccionado.cargosIndirectos.map((c, i) => (
+                            <div key={i} className="flex justify-between text-[11px] text-muted-foreground">
+                              <span>• {c.nombre}:</span>
+                              <span className="font-medium text-foreground">
+                                {c.tipoCargo === 'PORCENTAJE' ? `${c.valor}% (${c.baseCalculo.toLowerCase()})` : `$${c.valor} (${c.periodicidad.toLowerCase()})`}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     )}
-                    <div className="flex justify-between items-center px-4 py-3 text-xs bg-muted/30">
-                      <span className="font-semibold text-foreground text-sm">Gran Total a Pagar</span>
-                      <span className="font-bold text-brand-teal text-base">{fmt(resultado.totalPagar)}</span>
+                  </div>
+
+                  {/* 2. Campo: ¿Cuánto cuesta el bien/servicio? */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="costoTotal" className="text-xs font-medium text-foreground flex items-center gap-1.5">
+                        <ShoppingBag className="size-3.5 text-brand-teal" />
+                        ¿Cuánto cuesta el bien/servicio?
+                      </Label>
+                      <span className="font-sans text-muted-foreground text-xs">{fmt(costoTotalActual)}</span>
                     </div>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2 text-muted-foreground text-xs font-medium">$</span>
+                      <Input
+                        id="costoTotal"
+                        type="number"
+                        step="50"
+                        className="pl-7 text-xs"
+                        {...register('costoTotal', { valueAsNumber: true })}
+                      />
+                    </div>
+                    {errors.costoTotal && (
+                      <p className="text-[11px] text-destructive">{errors.costoTotal.message}</p>
+                    )}
+                    <p className="text-[10px] text-muted-foreground">
+                      Valor total del bien, vehículo, inmueble o servicio a adquirir.
+                    </p>
+                  </div>
+
+                  {/* 3. Campo: ¿Cuánto desea prestar? */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="monto" className="text-xs font-medium text-foreground flex items-center gap-1.5">
+                        <Coins className="size-3.5 text-brand-teal" />
+                        ¿Cuánto desea prestar?
+                      </Label>
+                      <span className="font-sans text-brand-teal font-medium text-xs">{fmt(montoActual)}</span>
+                    </div>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2 text-muted-foreground text-xs font-medium">$</span>
+                      <Input
+                        id="monto"
+                        type="number"
+                        step="50"
+                        min={productoSeleccionado.montoMin}
+                        max={productoSeleccionado.montoMax}
+                        className="pl-7 text-xs"
+                        {...register('monto', { valueAsNumber: true })}
+                      />
+                    </div>
+                    {errors.monto && (
+                      <p className="text-[11px] text-destructive">{errors.monto.message}</p>
+                    )}
+                    <div className="flex justify-between items-center text-[10px] text-muted-foreground pt-0.5">
+                      <span>Mín: {fmt(productoSeleccionado.montoMin)}</span>
+                      <span>Máx: {fmt(productoSeleccionado.montoMax)}</span>
+                    </div>
+
+                    {/* Chips de montos sugeridos (Estilo de develop) */}
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {[1000, 3000, 5000, 10000, 20000].map((val) => (
+                        <button
+                          key={val}
+                          type="button"
+                          onClick={() => setValue('monto', val)}
+                          className={`text-[11px] px-2.5 py-1 rounded-md border transition-all cursor-pointer ${
+                            montoActual === val
+                              ? 'bg-brand-teal text-brand-teal-foreground border-brand-teal font-medium shadow-2xs'
+                              : 'bg-background hover:bg-muted/60 text-muted-foreground border-border'
+                          }`}
+                        >
+                          ${val.toLocaleString()}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 4. Campo: Plazo (¿En cuánto tiempo desea pagar?) */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="plazo" className="text-xs font-medium text-foreground flex items-center gap-1.5">
+                        <Calendar className="size-3.5 text-brand-teal" />
+                        ¿En cuánto tiempo desea pagar?
+                      </Label>
+                      <span className="text-muted-foreground text-xs">
+                        {plazoActual} {etiquetaPlazo}
+                      </span>
+                    </div>
+                    <div className="relative">
+                      <Input
+                        id="plazo"
+                        type="number"
+                        min={productoSeleccionado.plazoMin}
+                        max={productoSeleccionado.plazoMax}
+                        className="text-xs pr-16"
+                        {...register('plazo', { valueAsNumber: true })}
+                      />
+                      <span className="absolute right-3 top-2 text-xs text-muted-foreground font-medium uppercase">
+                        {etiquetaPlazo}
+                      </span>
+                    </div>
+                    {errors.plazo && (
+                      <p className="text-[11px] text-destructive">{errors.plazo.message}</p>
+                    )}
+                    <div className="flex justify-between text-[10px] text-muted-foreground pt-0.5">
+                      <span>Mín: {productoSeleccionado.plazoMin} {etiquetaPlazo}</span>
+                      <span>Máx: {productoSeleccionado.plazoMax} {etiquetaPlazo}</span>
+                    </div>
+                  </div>
+
+                  {/* 5. Campo: Sistema de Amortización (Filtrado según producto) */}
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium text-foreground">
+                      Sistema de Amortización
+                    </Label>
+                    <div className="space-y-2 pt-0.5">
+                      {/* Opción Francés */}
+                      {productoSeleccionado.sistemasPermitidos.includes('FRANCES') && (
+                        <div
+                          onClick={() => setValue('sistema', 'FRANCES')}
+                          className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
+                            sistemaActual === 'FRANCES'
+                              ? 'border-brand-teal bg-brand-teal/5 shadow-2xs'
+                              : 'border-border hover:bg-muted/30'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-medium text-xs text-foreground">
+                              Sistema Francés (Cuota Fija)
+                            </span>
+                            {sistemaActual === 'FRANCES' && (
+                              <CheckCircle2 className="size-4 text-brand-teal" />
+                            )}
+                          </div>
+                          <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+                            Cuota constante en cada período. El interés decrece progresivamente mientras que el abono al capital aumenta.
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Opción Alemán */}
+                      {productoSeleccionado.sistemasPermitidos.includes('ALEMAN') && (
+                        <div
+                          onClick={() => setValue('sistema', 'ALEMAN')}
+                          className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
+                            sistemaActual === 'ALEMAN'
+                              ? 'border-brand-teal bg-brand-teal/5 shadow-2xs'
+                              : 'border-border hover:bg-muted/30'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-medium text-xs text-foreground">
+                              Sistema Alemán (Capital Constante)
+                            </span>
+                            {sistemaActual === 'ALEMAN' && (
+                              <CheckCircle2 className="size-4 text-brand-teal" />
+                            )}
+                          </div>
+                          <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+                            Abono de capital idéntico en cada período. Las cuotas iniciales son mayores y descienden progresivamente.
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Mensaje si el producto permite solo uno */}
+                      {productoSeleccionado.sistemasPermitidos.length === 1 && (
+                        <p className="text-[10px] text-muted-foreground italic flex items-center gap-1">
+                          <Info className="size-3 text-brand-teal" />
+                          Este tipo de crédito está configurado exclusivamente para operar bajo el sistema seleccionado.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Botón Principal de Simulación */}
+                  <div className="pt-2 relative z-10">
+                    <Button
+                      type="submit"
+                      variant="brand"
+                      className="w-full gap-2 font-medium text-sm cursor-pointer transition-all hover:bg-brand-teal/90 active:scale-[0.99] relative z-10"
+                      disabled={mutation.isPending}
+                    >
+                      {mutation.isPending ? (
+                        <>
+                          <RefreshCw className="size-4 animate-spin" />
+                          <span>Calculando amortización oficial…</span>
+                        </>
+                      ) : (
+                        <>
+                          <Calculator className="size-4" />
+                          <span>Simular crédito</span>
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* ── Columna Derecha: Tarjeta de Resumen y Tabla Oficial (7 Cols - Sticky Desktop) ── */}
+          <div className="lg:col-span-7 space-y-6 lg:sticky lg:top-24">
+            {resultado ? (
+              <div className="space-y-6">
+                {/* Encabezado de Resultados y Acciones (Línea gráfica develop) */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
+                  <div>
+                    <h2 className="text-xl font-heading font-medium text-foreground">
+                      Resultado de la Simulación
+                    </h2>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {resultado.nombreProducto} · {resultado.totalCuotas} {resultado.frecuencia === 'ANUAL' ? 'años' : 'meses'} · Tasa: {resultado.tasaInteresAnual}% anual · {resultado.sistema === 'FRANCES' ? 'Sistema Francés (Cuota Fija)' : 'Sistema Alemán (Capital Fijo)'}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      onClick={() => setModalTablaAbierto(true)}
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5 shrink-0 border-border text-foreground hover:bg-muted cursor-pointer"
+                    >
+                      <TableProperties className="size-4" />
+                      <span>Ver Pantalla Completa</span>
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={() => exportarSimulacionPdf(resultado, usuario?.nombre)}
+                      variant="outline"
+                      size="sm"
+                      className="gap-2 shrink-0 border-brand-teal/30 text-brand-teal hover:bg-brand-teal/10 cursor-pointer"
+                    >
+                      <Download className="size-4" />
+                      <span>Descargar PDF</span>
+                    </Button>
                   </div>
                 </div>
 
-                {/* 4. Botón de Acción: Ver tabla de amortización */}
-                <div className="pt-2 relative z-10">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setModalTablaAbierto(true)}
-                    className="w-full gap-2 border-brand-teal/40 text-brand-teal hover:bg-brand-teal/10 hover:text-brand-teal font-medium text-xs sm:text-sm h-11 cursor-pointer transition-all relative z-10"
-                  >
-                    <TableProperties className="size-4" />
-                    <span>Ver tabla de amortización</span>
-                  </Button>
+                {/* 4 Métricas Clave (Nueva UI de develop) */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="rounded-xl border bg-card p-4 space-y-1 shadow-2xs">
+                    <span className="text-[11px] font-medium uppercase tracking-wider text-brand-teal">
+                      Cuota {resultado.frecuencia === 'ANUAL' ? 'Anual' : 'Mensual'}
+                    </span>
+                    <p className="text-2xl font-normal text-foreground font-sans tracking-tight">
+                      {fmt(resultado.cuotaPeriodica)}
+                    </p>
+                    <span className="text-[10px] text-muted-foreground block">
+                      {resultado.sistema === 'FRANCES' ? 'Cuota constante' : 'Primera cuota estimada'}
+                    </span>
+                  </div>
+
+                  <div className="rounded-xl border bg-card p-4 space-y-1 shadow-2xs">
+                    <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                      Total Interés
+                    </span>
+                    <p className="text-2xl font-normal text-foreground font-sans tracking-tight">
+                      {fmt(resultado.totalIntereses)}
+                    </p>
+                    <span className="text-[10px] text-muted-foreground block">
+                      Costo financiero
+                    </span>
+                  </div>
+
+                  <div className="rounded-xl border bg-card p-4 space-y-1 shadow-2xs">
+                    <span className="text-[11px] font-medium uppercase tracking-wider text-brand-gold">
+                      Total Desgravamen
+                    </span>
+                    <p className="text-2xl font-normal text-foreground font-sans tracking-tight">
+                      {fmt(resultado.totalDesgravamen)}
+                    </p>
+                    <span className="text-[10px] text-muted-foreground block">
+                      Sobre saldo deudor
+                    </span>
+                  </div>
+
+                  <div className="rounded-xl border bg-muted/40 p-4 space-y-1 shadow-2xs">
+                    <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                      Total a Pagar
+                    </span>
+                    <p className="text-2xl font-normal text-foreground font-sans tracking-tight">
+                      {fmt(resultado.totalPagar)}
+                    </p>
+                    <span className="text-[10px] text-muted-foreground block">
+                      {resultado.totalCuotas} cuotas totales
+                    </span>
+                  </div>
                 </div>
-              </CardContent>
-            </Card>
-          ) : (
-            /* Estado Inicial / Vacío */
-            <div className="flex flex-col items-center justify-center min-h-[460px] rounded-2xl border border-dashed border-border bg-card/50 p-8 text-center space-y-4">
-              <div className="flex size-14 items-center justify-center rounded-2xl bg-brand-teal/10 text-brand-teal">
-                <Calculator className="size-7 opacity-80" />
+
+                {/* ── Tabla Oficial de Amortización (Directamente embebida como en develop) ──────────── */}
+                <div className="overflow-hidden rounded-xl border bg-card shadow-2xs">
+                  <div className="flex items-center justify-between border-b px-5 py-4">
+                    <div>
+                      <h3 className="text-sm font-medium text-foreground">
+                        Tabla Oficial de Amortización
+                      </h3>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Cronograma detallado con desglose de capital, interés, seguro de desgravamen y cuota
+                      </p>
+                    </div>
+                    <Badge variant="secondary" className="text-xs">
+                      {resultado.totalCuotas} cuotas
+                    </Badge>
+                  </div>
+
+                  <div className="overflow-x-auto max-h-[520px]">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b text-left text-xs bg-muted/50 text-muted-foreground">
+                          <th className="p-3 text-center font-medium">No.</th>
+                          <th className="p-3 text-right font-medium">Saldo Inicial</th>
+                          <th className="p-3 text-right font-medium text-foreground">Capital</th>
+                          <th className="p-3 text-right font-medium">Interés</th>
+                          <th className="p-3 text-right font-medium text-brand-gold">Desgravamen</th>
+                          {Boolean(resultado.totalCargosIndirectos) && (
+                            <th className="p-3 text-right font-medium text-muted-foreground">Cargos</th>
+                          )}
+                          <th className="p-3 text-right font-medium text-brand-teal">Cuota Total</th>
+                          <th className="p-3 text-right font-medium">Saldo Final</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {resultado.tablaCuotas.map((c) => (
+                          <tr
+                            key={`cuota-row-${c.numeroCuota}`}
+                            className="border-b last:border-0 hover:bg-muted/40 transition-colors text-xs"
+                          >
+                            <td className="p-3 text-center text-muted-foreground font-medium">
+                              {c.numeroCuota}
+                            </td>
+                            <td className="p-3 text-right text-muted-foreground">
+                              {fmt(c.saldoInicial)}
+                            </td>
+                            <td className="p-3 text-right font-medium text-foreground">
+                              {fmt(c.capital)}
+                            </td>
+                            <td className="p-3 text-right text-muted-foreground">
+                              {fmt(c.interes)}
+                            </td>
+                            <td className="p-3 text-right text-brand-gold">
+                              {fmt(c.desgravamen)}
+                            </td>
+                            {Boolean(resultado.totalCargosIndirectos) && (
+                              <td className="p-3 text-right text-muted-foreground">
+                                {fmt(c.cargosIndirectos || 0)}
+                              </td>
+                            )}
+                            <td className="p-3 text-right font-semibold text-foreground bg-brand-teal/5">
+                              {fmt(c.cuotaTotal)}
+                            </td>
+                            <td className="p-3 text-right text-muted-foreground">
+                              {fmt(c.saldoFinal)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               </div>
-              <div className="max-w-md space-y-1.5">
-                <h3 className="font-heading text-xl font-normal text-foreground">
-                  Tu simulación aparecerá aquí
-                </h3>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  Selecciona el tipo de crédito, ingresa el costo del bien, el monto a financiar y el plazo, y presiona <strong className="text-foreground font-medium">"Simular crédito"</strong> para ver tu cronograma oficial con tasas de regulación BCE y seguro de desgravamen.
-                </p>
+            ) : (
+              /* Estado Inicial / Vacío */
+              <div className="flex flex-col items-center justify-center min-h-[460px] rounded-2xl border border-dashed border-border bg-card/50 p-8 text-center space-y-4">
+                <div className="flex size-14 items-center justify-center rounded-2xl bg-brand-teal/10 text-brand-teal">
+                  <Calculator className="size-7 opacity-80" />
+                </div>
+                <div className="max-w-md space-y-1.5">
+                  <h3 className="font-heading text-xl font-normal text-foreground">
+                    Tu simulación aparecerá aquí
+                  </h3>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Selecciona el tipo de crédito, ingresa el monto y plazo deseado, y presiona <strong className="text-foreground font-medium">"Simular crédito"</strong> para ver tu tabla oficial con seguro de desgravamen y descargar el reporte en PDF.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+                  <Badge variant="outline" className="text-xs">Normativa BCE Vigente</Badge>
+                  <Badge variant="outline" className="text-xs">Desgravamen sobre saldo</Badge>
+                  <Badge variant="outline" className="text-xs">Exportación PDF Oficial</Badge>
+                </div>
               </div>
-              <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
-                <Badge variant="outline" className="text-xs">Normativa BCE Vigente</Badge>
-                <Badge variant="outline" className="text-xs">Cargos Transparentes</Badge>
-                <Badge variant="outline" className="text-xs">Exportación PDF Oficial</Badge>
-              </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
 
