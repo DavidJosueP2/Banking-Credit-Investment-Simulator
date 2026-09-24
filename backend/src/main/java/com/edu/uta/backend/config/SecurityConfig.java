@@ -40,12 +40,26 @@ public class SecurityConfig {
                         "/api/auth/csrf",
                         "/api/auth/login",
                         "/api/auth/logout",
-                        "/api/simulador/**",
-                        "/api/creditos/**",
-                        "/api/public/**"
+                        "/api/public/**",
+                        "/api/simulador/calcular",
+                        "/api/simulador/productos",
+                        "/api/simulador/entidades",
+                        "/api/simulador/normativa/**",
+                        "/api/creditos/simular"
                 ))
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("/api/health", "/api/auth/csrf", "/api/auth/login", "/api/public/settings/**", "/api/public/investments/**", "/api/public/registration/**", "/api/creditos/**", "/api/simulador/**").permitAll()
+                        .requestMatchers(
+                                "/api/health",
+                                "/api/auth/csrf",
+                                "/api/auth/login",
+                                "/api/public/**",
+                                "/api/simulador/calcular",
+                                "/api/simulador/productos",
+                                "/api/simulador/entidades",
+                                "/api/simulador/normativa/**",
+                                "/api/creditos/simular"
+                        ).permitAll()
+                        .requestMatchers("/api/simulador/guardar/**", "/api/simulador/guardar").authenticated()
                         .requestMatchers("/api/auth/me", "/api/auth/logout").authenticated()
                         .requestMatchers("/api/profile/**", "/api/dev/liveness/**")
                             .hasAuthority("identity.verification.start")
