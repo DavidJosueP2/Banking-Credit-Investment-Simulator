@@ -127,16 +127,24 @@ export const PRODUCTOS_FALLBACK: ProductoSimulador[] = [
 export const simuladorService = {
   /**
    * Catálogo dinámico de Tipos de Crédito configurados para el simulador de clientes.
-   * Endpoint: GET /api/simulador/productos
+   * Endpoint público: GET /api/public/creditos/activos
    */
   obtenerProductos: async (): Promise<ProductoSimulador[]> => {
     try {
-      const { data } = await api.get<ProductoSimulador[]>(cleanUrl('/api/simulador/productos'))
+      const { data } = await api.get<ProductoSimulador[]>(cleanUrl('/api/public/creditos/activos'))
       if (Array.isArray(data) && data.length > 0) {
         return data
       }
+      const fallbackResp = await api.get<ProductoSimulador[]>(cleanUrl('/api/simulador/productos'))
+      if (Array.isArray(fallbackResp.data) && fallbackResp.data.length > 0) {
+        return fallbackResp.data
+      }
       return PRODUCTOS_FALLBACK
     } catch {
+      try {
+        const { data } = await api.get<ProductoSimulador[]>(cleanUrl('/api/simulador/productos'))
+        if (Array.isArray(data) && data.length > 0) return data
+      } catch {}
       return PRODUCTOS_FALLBACK
     }
   },

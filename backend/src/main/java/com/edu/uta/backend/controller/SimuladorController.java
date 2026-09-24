@@ -19,7 +19,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 @RestController
-@RequestMapping({"/api/simulador", "/api/creditos/simular"})
+@RequestMapping({"/api/simulador", "/api/creditos/simular", "/api/public/creditos"})
 @RequiredArgsConstructor
 public class SimuladorController {
 
@@ -28,9 +28,9 @@ public class SimuladorController {
 
     /**
      * Catálogo dinámico de Tipos de Crédito configurados para el usuario final.
-     * GET /api/simulador/productos
+     * GET /api/simulador/productos o GET /api/public/creditos/activos
      */
-    @GetMapping("/productos")
+    @GetMapping({"/productos", "/activos"})
     public ResponseEntity<List<ProductoSimuladorDto>> obtenerProductos() {
         return ResponseEntity.ok(service.obtenerProductosDisponibles());
     }

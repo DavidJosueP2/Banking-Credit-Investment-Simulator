@@ -288,14 +288,14 @@ export function CreditosAdminPage() {
   const status = useMutation({
     mutationFn: ({ producto, active }: { producto: ConfigurarCreditoResponse; active: boolean }) =>
       creditosService.cambiarEstado(producto.id, active),
-    onSuccess: async (_, { producto, active }) => {
+    onSuccess: async (updatedProduct, { producto, active }) => {
       queryClient.setQueryData<ConfigurarCreditoResponse[]>(['creditosConfigurados'], (old) =>
-        old ? old.map((item) => (item.id === producto.id ? { ...item, activo: active } : item)) : []
+        old ? old.map((item) => (item.id === producto.id ? (updatedProduct || { ...item, activo: active }) : item)) : []
       )
       await queryClient.invalidateQueries({ queryKey: ['creditosConfigurados'] })
       await queryClient.invalidateQueries({ queryKey: ['simulador', 'productos'] })
       await queryClient.invalidateQueries({ queryKey: ['productos'] })
-      toast.success('Estado del producto actualizado.')
+      toast.success(active ? 'Producto activado exitosamente.' : 'Producto desactivado exitosamente.')
     },
     onError: (err: any) => {
       const msg = err.response?.data?.message || err.message || 'No se pudo actualizar el estado del producto.'
@@ -633,7 +633,7 @@ function CreditoEditor({ producto, onCancel, onSave, saving }: CreditoEditorProp
                         const segAct = SEGMENTOS_BCE.find((s) => s.id === watch('segmentoBce'))
                         if (!segAct?.entidadesPermitidas.includes('Cooperativa')) {
                           setValue('segmentoBce', 'MICROCREDITO_MINORISTA')
-                          setValue('nombre', 'Microcrédito Minorista Solidario')
+                          setValue('nombre', 'MICROCREDITO_MINORISTA')
                           setValue('tasaInteres', 20.00)
                           setValue('montoMin', 500)
                           setValue('montoMax', 3000)
@@ -645,7 +645,7 @@ function CreditoEditor({ producto, onCancel, onSave, saving }: CreditoEditorProp
                         const segAct = SEGMENTOS_BCE.find((s) => s.id === watch('segmentoBce'))
                         if (!segAct?.entidadesPermitidas.includes('Banco')) {
                           setValue('segmentoBce', 'CONSUMO_PRIORITARIO')
-                          setValue('nombre', 'Crédito Consumo Preferencial')
+                          setValue('nombre', 'CONSUMO_PRIORITARIO')
                           setValue('tasaInteres', 14.00)
                           setValue('montoMin', 500)
                           setValue('montoMax', 30000)
@@ -695,7 +695,8 @@ function CreditoEditor({ producto, onCancel, onSave, saving }: CreditoEditorProp
                         setValue('plazoMinMeses', seg.plazoMinSugerido)
                         setValue('plazoMaxMeses', seg.plazoMaximoMeses)
                         setValue('tasaDesgravamenMensual', seg.desgravamenSugerido)
-                        setValue('nombre', `Crédito ${seg.nombre}`)
+                        const matchingOpc = OPCIONES_PRODUCTO_BCE.find((o) => o.value === seg.id || (seg.id === 'INMOBILIARIO' && o.value === 'VIVIENDA_INMOBILIARIO'))
+                        setValue('nombre', matchingOpc ? matchingOpc.value : (seg.id as any))
                       }
                     }}
                   >
@@ -1042,18 +1043,35 @@ export function CreditoProductEditorPage() {
 
   const saveMutation = useMutation({
     mutationFn: async ({ data, activoDeseado }: { data: ConfigurarCreditoRequest; activoDeseado: boolean }) => {
-      const resp = await creditosService.configurarCredito(data)
-      if (producto && producto.activo !== activoDeseado) {
-        await creditosService.toggleProducto(producto.id)
+      let resp: ConfigurarCreditoResponse
+      if (producto) {
+        resp = await creditosService.actualizarCredito(producto.id, data)
+        if (producto.activo !== activoDeseado) {
+          resp = await creditosService.cambiarEstado(producto.id, activoDeseado)
+        }
+      } else {
+        resp = await creditosService.configurarCredito(data)
+        if (!activoDeseado) {
+          resp = await creditosService.cambiarEstado(resp.id, false)
+        }
       }
       return resp
     },
     onSuccess: async (resp) => {
+      queryClient.setQueryData<ConfigurarCreditoResponse[]>(['creditosConfigurados'], (old) => {
+        if (!old) return [resp]
+        const exists = old.some((item) => item.id === resp.id)
+        if (exists) {
+          return old.map((item) => (item.id === resp.id ? resp : item))
+        }
+        return [resp, ...old]
+      })
       await queryClient.invalidateQueries({ queryKey: ['creditosConfigurados'] })
       await queryClient.invalidateQueries({ queryKey: ['simulador', 'productos'] })
       await queryClient.invalidateQueries({ queryKey: ['productos'] })
+      const nombreLabel = OPCIONES_PRODUCTO_BCE.find((o) => o.value === resp.nombre)?.label ?? resp.nombre
       toast.success(producto ? 'Producto actualizado exitosamente.' : 'Producto creado exitosamente.', {
-        description: `${resp.nombre} (${resp.entidad}) registrado según normativa del BCE.`,
+        description: `${nombreLabel} (${resp.entidad}) registrado según normativa del BCE.`,
       })
       navigate('/admin/creditos')
     },

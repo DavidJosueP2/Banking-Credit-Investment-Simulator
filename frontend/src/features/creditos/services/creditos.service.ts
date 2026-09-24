@@ -20,6 +20,11 @@ export const creditosService = {
     return data
   },
 
+  actualizarCredito: async (id: number, dto: ConfigurarCreditoRequest): Promise<ConfigurarCreditoResponse> => {
+    const { data } = await api.put<ConfigurarCreditoResponse>(cleanUrl(`/api/admin/creditos/${id}`), dto)
+    return data
+  },
+
   getConfigurados: async (): Promise<ConfigurarCreditoResponse[]> => {
     const { data } = await api.get<ConfigurarCreditoResponse[]>(cleanUrl('/api/admin/creditos/configurar'))
     return data

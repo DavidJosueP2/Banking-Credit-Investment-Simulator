@@ -256,6 +256,16 @@ export function SimuladorClientePage() {
   const esAnios = productoSeleccionado.unidadPlazo === 'ANIOS'
   const etiquetaPlazo = esAnios ? 'años' : 'meses'
 
+  // Sincronizar el primer producto disponible cuando se cargan los datos reales de la BD
+  useEffect(() => {
+    if (productosDisponibles.length > 0) {
+      const existe = productosDisponibles.some((p) => p.id === Number(productoIdActual))
+      if (!existe) {
+        setValue('productoId', productosDisponibles[0].id)
+      }
+    }
+  }, [productosDisponibles, productoIdActual, setValue])
+
   // Cambio dinámico de producto: ajustar límites y valores incompatibles
   useEffect(() => {
     if (!productoSeleccionado) return
@@ -642,11 +652,11 @@ export function SimuladorClientePage() {
                 </div>
 
                 {/* Botón Principal de Simulación */}
-                <div className="pt-2">
+                <div className="pt-2 relative z-10">
                   <Button
                     type="submit"
                     variant="brand"
-                    className="w-full gap-2 font-medium text-sm"
+                    className="w-full gap-2 font-medium text-sm cursor-pointer transition-all hover:bg-brand-teal/90 active:scale-[0.99] relative z-10"
                     disabled={mutation.isPending}
                   >
                     {mutation.isPending ? (
@@ -791,12 +801,12 @@ export function SimuladorClientePage() {
                 </div>
 
                 {/* 4. Botón de Acción: Ver tabla de amortización */}
-                <div className="pt-2">
+                <div className="pt-2 relative z-10">
                   <Button
                     type="button"
                     variant="outline"
                     onClick={() => setModalTablaAbierto(true)}
-                    className="w-full gap-2 border-brand-teal/40 text-brand-teal hover:bg-brand-teal/10 hover:text-brand-teal font-medium text-xs sm:text-sm h-11"
+                    className="w-full gap-2 border-brand-teal/40 text-brand-teal hover:bg-brand-teal/10 hover:text-brand-teal font-medium text-xs sm:text-sm h-11 cursor-pointer transition-all relative z-10"
                   >
                     <TableProperties className="size-4" />
                     <span>Ver tabla de amortización</span>
