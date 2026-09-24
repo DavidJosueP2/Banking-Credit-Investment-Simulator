@@ -1,21 +1,24 @@
 package com.edu.uta.backend.investment;
 
-import java.awt.image.BufferedImage;
+import java.awt.Color;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
-import java.text.Normalizer;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.zip.DeflaterOutputStream;
+import java.util.Map;
 
-import javax.imageio.ImageIO;
-import java.awt.Color;
-import java.awt.Graphics2D;
-
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.pdfbox.pdmodel.common.PDRectangle;
+import org.apache.pdfbox.pdmodel.font.PDFont;
+import org.apache.pdfbox.pdmodel.font.PDType0Font;
+import org.apache.pdfbox.pdmodel.font.PDType1Font;
+import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
+import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import org.springframework.stereotype.Service;
 
 import com.edu.uta.backend.settings.InstitutionSettingsService;
@@ -24,12 +27,12 @@ import com.edu.uta.backend.settings.InstitutionSettingsService;
 public class InvestmentPdfService {
 
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-    private static final int PAGE_WIDTH = 612;
-    private static final int PAGE_HEIGHT = 842;
-    private static final int LEFT = 42;
-    private static final int RIGHT = 570;
-    private static final int TABLE_WIDTH = RIGHT - LEFT;
-    private static final int ROW_HEIGHT = 22;
+    private static final float PAGE_WIDTH = PDRectangle.A4.getWidth();
+    private static final float PAGE_HEIGHT = PDRectangle.A4.getHeight();
+    private static final float LEFT = 42;
+    private static final float RIGHT = PAGE_WIDTH - 42;
+    private static final float CONTENT_WIDTH = RIGHT - LEFT;
+    private static final int ROWS_PER_PAGE = 16;
 
     private final InstitutionSettingsService settings;
 
@@ -39,64 +42,238 @@ public class InvestmentPdfService {
 
     public byte[] create(InvestmentService.SimulationResult result) {
         InstitutionSettingsService.SettingsView institution = settings.effectiveSettings();
+        PdfTheme theme = PdfTheme.from(institution.sections().getOrDefault("appearance", Map.of()));
         String institutionName = value(institution, "institution", "institutionName", "Brunexa Bank");
-        int primary = color(value(institution, "appearance", "brandPrimaryColor", "#08747b"));
-        int secondary = color(value(institution, "appearance", "brandSecondaryColor", "#946928"));
+        String legalNotice = value(institution, "institution", "legalNotice",
+                "Los valores presentados son referenciales y no constituyen una oferta financiera.");
 
-        ImageAsset logo = loadLogo(institution.assets(), primary);
-        List<Page> pages = new ArrayList<>();
-        List<InvestmentCalculator.Payment> payments = result.payments();
-        int paymentIndex = 0;
-        do {
-            Page page = new Page();
-            drawHeader(page, institutionName, result.productName(), primary, secondary, logo);
-            drawSummary(page, result, secondary);
-            paymentIndex = drawSchedule(page, payments, paymentIndex, result.currency(), primary, secondary);
-            drawFooter(page, institutionName, primary);
-            pages.add(page);
-        } while (paymentIndex < payments.size());
+        try (PDDocument document = new PDDocument(); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            FontSet fonts = loadFonts(document, theme.headingFont(), theme.bodyFont());
+            PDImageXObject logo = loadLogo(document, institution, theme.primary());
+            List<InvestmentCalculator.Payment> payments = result.payments();
+            int pageCount = Math.max(1, (int) Math.ceil(payments.size() / (double) ROWS_PER_PAGE));
 
-        return PdfDocument.write(pages, logo);
-    }
-
-    private void drawHeader(Page page, String institutionName, String productName,
-            int primary, int secondary, ImageAsset logo) {
-        page.rect(0, 0, PAGE_WIDTH, PAGE_HEIGHT, 0xf7f9f9);
-        page.rect(0, PAGE_HEIGHT - 92, PAGE_WIDTH, 92, primary);
-        if (logo != null) {
-            page.image(logo, 42, PAGE_HEIGHT - 76, 118, 50);
-        } else {
-            page.rect(42, PAGE_HEIGHT - 72, 38, 38, secondary);
-            page.text(51, PAGE_HEIGHT - 58, 16, "B", 0xffffff, true);
-            page.text(92, PAGE_HEIGHT - 49, 17, institutionName, 0xffffff, true);
+            for (int pageNumber = 0; pageNumber < pageCount; pageNumber++) {
+                PDPage page = new PDPage(PDRectangle.A4);
+                document.addPage(page);
+                try (PDPageContentStream canvas = new PDPageContentStream(document, page)) {
+                    paintPage(canvas, theme);
+                    drawHeader(canvas, fonts, theme, logo, institutionName, result.productName());
+                    drawSummary(canvas, fonts, theme, result);
+                    int start = pageNumber * ROWS_PER_PAGE;
+                    int end = Math.min(payments.size(), start + ROWS_PER_PAGE);
+                    drawSchedule(canvas, fonts, theme, payments.subList(start, end), result.currency());
+                    drawFooter(canvas, fonts, theme, institutionName, legalNotice, pageNumber + 1, pageCount);
+                }
+            }
+            document.save(output);
+            return output.toByteArray();
+        } catch (IOException exception) {
+            throw new IllegalStateException("No se pudo generar el PDF de la simulación.", exception);
         }
-        page.text(42, PAGE_HEIGHT - 112, 18, "Simulación de inversión", primary, true);
-        page.text(42, PAGE_HEIGHT - 132, 10, clean(productName), 0x4b5563, false);
-        page.line(42, PAGE_HEIGHT - 145, RIGHT, PAGE_HEIGHT - 145, secondary, 2);
     }
 
-    private void drawSummary(Page page, InvestmentService.SimulationResult result, int secondary) {
-        int y = PAGE_HEIGHT - 172;
-        page.text(42, y, 10, "DETALLES DE LA INVERSION", secondary, true);
-        page.text(42, y - 23, 10, "Fecha de simulación", 0x64748b, false);
-        page.text(42, y - 38, 11, result.simulationDate().format(DATE), 0x172022, false);
-        page.text(220, y - 23, 10, "Fecha de vencimiento", 0x64748b, false);
-        page.text(220, y - 38, 11, result.maturityDate().format(DATE), 0x172022, false);
+    private void paintPage(PDPageContentStream canvas, PdfTheme theme) throws IOException {
+        fillRect(canvas, 0, 0, PAGE_WIDTH, PAGE_HEIGHT, theme.background());
+        fillRect(canvas, 0, PAGE_HEIGHT - 92, PAGE_WIDTH, 92, theme.primary());
+    }
 
-        int boxY = y - 105;
-        page.roundedRect(42, boxY, 528, 48, 0xffffff, 0xd8e2e2);
-        page.text(58, boxY + 30, 9, "CAPITAL INVERTIDO", 0x64748b, true);
-        page.text(58, boxY + 13, 13, money(result.amount(), result.currency()), 0x172022, true);
-        page.text(205, boxY + 30, 9, "INTERÉS NETO", 0x64748b, true);
-        page.text(205, boxY + 13, 13, money(result.netInterest(), result.currency()), 0x08747b, true);
-        page.text(352, boxY + 30, 9, "VALOR ESTIMADO", 0x64748b, true);
-        page.text(352, boxY + 13, 13, money(result.maturityValue(), result.currency()), 0x946928, true);
+    private void drawHeader(PDPageContentStream canvas, FontSet fonts, PdfTheme theme, PDImageXObject logo,
+            String institutionName, String productName) throws IOException {
+        Color headerText = contrast(theme.primary());
+        if (logo != null) {
+            float maxWidth = 132;
+            float maxHeight = 48;
+            float scale = Math.min(maxWidth / logo.getWidth(), maxHeight / logo.getHeight());
+            float width = logo.getWidth() * scale;
+            float height = logo.getHeight() * scale;
+            canvas.drawImage(logo, LEFT, PAGE_HEIGHT - 70, width, height);
+        } else {
+            text(canvas, fonts.headingBold(), 17, LEFT, PAGE_HEIGHT - 52, institutionName, headerText);
+        }
+        textRight(canvas, fonts.body(), 8, RIGHT, PAGE_HEIGHT - 48,
+                "Documento informativo", headerText);
+        text(canvas, fonts.headingBold(), 18, LEFT, PAGE_HEIGHT - 120,
+                "Simulación de inversión", theme.foreground());
+        text(canvas, fonts.body(), 9, LEFT, PAGE_HEIGHT - 139, productName, theme.mutedText());
+        line(canvas, LEFT, PAGE_HEIGHT - 151, RIGHT, PAGE_HEIGHT - 151, theme.secondary(), 2);
+    }
 
-        int detailsY = boxY - 22;
-        page.text(42, detailsY, 9, "Plazo: " + result.termValue() + " " + termUnit(result.termUnit(), result.termValue()), 0x4b5563, false);
-        page.text(180, detailsY, 9, "Tasa: " + percent(result.annualRate()), 0x4b5563, false);
-        page.text(300, detailsY, 9, "Pago: " + frequency(result.payoutFrequency()), 0x4b5563, false);
-        page.text(438, detailsY, 9, "Retención: " + money(result.withholding(), result.currency()), 0x4b5563, false);
+    private void drawSummary(PDPageContentStream canvas, FontSet fonts, PdfTheme theme,
+            InvestmentService.SimulationResult result) throws IOException {
+        float y = PAGE_HEIGHT - 178;
+        text(canvas, fonts.headingBold(), 9, LEFT, y, "DETALLES DE LA INVERSIÓN", theme.secondary());
+        labelValue(canvas, fonts, theme, LEFT, y - 25, "Fecha de simulación", result.simulationDate().format(DATE));
+        labelValue(canvas, fonts, theme, 220, y - 25, "Fecha de vencimiento", result.maturityDate().format(DATE));
+        labelValue(canvas, fonts, theme, 398, y - 25, "Referencia", result.reference());
+
+        float boxY = y - 107;
+        fillRect(canvas, LEFT, boxY, CONTENT_WIDTH, 52, theme.surface());
+        strokeRect(canvas, LEFT, boxY, CONTENT_WIDTH, 52, theme.border(), 0.8f);
+        metric(canvas, fonts, theme, LEFT + 15, boxY + 31, "CAPITAL INVERTIDO",
+                money(result.amount(), result.currency()), theme.foreground());
+        metric(canvas, fonts, theme, LEFT + 180, boxY + 31, "INTERÉS NETO",
+                money(result.netInterest(), result.currency()), theme.primary());
+        metric(canvas, fonts, theme, LEFT + 350, boxY + 31, "VALOR ESTIMADO",
+                money(result.maturityValue(), result.currency()), theme.secondary());
+
+        float detailsY = boxY - 21;
+        text(canvas, fonts.body(), 8, LEFT, detailsY,
+                "Plazo: " + result.termValue() + " " + termUnit(result.termUnit(), result.termValue()), theme.mutedText());
+        text(canvas, fonts.body(), 8, 170, detailsY, "Tasa anual: " + percent(result.annualRate()), theme.mutedText());
+        text(canvas, fonts.body(), 8, 300, detailsY, "Pago: " + frequency(result.payoutFrequency()), theme.mutedText());
+        text(canvas, fonts.body(), 8, 430, detailsY,
+                "Retención: " + money(result.withholding(), result.currency()), theme.mutedText());
+    }
+
+    private void drawSchedule(PDPageContentStream canvas, FontSet fonts, PdfTheme theme,
+            List<InvestmentCalculator.Payment> payments, String currency) throws IOException {
+        float titleY = PAGE_HEIGHT - 330;
+        text(canvas, fonts.headingBold(), 10, LEFT, titleY, "CRONOGRAMA DE FLUJOS", theme.secondary());
+        text(canvas, fonts.body(), 7.5f, LEFT, titleY - 16,
+                "Los intereses corresponden a cada período y el capital se devuelve al vencimiento.", theme.mutedText());
+
+        float tableTop = titleY - 33;
+        float rowHeight = 23;
+        float[] columns = {LEFT, LEFT + 33, LEFT + 102, LEFT + 136, LEFT + 224, LEFT + 305, LEFT + 389, LEFT + 456, RIGHT};
+        String[] headers = {"Pago", "Fecha", "Días", "Interés bruto", "Retención", "Interés neto", "Capital", "Total"};
+        fillRect(canvas, LEFT, tableTop - rowHeight, CONTENT_WIDTH, rowHeight, theme.primary());
+        Color headerText = contrast(theme.primary());
+        for (int index = 0; index < headers.length; index++) {
+            text(canvas, fonts.bodyBold(), 6.7f, columns[index] + 5, tableTop - 15, headers[index], headerText);
+        }
+
+        float y = tableTop - rowHeight;
+        for (int index = 0; index < payments.size(); index++) {
+            InvestmentCalculator.Payment payment = payments.get(index);
+            y -= rowHeight;
+            fillRect(canvas, LEFT, y, CONTENT_WIDTH, rowHeight,
+                    index % 2 == 0 ? theme.surface() : theme.muted());
+            line(canvas, LEFT, y, RIGHT, y, theme.border(), 0.4f);
+            String[] values = {
+                    String.valueOf(payment.number()), payment.paymentDate().format(DATE), String.valueOf(payment.periodDays()),
+                    money(payment.grossInterest(), currency), money(payment.withholding(), currency),
+                    money(payment.netInterest(), currency), money(payment.capital(), currency), money(payment.totalPayment(), currency)
+            };
+            for (int column = 0; column < values.length; column++) {
+                PDFont font = column == values.length - 1 ? fonts.bodyBold() : fonts.body();
+                if (column >= 3) {
+                    textRight(canvas, font, 6.5f, columns[column + 1] - 5, y + 8, values[column], theme.foreground());
+                } else {
+                    text(canvas, font, 6.5f, columns[column] + 5, y + 8, values[column], theme.foreground());
+                }
+            }
+        }
+    }
+
+    private void drawFooter(PDPageContentStream canvas, FontSet fonts, PdfTheme theme, String institutionName,
+            String legalNotice, int pageNumber, int pageCount) throws IOException {
+        line(canvas, LEFT, 57, RIGHT, 57, theme.primary(), 0.8f);
+        text(canvas, fonts.body(), 6.7f, LEFT, 43, institutionName, theme.mutedText());
+        text(canvas, fonts.body(), 6.2f, LEFT, 29, shorten(legalNotice, 118), theme.mutedText());
+        textRight(canvas, fonts.bodyBold(), 6.7f, RIGHT, 43,
+                "Página " + pageNumber + " de " + pageCount, theme.primary());
+    }
+
+    private FontSet loadFonts(PDDocument document, String headingName, String bodyName) throws IOException {
+        return new FontSet(
+                loadFont(document, headingName, false), loadFont(document, headingName, true),
+                loadFont(document, bodyName, false), loadFont(document, bodyName, true));
+    }
+
+    private PDFont loadFont(PDDocument document, String configuredName, boolean bold) throws IOException {
+        String family = configuredName == null ? "" : configuredName.toLowerCase(Locale.ROOT);
+        String resource;
+        if (family.contains("plus jakarta")) {
+            resource = bold ? "/fonts/PlusJakartaSans-Bold.ttf" : "/fonts/PlusJakartaSans-Regular.ttf";
+        } else if (family.contains("axiforma")) {
+            resource = bold ? "/fonts/Axiforma-SemiBold.ttf" : "/fonts/Axiforma-Regular.ttf";
+        } else if (family.contains("baskerville") || family.contains("georgia") || family.contains("times")) {
+            return new PDType1Font(bold ? Standard14Fonts.FontName.TIMES_BOLD : Standard14Fonts.FontName.TIMES_ROMAN);
+        } else {
+            return new PDType1Font(bold ? Standard14Fonts.FontName.HELVETICA_BOLD : Standard14Fonts.FontName.HELVETICA);
+        }
+        try (InputStream stream = getClass().getResourceAsStream(resource)) {
+            if (stream == null) throw new IOException("No se encontró la fuente para el reporte: " + resource);
+            return PDType0Font.load(document, stream, false);
+        }
+    }
+
+    private PDImageXObject loadLogo(PDDocument document, InstitutionSettingsService.SettingsView view,
+            Color headerColor) {
+        boolean darkHeader = luminance(headerColor) < 0.52;
+        List<String> keys = darkHeader
+                ? List.of("fullLogoDark", "markLogoDark", "fullLogoLight", "markLogoLight")
+                : List.of("fullLogoLight", "markLogoLight", "fullLogoDark", "markLogoDark");
+        for (String key : keys) {
+            if (!view.assets().containsKey(key)) continue;
+            try {
+                InstitutionSettingsService.Asset asset = settings.asset(key);
+                return PDImageXObject.createFromByteArray(document, asset.content(), asset.fileName());
+            } catch (IOException | RuntimeException ignored) {
+            }
+        }
+        try (InputStream stream = getClass().getResourceAsStream("/branding/brunexa-logo.png")) {
+            return stream == null ? null : PDImageXObject.createFromByteArray(document, stream.readAllBytes(), "logo");
+        } catch (IOException exception) {
+            return null;
+        }
+    }
+
+    private void labelValue(PDPageContentStream canvas, FontSet fonts, PdfTheme theme,
+            float x, float y, String label, String value) throws IOException {
+        text(canvas, fonts.body(), 7.5f, x, y, label, theme.mutedText());
+        text(canvas, fonts.bodyBold(), 9, x, y - 15, value, theme.foreground());
+    }
+
+    private void metric(PDPageContentStream canvas, FontSet fonts, PdfTheme theme,
+            float x, float y, String label, String value, Color valueColor) throws IOException {
+        text(canvas, fonts.bodyBold(), 7, x, y, label, theme.mutedText());
+        text(canvas, fonts.headingBold(), 11, x, y - 17, value, valueColor);
+    }
+
+    private void text(PDPageContentStream canvas, PDFont font, float size, float x, float y,
+            String value, Color color) throws IOException {
+        canvas.beginText();
+        canvas.setFont(font, size);
+        canvas.setNonStrokingColor(color);
+        canvas.newLineAtOffset(x, y);
+        canvas.showText(value == null ? "" : value);
+        canvas.endText();
+    }
+
+    private void textRight(PDPageContentStream canvas, PDFont font, float size, float right, float y,
+            String value, Color color) throws IOException {
+        float width = font.getStringWidth(value) / 1000f * size;
+        text(canvas, font, size, right - width, y, value, color);
+    }
+
+    private void fillRect(PDPageContentStream canvas, float x, float y, float width, float height, Color color)
+            throws IOException {
+        canvas.setNonStrokingColor(color);
+        canvas.addRect(x, y, width, height);
+        canvas.fill();
+    }
+
+    private void strokeRect(PDPageContentStream canvas, float x, float y, float width, float height,
+            Color color, float lineWidth) throws IOException {
+        canvas.setStrokingColor(color);
+        canvas.setLineWidth(lineWidth);
+        canvas.addRect(x, y, width, height);
+        canvas.stroke();
+    }
+
+    private void line(PDPageContentStream canvas, float x1, float y1, float x2, float y2,
+            Color color, float width) throws IOException {
+        canvas.setStrokingColor(color);
+        canvas.setLineWidth(width);
+        canvas.moveTo(x1, y1);
+        canvas.lineTo(x2, y2);
+        canvas.stroke();
+    }
+
+    private String value(InstitutionSettingsService.SettingsView view, String section, String key, String fallback) {
+        return view.sections().getOrDefault(section, Map.of()).getOrDefault(key, fallback);
     }
 
     private String termUnit(String unit, int value) {
@@ -105,67 +282,6 @@ public class InvestmentPdfService {
             case "YEARS" -> value == 1 ? "año" : "años";
             default -> value == 1 ? "día" : "días";
         };
-    }
-
-    private int drawSchedule(Page page, List<InvestmentCalculator.Payment> payments,
-            int start, String currency, int primary, int secondary) {
-        int top = PAGE_HEIGHT - 325;
-        page.text(42, top, 11, "CRONOGRAMA DE FLUJOS", secondary, true);
-        page.text(42, top - 16, 8, "Los intereses se muestran por periodo; el capital se devuelve al vencimiento.", 0x64748b, false);
-        int tableTop = top - 34;
-        int rowsAvailable = Math.max(1, (tableTop - 72) / ROW_HEIGHT);
-        int end = Math.min(payments.size(), start + rowsAvailable - 1);
-        page.rect(42, tableTop - ROW_HEIGHT, TABLE_WIDTH, ROW_HEIGHT, primary);
-        String[] headers = {"Pago", "Fecha", "Días", "Interés bruto", "Retención", "Interés neto", "Capital", "Total"};
-        int[] x = {50, 84, 153, 192, 277, 357, 435, 510};
-        for (int i = 0; i < headers.length; i++) page.text(x[i], tableTop - 15, 7, headers[i], 0xffffff, true);
-        int y = tableTop - ROW_HEIGHT;
-        for (int index = start; index < end; index++) {
-            InvestmentCalculator.Payment payment = payments.get(index);
-            y -= ROW_HEIGHT;
-            if ((index - start) % 2 == 0) page.rect(42, y, TABLE_WIDTH, ROW_HEIGHT, 0xffffff);
-            page.line(42, y, RIGHT, y, 0xd8e2e2, 0.5f);
-            String[] values = {
-                    String.valueOf(payment.number()), payment.paymentDate().format(DATE), String.valueOf(payment.periodDays()),
-                    money(payment.grossInterest(), currency), money(payment.withholding(), currency),
-                    money(payment.netInterest(), currency), money(payment.capital(), currency), money(payment.totalPayment(), currency)
-            };
-            for (int i = 0; i < values.length; i++) page.text(x[i], y + 8, 7, values[i], 0x172022, i == 7);
-        }
-        return end;
-    }
-
-    private void drawFooter(Page page, String institutionName, int primary) {
-        page.line(42, 58, RIGHT, 58, primary, 1);
-        page.text(42, 42, 7, clean(institutionName), 0x64748b, false);
-        page.text(42, 29, 7, "Los valores presentados son una estimacion y pueden estar sujetos a las condiciones vigentes.", 0x64748b, false);
-    }
-
-    private ImageAsset loadLogo(java.util.Map<String, String> assets, int backgroundColor) {
-        for (String key : List.of("fullLogoLight", "markLogoLight", "fullLogoDark", "markLogoDark")) {
-            String path = assets.get(key);
-            if (path == null) continue;
-            try {
-                InstitutionSettingsService.Asset asset = settings.asset(key);
-                BufferedImage image = ImageIO.read(new java.io.ByteArrayInputStream(asset.content()));
-                if (image != null) return ImageAsset.from(image, backgroundColor);
-            } catch (IOException | RuntimeException ignored) {
-            }
-        }
-        try {
-            BufferedImage image = ImageIO.read(getClass().getResourceAsStream("/branding/brunexa-logo.png"));
-            if (image != null) return ImageAsset.from(image, backgroundColor);
-        } catch (IOException | RuntimeException ignored) {
-        }
-        return null;
-    }
-
-    private String value(InstitutionSettingsService.SettingsView view, String section, String key, String fallback) {
-        return view.sections().getOrDefault(section, java.util.Map.of()).getOrDefault(key, fallback);
-    }
-
-    private int color(String hex) {
-        return Integer.parseInt(hex.substring(1), 16);
     }
 
     private String money(BigDecimal value, String currency) {
@@ -187,143 +303,43 @@ public class InvestmentPdfService {
         };
     }
 
-    private String clean(String text) {
-        if (text == null) return "";
-        return Normalizer.normalize(text, Normalizer.Form.NFD).replaceAll("\\p{M}", "")
-                .replaceAll("[^\\x20-\\x7E]", "");
+    private String shorten(String value, int maximum) {
+        if (value == null || value.length() <= maximum) return value == null ? "" : value;
+        return value.substring(0, maximum - 1).trim() + "…";
     }
 
-    private record ImageAsset(int width, int height, byte[] data) {
-        static ImageAsset from(BufferedImage source, int backgroundColor) throws IOException {
-            BufferedImage image = new BufferedImage(source.getWidth(), source.getHeight(), BufferedImage.TYPE_INT_RGB);
-            Graphics2D graphics = image.createGraphics();
-            graphics.setColor(new Color(backgroundColor));
-            graphics.fillRect(0, 0, image.getWidth(), image.getHeight());
-            graphics.drawImage(source, 0, 0, null);
-            graphics.dispose();
-            int width = image.getWidth();
-            int height = image.getHeight();
-            ByteArrayOutputStream raw = new ByteArrayOutputStream(width * height * 3);
-            for (int y = 0; y < height; y++) for (int x = 0; x < width; x++) {
-                int rgb = image.getRGB(x, y);
-                raw.write((rgb >> 16) & 0xff);
-                raw.write((rgb >> 8) & 0xff);
-                raw.write(rgb & 0xff);
-            }
-            ByteArrayOutputStream compressed = new ByteArrayOutputStream();
-            try (DeflaterOutputStream deflater = new DeflaterOutputStream(compressed)) {
-                raw.writeTo(deflater);
-            }
-            return new ImageAsset(width, height, compressed.toByteArray());
-        }
+    private static Color contrast(Color background) {
+        return luminance(background) < 0.52 ? Color.WHITE : new Color(0x172022);
     }
 
-    private static final class Page {
-        private final StringBuilder content = new StringBuilder();
-
-        void rect(int x, int y, int width, int height, int color) {
-            fill(color);
-            content.append(x).append(' ').append(y).append(' ').append(width).append(' ').append(height).append(" re f\n");
-        }
-
-        void roundedRect(int x, int y, int width, int height, int fill, int stroke) {
-            fill(fill);
-            stroke(stroke);
-            content.append(x).append(' ').append(y).append(' ').append(width).append(' ').append(height).append(" re B\n");
-        }
-
-        void line(int x1, int y1, int x2, int y2, int color, float width) {
-            stroke(color);
-            content.append(width).append(" w ").append(x1).append(' ').append(y1).append(" m ")
-                    .append(x2).append(' ').append(y2).append(" l S\n");
-        }
-
-        void text(int x, int y, int size, String value, int color, boolean bold) {
-            fill(color);
-            content.append("BT /").append(bold ? "F2" : "F1").append(' ').append(size).append(" Tf ")
-                    .append(x).append(' ').append(y).append(" Td (").append(escape(value)).append(") Tj ET\n");
-        }
-
-        void image(ImageAsset image, int x, int y, int width, int height) {
-            content.append("q ").append(width).append(" 0 0 ").append(height).append(' ').append(x).append(' ').append(y)
-                    .append(" cm /Im1 Do Q\n");
-        }
-
-        String stream() { return content.toString(); }
-
-        private void fill(int color) { content.append(rgb(color)).append(" rg\n"); }
-        private void stroke(int color) { content.append(rgb(color)).append(" RG\n"); }
-        private String rgb(int color) {
-            return String.format(Locale.ROOT, "%.4f %.4f %.4f", ((color >> 16) & 255) / 255d,
-                    ((color >> 8) & 255) / 255d, (color & 255) / 255d);
-        }
-        private String escape(String value) {
-            return value == null ? "" : value.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)");
-        }
+    private static double luminance(Color color) {
+        return (0.2126 * color.getRed() + 0.7152 * color.getGreen() + 0.0722 * color.getBlue()) / 255d;
     }
 
-    private static final class PdfDocument {
-        static byte[] write(List<Page> pages, ImageAsset logo) {
-            List<byte[]> objects = new ArrayList<>();
-            objects.add(bytes("<< /Type /Catalog /Pages 2 0 R >>"));
-            objects.add(null);
-            if (logo != null) objects.add(imageObject(logo));
-            int fontRegular = logo == null ? 3 : 4;
-            int fontBold = fontRegular + 1;
-            objects.add(bytes("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"));
-            objects.add(bytes("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>"));
+    private record FontSet(PDFont heading, PDFont headingBold, PDFont body, PDFont bodyBold) {}
 
-            List<Integer> pageObjectIds = new ArrayList<>();
-            for (Page page : pages) {
-                int contentId = objects.size() + 1;
-                byte[] content = page.stream().getBytes(StandardCharsets.ISO_8859_1);
-                objects.add(streamObject(content));
-                int pageId = objects.size() + 1;
-                pageObjectIds.add(pageId);
-                String resources = "<< /Font << /F1 " + fontRegular + " 0 R /F2 " + fontBold + " 0 R >>"
-                        + (logo == null ? "" : " /XObject << /Im1 3 0 R >>") + " >>";
-                objects.add(bytes("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 842] /Resources "
-                        + resources + " /Contents " + contentId + " 0 R >>"));
+    private record PdfTheme(Color primary, Color secondary, Color background, Color foreground,
+            Color surface, Color muted, Color mutedText, Color border, String headingFont, String bodyFont) {
+        static PdfTheme from(Map<String, String> appearance) {
+            return new PdfTheme(
+                    color(appearance.getOrDefault("brandPrimaryColor", "#08747b")),
+                    color(appearance.getOrDefault("brandSecondaryColor", "#946928")),
+                    color(appearance.getOrDefault("backgroundLightColor", "#f2f2f2")),
+                    color(appearance.getOrDefault("foregroundLightColor", "#202527")),
+                    color(appearance.getOrDefault("surfaceLightColor", "#ffffff")),
+                    color(appearance.getOrDefault("mutedLightColor", "#e6e9e8")),
+                    color(appearance.getOrDefault("mutedTextLightColor", "#586064")),
+                    color(appearance.getOrDefault("borderLightColor", "#dadddd")),
+                    appearance.getOrDefault("headingFont", "Axiforma"),
+                    appearance.getOrDefault("sansFont", "Plus Jakarta Sans"));
+        }
+
+        private static Color color(String value) {
+            try {
+                return Color.decode(value);
+            } catch (NumberFormatException exception) {
+                return new Color(0x202527);
             }
-            StringBuilder kids = new StringBuilder("[");
-            pageObjectIds.forEach(id -> kids.append(id).append(" 0 R "));
-            kids.append(']');
-            objects.set(1, bytes("<< /Type /Pages /Kids " + kids + " /Count " + pages.size() + " >>"));
-
-            ByteArrayOutputStream output = new ByteArrayOutputStream();
-            write(output, "%PDF-1.4\n%\u00e2\u00e3\u00cf\u00d3\n");
-            List<Integer> offsets = new ArrayList<>();
-            offsets.add(0);
-            for (int index = 0; index < objects.size(); index++) {
-                offsets.add(output.size());
-                write(output, (index + 1) + " 0 obj\n");
-                output.writeBytes(objects.get(index));
-                write(output, "\nendobj\n");
-            }
-            int xref = output.size();
-            write(output, "xref\n0 " + (objects.size() + 1) + "\n0000000000 65535 f \n");
-            for (int index = 1; index < offsets.size(); index++) write(output,
-                    String.format(Locale.ROOT, "%010d 00000 n \n", offsets.get(index)));
-            write(output, "trailer\n<< /Size " + (objects.size() + 1) + " /Root 1 0 R >>\nstartxref\n"
-                    + xref + "\n%%EOF\n");
-            return output.toByteArray();
         }
-
-        private static byte[] imageObject(ImageAsset image) {
-            return streamObject(image.data, "/Type /XObject /Subtype /Image /Width " + image.width
-                    + " /Height " + image.height + " /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode ");
-        }
-
-        private static byte[] streamObject(byte[] data) { return streamObject(data, ""); }
-        private static byte[] streamObject(byte[] data, String prefix) {
-            return concat(bytes("<< " + prefix + "/Length " + data.length + " >>\nstream\n"), data, bytes("\nendstream"));
-        }
-        private static byte[] bytes(String value) { return value.getBytes(StandardCharsets.ISO_8859_1); }
-        private static byte[] concat(byte[]... values) {
-            ByteArrayOutputStream output = new ByteArrayOutputStream();
-            for (byte[] value : values) output.writeBytes(value);
-            return output.toByteArray();
-        }
-        private static void write(ByteArrayOutputStream output, String value) { output.writeBytes(bytes(value)); }
     }
 }

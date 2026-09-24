@@ -51,6 +51,7 @@ export const router = createBrowserRouter([
         ),
       },
       { path: 'inversiones/simulador', element: <InvestmentSimulatorPage /> },
+      { path: 'creditos/simulador', element: <SimuladorClientePage /> },
       { path: 'simulador', element: <SimuladorClientePage /> },
     ],
   },

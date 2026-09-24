@@ -90,7 +90,7 @@ export interface LandingSection {
   creditBulletOne: string
   creditBulletTwo: string
   creditBulletThree: string
-  creditStatusLabel: string
+  creditButton: string
   investmentTitle: string
   investmentDescription: string
   investmentSectionIcon: string
@@ -103,7 +103,7 @@ export interface LandingSection {
   investmentFeatureTwoTitle: string
   investmentFeatureTwoDescription: string
   investmentFeatureTwoIcon: string
-  investmentStatusLabel: string
+  investmentButton: string
   processEnabled: string
   processTitle: string
   processDescription: string
@@ -121,8 +121,16 @@ export interface LandingSection {
   closingBulletTwo: string
   closingBulletThree: string
   closingButton: string
+  headerHomeLabel: string
+  headerHomeHref: string
   headerServicesLabel: string
+  headerServicesHref: string
+  headerCreditLabel: string
+  headerCreditHref: string
+  headerInvestmentLabel: string
+  headerInvestmentHref: string
   headerProcessLabel: string
+  headerProcessHref: string
   footerProductsHeading: string
   footerAccessHeading: string
   footerContactHeading: string
@@ -166,6 +174,10 @@ export type AssetKey =
   | 'carouselInvestmentImage'
   | 'creditImage'
   | 'investmentImage'
+  | 'creditSimulatorImage'
+  | 'investmentSimulatorImage'
+  | 'closingImage'
+  | 'perspectiveImage'
 
 export interface SettingsResponse {
   sections: InstitutionSettings
@@ -191,7 +203,7 @@ export const defaultInstitutionSettings: InstitutionSettings = {
     backgroundLightColor: '#f2f2f2',
     foregroundLightColor: '#202527',
     surfaceLightColor: '#ffffff',
-    mutedLightColor: '#f3f4f4',
+    mutedLightColor: '#e6e9e8',
     mutedTextLightColor: '#586064',
     sidebarLightColor: '#f0f2f1',
     borderLightColor: '#dadddd',
@@ -261,7 +273,7 @@ export const defaultInstitutionSettings: InstitutionSettings = {
     creditBulletOne: 'Sistemas de amortización francés y alemán.',
     creditBulletTwo: 'Detalle de capital, interés, cuotas y cobros indirectos.',
     creditBulletThree: 'Tabla completa preparada para consulta y descarga.',
-    creditStatusLabel: 'Simulador en preparación',
+    creditButton: 'Simular mi crédito',
     investmentTitle: 'Inversiones pensadas para proyectar con contexto.',
     investmentDescription: 'Explora cómo cambian los resultados según el monto, el plazo y las condiciones vigentes.',
     investmentSectionIcon: 'trending-up',
@@ -274,7 +286,7 @@ export const defaultInstitutionSettings: InstitutionSettings = {
     investmentFeatureTwoTitle: 'Continuidad segura',
     investmentFeatureTwoDescription: 'La solicitud se vinculará a una cuenta identificada.',
     investmentFeatureTwoIcon: 'shield',
-    investmentStatusLabel: 'Simulador de inversión disponible',
+    investmentButton: 'Simular mi inversión',
     processEnabled: 'true',
     processTitle: 'Un recorrido ordenado, desde la consulta hasta la solicitud.',
     processDescription: 'Cada etapa conserva la información necesaria para que el siguiente paso sea comprensible y verificable.',
@@ -292,8 +304,16 @@ export const defaultInstitutionSettings: InstitutionSettings = {
     closingBulletTwo: 'Inversiones pensadas para tus metas',
     closingBulletThree: 'Información clara para decidir con calma',
     closingButton: 'Ingresar a {shortName}',
+    headerHomeLabel: 'Home',
+    headerHomeHref: '/',
     headerServicesLabel: 'Servicios',
+    headerServicesHref: '/#servicios',
+    headerCreditLabel: 'Créditos',
+    headerCreditHref: '/creditos/simulador',
+    headerInvestmentLabel: 'Inversiones',
+    headerInvestmentHref: '/inversiones/simulador',
     headerProcessLabel: 'Cómo funciona',
+    headerProcessHref: '/#proceso',
     footerProductsHeading: 'Productos',
     footerAccessHeading: 'Acceso',
     footerContactHeading: 'Contacto',
