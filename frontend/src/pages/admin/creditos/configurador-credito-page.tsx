@@ -77,6 +77,39 @@ export const SEGMENTOS_BCE: SegmentoBceInfo[] = [
   { id: 'EDUCATIVO',              nombre: 'Educativo',              tasaMaxima: 9.50, tasaSugerida: 8.00, montoMinSugerido: 1000, montoMaximoLegal: 20000, plazoMinSugerido: 12, plazoMaximoMeses: 84, desgravamenSugerido: 0.0300, categoria: 'EDUCATIVO', entidadesPermitidas: ['Banco', 'Cooperativa'] },
 ]
 
+export const OPCIONES_PRODUCTO_BCE = [
+  { value: 'CONSUMO_PRIORITARIO', label: 'Crédito de Consumo Prioritario' },
+  { value: 'CONSUMO_ORDINARIO', label: 'Crédito de Consumo Ordinario' },
+  { value: 'EDUCATIVO', label: 'Crédito Educativo' },
+  { value: 'MICROCREDITO_MINORISTA', label: 'Microcrédito Minorista' },
+  { value: 'MICROCREDITO_SIMPLE', label: 'Microcrédito Acumulación Simple' },
+  { value: 'MICROCREDITO_AMPLIADA', label: 'Microcrédito Acumulación Ampliada' },
+  { value: 'VIVIENDA_INMOBILIARIO', label: 'Crédito Hipotecario / Vivienda' },
+  { value: 'VIVIENDA_VIP', label: 'Crédito Vivienda de Interés Público (VIP)' },
+  { value: 'VIVIENDA_VIS', label: 'Crédito Vivienda de Interés Social (VIS)' },
+  { value: 'PRODUCTIVO_PYMES', label: 'Crédito Productivo PYMES' },
+  { value: 'PRODUCTIVO_EMPRESARIAL', label: 'Crédito Productivo Empresarial' },
+  { value: 'PRODUCTIVO_CORPORATIVO', label: 'Crédito Productivo Corporativo' },
+] as const
+
+export function normalizarOpcionBce(valor?: string): string {
+  if (!valor) return 'CONSUMO_PRIORITARIO'
+  const match = OPCIONES_PRODUCTO_BCE.find(
+    (o) => o.value === valor || o.label.toLowerCase() === valor.toLowerCase()
+  )
+  if (match) return match.value
+  const vUpper = valor.toUpperCase()
+  if (vUpper.includes('EDUC')) return 'EDUCATIVO'
+  if (vUpper.includes('VIVIENDA') || vUpper.includes('INMOB')) return 'VIVIENDA_INMOBILIARIO'
+  if (vUpper.includes('VIP')) return 'VIVIENDA_VIP'
+  if (vUpper.includes('VIS')) return 'VIVIENDA_VIS'
+  if (vUpper.includes('MINORISTA')) return 'MICROCREDITO_MINORISTA'
+  if (vUpper.includes('MICRO')) return 'MICROCREDITO_MINORISTA'
+  if (vUpper.includes('PYME') || vUpper.includes('PROD')) return 'PRODUCTIVO_PYMES'
+  if (vUpper.includes('ORDINARIO')) return 'CONSUMO_ORDINARIO'
+  return 'CONSUMO_PRIORITARIO'
+}
+
 // ─── Normativa Oficial Diferenciada por Tipo de Entidad (BCE / SB / SEPS) ───
 
 export const NORMATIVA_ENTIDAD = {
@@ -173,7 +206,7 @@ export const SEGUROS_SUGERIDOS_BCE: Record<string, SeguroBceSugerido[]> = {
 // ─── Esquema Zod ─────────────────────────────────────────────────────────────
 
 const formSchema = z.object({
-  nombre: z.string().min(3, 'El nombre debe tener al menos 3 caracteres'),
+  nombre: z.string().min(1, 'Seleccione un producto oficial BCE'),
   entidad: z.enum(['Banco', 'Cooperativa'], { message: 'Seleccione la entidad (Banco o Cooperativa)' }),
   segmentoBce: z.string().min(1, 'Seleccione un segmento regulatorio del BCE'),
   montoMin: z.number({ message: 'Monto mínimo inválido' }).min(50, 'El monto mínimo no puede ser menor a $50'),
@@ -252,9 +285,13 @@ export function CreditosAdminPage() {
     enabled: esRolAutorizado,
   })
 
-  const toggleStatus = useMutation({
-    mutationFn: (id: number) => creditosService.toggleProducto(id),
-    onSuccess: async () => {
+  const status = useMutation({
+    mutationFn: ({ producto, active }: { producto: ConfigurarCreditoResponse; active: boolean }) =>
+      creditosService.cambiarEstado(producto.id, active),
+    onSuccess: async (_, { producto, active }) => {
+      queryClient.setQueryData<ConfigurarCreditoResponse[]>(['creditosConfigurados'], (old) =>
+        old ? old.map((item) => (item.id === producto.id ? { ...item, activo: active } : item)) : []
+      )
       await queryClient.invalidateQueries({ queryKey: ['creditosConfigurados'] })
       await queryClient.invalidateQueries({ queryKey: ['simulador', 'productos'] })
       await queryClient.invalidateQueries({ queryKey: ['productos'] })
@@ -314,7 +351,9 @@ export function CreditosAdminPage() {
               <tr key={c.id} className="border-b last:border-0">
                 <td className="p-4">
                   <div className="flex items-center gap-2">
-                    <strong>{c.nombre}</strong>
+                    <strong>
+                      {OPCIONES_PRODUCTO_BCE.find((o) => o.value === c.nombre)?.label ?? c.nombre}
+                    </strong>
                     <span className="text-[11px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-normal">
                       {c.entidad}
                     </span>
@@ -354,8 +393,8 @@ export function CreditosAdminPage() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    disabled={toggleStatus.isPending}
-                    onClick={() => toggleStatus.mutate(c.id)}
+                    disabled={status.isPending}
+                    onClick={() => status.mutate({ producto: c, active: !c.activo })}
                   >
                     <Power className="size-4" />
                     {c.activo ? 'Desactivar' : 'Activar'}
@@ -405,7 +444,7 @@ function CreditoEditor({ producto, onCancel, onSave, saving }: CreditoEditorProp
   } = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      nombre: producto?.nombre ?? 'Crédito Consumo Preferencial',
+      nombre: normalizarOpcionBce(producto?.nombre),
       entidad: (producto?.entidad as 'Banco' | 'Cooperativa') ?? 'Banco',
       segmentoBce: producto?.segmentoBce ?? 'CONSUMO_PRIORITARIO',
       montoMin: producto?.montoMin ?? 500,
@@ -545,13 +584,36 @@ function CreditoEditor({ producto, onCancel, onSave, saving }: CreditoEditorProp
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            {/* Nombre */}
+            {/* Nombre del Producto Restringido al BCE */}
             <div className="space-y-2">
-              <Label htmlFor="nombre">Nombre Comercial del Producto *</Label>
-              <Input
-                id="nombre"
-                placeholder="Ej. Crédito Consumo Preferencial"
-                {...register('nombre')}
+              <Label htmlFor="nombre">Nombre Oficial del Producto (BCE) *</Label>
+              <Controller
+                name="nombre"
+                control={control}
+                render={({ field }) => (
+                  <Select
+                    value={field.value}
+                    onValueChange={(val) => {
+                      field.onChange(val)
+                      const segKey = val === 'VIVIENDA_INMOBILIARIO' ? 'INMOBILIARIO' : val
+                      const matchedSeg = SEGMENTOS_BCE.find((s) => s.id === val || s.id === segKey)
+                      if (matchedSeg) {
+                        setValue('segmentoBce', matchedSeg.id)
+                      }
+                    }}
+                  >
+                    <SelectTrigger id="nombre">
+                      <SelectValue placeholder="Seleccione el producto oficial BCE" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {OPCIONES_PRODUCTO_BCE.map((opc) => (
+                        <SelectItem key={opc.value} value={opc.value}>
+                          {opc.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               />
               {errors.nombre && <p className="text-xs text-destructive">{errors.nombre.message}</p>}
             </div>

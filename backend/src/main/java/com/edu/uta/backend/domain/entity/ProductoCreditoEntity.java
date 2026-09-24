@@ -1,5 +1,6 @@
 package com.edu.uta.backend.domain.entity;
 
+import com.edu.uta.backend.domain.enums.SegmentoCreditoBCE;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -23,8 +24,25 @@ public class ProductoCreditoEntity {
     @JoinColumn(name = "tipo_credito_id", nullable = false)
     private TipoCreditoEntity tipoCredito;
 
-    @Column(nullable = false, length = 200)
-    private String nombre;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 100)
+    private SegmentoCreditoBCE nombre;
+
+    public String getNombre() {
+        return nombre != null ? nombre.getDescripcion() : null;
+    }
+
+    public SegmentoCreditoBCE getNombreEnum() {
+        return nombre;
+    }
+
+    public void setNombre(String nombreStr) {
+        this.nombre = SegmentoCreditoBCE.fromString(nombreStr);
+    }
+
+    public void setNombre(SegmentoCreditoBCE nombre) {
+        this.nombre = nombre;
+    }
 
     @Column(columnDefinition = "TEXT")
     private String descripcion;

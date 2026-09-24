@@ -25,6 +25,11 @@ export const creditosService = {
     return data
   },
 
+  cambiarEstado: async (id: number, active: boolean): Promise<ConfigurarCreditoResponse> => {
+    const { data } = await api.patch<ConfigurarCreditoResponse>(cleanUrl(`/api/admin/creditos/${id}/estado`), { active })
+    return data
+  },
+
   // ─── Segmentos ───────────────────────────────────────────────────────────
   getSegmentos: async (): Promise<SegmentoCredito[]> => {
     const { data } = await api.get<SegmentoCredito[]>(cleanUrl('/api/creditos/segmentos'))

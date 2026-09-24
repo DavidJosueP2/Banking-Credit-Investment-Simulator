@@ -9,5 +9,6 @@ public interface ProductoCreditoRepository extends JpaRepository<ProductoCredito
     List<ProductoCreditoEntity> findAllByTipoCreditoIdAndActivoTrueOrderByOrdenAsc(Long tipoCreditoId);
     List<ProductoCreditoEntity> findAllByActivoTrueOrderByOrdenAsc();
     List<ProductoCreditoEntity> findAllByActivoTrueOrderByIdDesc();
+    List<ProductoCreditoEntity> findAllByOrderByIdDesc();
     List<ProductoCreditoEntity> findAllByActivoTrue();
 }

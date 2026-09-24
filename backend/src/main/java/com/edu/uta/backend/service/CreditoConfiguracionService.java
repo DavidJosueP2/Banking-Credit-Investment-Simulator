@@ -171,7 +171,7 @@ public class CreditoConfiguracionService {
 
     @Transactional(readOnly = true)
     public List<ConfigurarCreditoResponseDto> listarConfigurados() {
-        return productoRepository.findAllByActivoTrueOrderByIdDesc().stream()
+        return productoRepository.findAllByOrderByIdDesc().stream()
                 .map(p -> {
                     BigDecimal tasaValor = p.getTasas().stream()
                             .filter(TasaCreditoEntity::getActivo)
@@ -194,6 +194,35 @@ public class CreditoConfiguracionService {
                     return toResponseDto(p, tasaValor, sistemas, cargos);
                 })
                 .toList();
+    }
+
+    @Transactional
+    public ConfigurarCreditoResponseDto cambiarEstado(Long id, Boolean active) {
+        ProductoCreditoEntity p = productoRepository.findById(id)
+                .orElseThrow(() -> new jakarta.persistence.EntityNotFoundException("Producto no encontrado: " + id));
+        boolean nuevoEstado = (active != null) ? active : !Boolean.TRUE.equals(p.getActivo());
+        p.setActivo(nuevoEstado);
+        p = productoRepository.save(p);
+
+        BigDecimal tasaValor = p.getTasas().stream()
+                .filter(TasaCreditoEntity::getActivo)
+                .findFirst()
+                .map(TasaCreditoEntity::getValor)
+                .orElse(new BigDecimal("15.50"));
+
+        List<SistemaAmortizacion> sistemas = parseSistemas(p.getSistemasPermitidos());
+
+        List<CargoResponseDto> cargos = p.getCargos() != null
+                ? p.getCargos().stream()
+                .filter(CargoCreditoEntity::getActivo)
+                .map(c -> new CargoResponseDto(
+                        c.getId(), c.getNombre(), c.getTipoCargo().name(),
+                        c.getValor(), c.getPeriodicidad(), c.getBaseCalculo(),
+                        c.getNormaAplicable(), c.getObligatorio()
+                )).toList()
+                : List.of();
+
+        return toResponseDto(p, tasaValor, sistemas, cargos);
     }
 
     // ─── Validaciones Normativas BCE ─────────────────────────────────────────
@@ -338,7 +367,7 @@ public class CreditoConfiguracionService {
     ) {
         return new ConfigurarCreditoResponseDto(
                 p.getId(),
-                p.getNombre(),
+                p.getNombre() != null ? p.getNombre() : "Crédito de Consumo Prioritario",
                 p.getEntidad() != null ? p.getEntidad() : "Banco",
                 p.getSegmentoBce() != null ? p.getSegmentoBce() : "Consumo Prioritario",
                 p.getMontoMin(),
