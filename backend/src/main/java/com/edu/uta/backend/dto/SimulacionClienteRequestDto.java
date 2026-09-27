@@ -24,8 +24,24 @@ public record SimulacionClienteRequestDto(
         Long entidadId,    // Alias para productoId
         String usuario,    // Opcional: Usuario al que pertenece la simulación
         BigDecimal costoTotal, // ¿Cuánto cuesta el bien/servicio?
-        Long creditTypeId  // Alias para productoId
+        Long creditTypeId, // Alias para productoId
+        java.util.List<Long> cargosOpcionales // Cobros no obligatorios que el cliente decide agregar
 ) {
+    public SimulacionClienteRequestDto(
+            BigDecimal monto,
+            String frecuencia,
+            Integer plazo,
+            SistemaAmortizacion sistema,
+            String entidad,
+            Long productoId,
+            Long entidadId,
+            String usuario,
+            BigDecimal costoTotal,
+            Long creditTypeId
+    ) {
+        this(monto, frecuencia, plazo, sistema, entidad, productoId, entidadId, usuario, costoTotal, creditTypeId, null);
+    }
+
     public SimulacionClienteRequestDto(
             BigDecimal monto,
             String frecuencia,

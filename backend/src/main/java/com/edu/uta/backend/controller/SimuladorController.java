@@ -25,6 +25,7 @@ public class SimuladorController {
 
     private final SimuladorService service;
     private final NormativaRegulatoriaService normativaService;
+    private final com.edu.uta.backend.service.CapacidadPagoService capacidadPago;
 
     /**
      * Catálogo dinámico de Tipos de Crédito configurados para el usuario final.
@@ -64,6 +65,17 @@ public class SimuladorController {
             @Valid @RequestBody SimulacionClienteRequestDto req
     ) {
         return ResponseEntity.ok(service.simularCliente(req));
+    }
+
+    /**
+     * ¿Cuánto me prestan? Mayor monto cuya cuota más alta no supera lo que la persona puede pagar.
+     * POST /api/simulador/capacidad
+     */
+    @PostMapping("/capacidad")
+    public ResponseEntity<com.edu.uta.backend.service.CapacidadPagoService.Resultado> capacidad(
+            @RequestBody com.edu.uta.backend.service.CapacidadPagoService.Solicitud solicitud
+    ) {
+        return ResponseEntity.ok(capacidadPago.calcular(solicitud));
     }
 
     /**
