@@ -40,6 +40,7 @@ public class ExampleAccounts {
             createIfMissing(identity, jdbc, encoder, transactions, "cliente", "cliente@brunexa.com", "Cliente Brunexa", password, "client");
             createIfMissing(identity, jdbc, encoder, transactions, "credito", "credito@brunexa.com", "Asesoría de crédito", password, "credit_advisor");
             createIfMissing(identity, jdbc, encoder, transactions, "inversiones", "inversiones@brunexa.com", "Asesoría de inversiones", password, "investment_advisor");
+            createIfMissing(identity, jdbc, encoder, transactions, "analista", "analista@brunexa.com", "Análisis de crédito", password, "credit_analyst");
             createIfMissing(identity, jdbc, encoder, transactions, "admin", "admin@brunexa.com", "Administración Brunexa", password, "administrator");
         };
     }

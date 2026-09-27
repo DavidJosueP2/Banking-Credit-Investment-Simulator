@@ -32,11 +32,14 @@ public class InvestmentController {
     private final InvestmentService investments;
     private final InvestmentPdfService pdf;
     private final IdentityService identity;
+    private final InvestmentGoalService goals;
 
-    public InvestmentController(InvestmentService investments, InvestmentPdfService pdf, IdentityService identity) {
+    public InvestmentController(InvestmentService investments, InvestmentPdfService pdf, IdentityService identity,
+                                InvestmentGoalService goals) {
         this.investments = investments;
         this.pdf = pdf;
         this.identity = identity;
+        this.goals = goals;
     }
 
     public record StatusInput(boolean active) {}
@@ -49,6 +52,12 @@ public class InvestmentController {
     @PostMapping("/public/investments/simulations")
     public InvestmentService.SimulationResult simulate(@RequestBody InvestmentService.SimulationRequest request) {
         return investments.simulate(request);
+    }
+
+    /** Meta de ahorro: capital necesario para reunir un monto en el plazo elegido. */
+    @PostMapping("/public/investments/goals")
+    public InvestmentGoalService.GoalResult goal(@RequestBody InvestmentGoalService.GoalRequest request) {
+        return goals.reach(request);
     }
 
     @PostMapping(value = "/public/investments/simulations/pdf", produces = MediaType.APPLICATION_PDF_VALUE)

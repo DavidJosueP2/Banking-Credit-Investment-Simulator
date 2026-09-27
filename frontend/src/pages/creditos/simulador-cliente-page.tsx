@@ -1,13 +1,19 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
+import { SimulationActions } from '@/features/applications/simulation-actions'
+import { CreditCompositionChart, CreditCostHighlight, CreditInstallmentsChart } from '@/features/creditos/credit-insights'
+import { CapacidadPagoCard } from '@/features/creditos/capacidad-pago-card'
+import { exportCreditExcel, exportCreditPdf } from '@/features/creditos/credit-export'
+import { useExportBranding } from '@/features/export/branding'
+import { DownloadMenu } from '@/features/export/download-menu'
+import { messageFrom } from '@/features/identity-check/utils'
 import {
   Calculator,
-  Download,
   Calendar,
   RefreshCw,
   CheckCircle2,
@@ -43,15 +49,14 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
-import jsPDF from 'jspdf'
-import autoTable from 'jspdf-autotable'
-import { simuladorService, PRODUCTOS_FALLBACK } from '@/features/creditos/simulador/services/simulador.service'
+import { simuladorService } from '@/features/creditos/simulador/services/simulador.service'
 import {
   type SimulacionClienteResponse,
   type SimulacionClienteRequest,
   type ProductoSimulador,
 } from '@/types'
 import { useAuth } from '@/app/providers/auth-provider'
+import { useInstitutionSettings } from '@/app/providers/settings-provider'
 
 // ─── Formateador de moneda USD ───────────────────────────────────────────────
 const fmtCurrency = new Intl.NumberFormat('es-EC', {
@@ -65,11 +70,11 @@ const fmt = (n: number | undefined) => fmtCurrency.format(n || 0)
 const simuladorSchema = z.object({
   productoId: z.number({ message: 'Seleccione un tipo de crédito' }).min(1, 'Seleccione un tipo de crédito'),
   costoTotal: z
-    .number({ message: 'Ingrese el costo del bien o servicio' })
-    .min(10, 'El valor mínimo del bien o servicio es de $10 USD'),
+    .number({ message: 'Ingresa el valor del bien o servicio' })
+    .min(10, 'El valor del bien o servicio debe ser de al menos $10'),
   monto: z
-    .number({ message: 'Ingrese el monto que desea prestar' })
-    .min(10, 'El monto mínimo a simular es de $10 USD'),
+    .number({ message: 'Ingresa cuánto necesitas financiar' })
+    .min(10, 'El monto a financiar debe ser de al menos $10'),
   plazo: z
     .number({ message: 'Ingrese el plazo deseado' })
     .min(1, 'El plazo mínimo es de 1 período'),
@@ -80,208 +85,82 @@ const simuladorSchema = z.object({
 
 type SimuladorFormData = z.infer<typeof simuladorSchema>
 
-// ─── Exportación Oficial a PDF con Paleta Corporativa Moderna ────────────────
-function exportarSimulacionPdf(data: SimulacionClienteResponse, clienteNombre?: string | null) {
-  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
 
-  // Paleta Corporativa Oficial
-  const primaryTeal = [8, 116, 123] // #08747b
-  const secondaryGold = [148, 105, 40] // #946928
-  const textDark = [32, 37, 39] // #202527
-  const textMuted = [88, 96, 100] // #586064
-  const bgSurface = [248, 250, 250] // #f8fafa
-  const borderLight = [218, 221, 221] // #dadddd
-
-  // 1. Barra de Cabecera Corporativa Brand Teal
-  doc.setFillColor(primaryTeal[0], primaryTeal[1], primaryTeal[2])
-  doc.rect(0, 0, 297, 22, 'F')
-
-  // Línea dorada de acento
-  doc.setFillColor(secondaryGold[0], secondaryGold[1], secondaryGold[2])
-  doc.rect(0, 22, 297, 1.5, 'F')
-
-  // Título en cabecera
-  doc.setTextColor(255, 255, 255)
-  doc.setFontSize(14)
-  doc.setFont('helvetica', 'bold')
-  doc.text('TABLA OFICIAL DE AMORTIZACIÓN — SISTEMA FINANCIERO', 14, 11)
-
-  doc.setFontSize(8)
-  doc.setFont('helvetica', 'normal')
-  doc.text('Normativa Oficial de Regulación BCE / SB • Simulación Oficial de Crédito y Desgravamen', 14, 17)
-
-  const fechaEmision = `${new Date().toLocaleDateString('es-EC')} ${new Date().toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' })}`
-  doc.text(`Emisión: ${fechaEmision}`, 283, 15, { align: 'right' })
-
-  // 2. Título de Sección y Solicitante
-  doc.setTextColor(textDark[0], textDark[1], textDark[2])
-  doc.setFontSize(10)
-  doc.setFont('helvetica', 'bold')
-  const tituloCondiciones = 'CONDICIONES GENERALES DE LA OPERACIÓN' + (clienteNombre ? ` — Solicitante: ${clienteNombre}` : '')
-  doc.text(tituloCondiciones, 14, 30)
-
-  // 3. Grid de Parámetros (2 columnas de datos estructurados en caja)
-  doc.setFillColor(bgSurface[0], bgSurface[1], bgSurface[2])
-  doc.setDrawColor(borderLight[0], borderLight[1], borderLight[2])
-  doc.setLineWidth(0.3)
-  doc.roundedRect(14, 33, 145, 25, 2, 2, 'FD')
-
-  doc.setFontSize(8)
-  doc.setFont('helvetica', 'normal')
-  doc.setTextColor(textMuted[0], textMuted[1], textMuted[2])
-  doc.text('Producto:', 18, 38)
-  doc.text('Entidad:', 18, 43)
-  doc.text('Segmento BCE:', 18, 48)
-  doc.text('Sistema:', 18, 53)
-
-  doc.setFont('helvetica', 'bold')
-  doc.setTextColor(textDark[0], textDark[1], textDark[2])
-  doc.text(`${data.nombreProducto}`, 46, 38)
-  doc.text(`${data.entidad || 'Banco Comercial'}`, 46, 43)
-  doc.text(`${data.segmentoBce || 'General'}`, 46, 48)
-  doc.text(`${data.sistema === 'FRANCES' ? 'Francés (Cuota Fija)' : 'Alemán (Capital Fijo)'}`, 46, 53)
-
-  doc.setFont('helvetica', 'normal')
-  doc.setTextColor(textMuted[0], textMuted[1], textMuted[2])
-  doc.text('Plazo:', 92, 38)
-  doc.text('Frecuencia:', 92, 43)
-  doc.text('Tasa Nominal:', 92, 48)
-  doc.text('Desgravamen:', 92, 53)
-
-  doc.setFont('helvetica', 'bold')
-  doc.setTextColor(textDark[0], textDark[1], textDark[2])
-  doc.text(`${data.totalCuotas} ${data.frecuencia === 'ANUAL' ? 'años' : 'meses'}`, 120, 38)
-  doc.text(`${data.frecuencia}`, 120, 43)
-  doc.text(`${data.tasaInteresAnual}% anual`, 120, 48)
-  doc.text(`${data.tasaDesgravamenMensual}% mensual`, 120, 53)
-
-  // 4. Tarjetas KPI de Resumen Financiero a la derecha (4 bloques)
-  const kpiX = 165
-  const kpiW = 28
-  const kpiH = 25
-  const kpiGap = 3
-
-  const kpis = [
-    { label: 'MONTO FINANCIADO', value: fmt(data.monto), color: textDark, isTotal: false },
-    { label: 'TOTAL INTERESES', value: fmt(data.totalIntereses), color: primaryTeal, isTotal: false },
-    { label: 'DESGRAVAMEN', value: fmt(data.totalDesgravamen), color: secondaryGold, isTotal: false },
-    { label: 'TOTAL A PAGAR', value: fmt(data.totalPagar), color: textDark, isTotal: true },
-  ]
-
-  kpis.forEach((kpi, idx) => {
-    const x = kpiX + idx * (kpiW + kpiGap)
-    doc.setFillColor(kpi.isTotal ? 232 : 248, kpi.isTotal ? 244 : 250, kpi.isTotal ? 244 : 250)
-    doc.setDrawColor(borderLight[0], borderLight[1], borderLight[2])
-    doc.roundedRect(x, 33, kpiW, kpiH, 1.5, 1.5, 'FD')
-
-    doc.setFontSize(6.5)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(textMuted[0], textMuted[1], textMuted[2])
-    doc.text(kpi.label, x + kpiW / 2, 40, { align: 'center' })
-
-    doc.setFontSize(8.5)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(kpi.color[0], kpi.color[1], kpi.color[2])
-    doc.text(kpi.value, x + kpiW / 2, 49, { align: 'center' })
-  })
-
-  // 5. Tabla Oficial de Amortización con desglose completo
-  const head = [[
-    'No.',
-    'Saldo Inicial',
-    'Capital',
-    'Interés',
-    'Desgravamen',
-    'Cargos Ind.',
-    'Cuota Total',
-    'Saldo Final',
-  ]]
-
-  const body = data.tablaCuotas.map((c) => [
-    c.numeroCuota.toString(),
-    fmt(c.saldoInicial),
-    fmt(c.capital),
-    fmt(c.interes),
-    fmt(c.desgravamen),
-    fmt(c.cargosIndirectos || 0),
-    fmt(c.cuotaTotal),
-    fmt(c.saldoFinal),
-  ])
-
-  autoTable(doc, {
-    head,
-    body,
-    startY: 62,
-    margin: { left: 14, right: 14 },
-    theme: 'grid',
-    styles: {
-      fontSize: 7.5,
-      cellPadding: 2,
-      halign: 'right',
-      font: 'helvetica',
-      textColor: [32, 37, 39],
-      lineColor: [225, 230, 230],
-      lineWidth: 0.15,
-    },
-    headStyles: {
-      fillColor: [8, 116, 123],
-      textColor: [255, 255, 255],
-      fontStyle: 'bold',
-      halign: 'right',
-      fontSize: 7.5,
-      cellPadding: 2.5,
-    },
-    alternateRowStyles: {
-      fillColor: [248, 251, 251],
-    },
-    columnStyles: {
-      0: { halign: 'center', cellWidth: 12 },
-      6: { fontStyle: 'bold', fillColor: [235, 246, 246], textColor: [8, 116, 123] },
-    },
-    didDrawPage: (pageData) => {
-      // Pie de página en cada hoja
-      doc.setFontSize(7)
-      doc.setFont('helvetica', 'italic')
-      doc.setTextColor(textMuted[0], textMuted[1], textMuted[2])
-      doc.text(
-        '* Simulación referencial calculada con tasas vigentes de la Junta de Política y Regulación Financiera y Banco Central del Ecuador (BCE).',
-        14,
-        202
-      )
-      const pageStr = `Página ${pageData.pageNumber} de ${doc.getNumberOfPages()}`
-      doc.setFont('helvetica', 'normal')
-      doc.text(pageStr, 283, 202, { align: 'right' })
-    },
-  })
-
-  const nombreArchivo = `Amortizacion_${(data.nombreProducto || 'Credito').replace(/\s+/g, '_')}_${data.monto}USD.pdf`
-  doc.save(nombreArchivo)
+function describirCargo(c: NonNullable<ProductoSimulador['cargosIndirectos']>[number]) {
+  const cada = c.periodicidad === 'UNICO' ? 'una vez' : 'por cuota'
+  if (c.tipoCargo === 'PORCENTAJE') {
+    const base = c.periodicidad === 'UNICO' || c.baseCalculo === 'MONTO_SOLICITADO' ? 'del monto' : 'del saldo'
+    return `${c.valor} % ${base}, ${cada}`
+  }
+  return `${fmt(c.valor)} ${cada}`
 }
 
-// ─── Componente Principal del Simulador ─────────────────────────────────────
+// ─── Carga del catálogo: solo productos creados por los asesores ───────────
 export function SimuladorClientePage() {
-  const { account, hasPermission } = useAuth()
-  const isAsesor = hasPermission('credit.products.manage') || (account?.roles?.includes('credit_advisor') ?? false)
-  const usuario = account ? { nombre: account.fullName || account.username } : null
-
-  const [resultado, setResultado] = useState<SimulacionClienteResponse | null>(null)
-  const [modalTablaAbierto, setModalTablaAbierto] = useState(false)
-
-  // Consulta de Tipos de Crédito desde la Base de Datos
+  const { assets } = useInstitutionSettings()
   const productosQuery = useQuery({
     queryKey: ['simulador', 'productos'],
     queryFn: () => simuladorService.obtenerProductos(),
     staleTime: 60_000,
   })
 
-  const productosDisponibles: ProductoSimulador[] = useMemo(() => {
-    if (productosQuery.data && productosQuery.data.length > 0) {
-      return productosQuery.data
-    }
-    return PRODUCTOS_FALLBACK
-  }, [productosQuery.data])
+  if (productosQuery.data && productosQuery.data.length > 0) {
+    return <SimuladorCredito productosDisponibles={productosQuery.data} />
+  }
 
-  const defaultProd: ProductoSimulador = productosDisponibles[0] || PRODUCTOS_FALLBACK[0]
+  return (
+    <main id="contenido">
+      <SimulatorHeroBanner
+        breadcrumbs={[{ label: 'Inicio', href: '/' }, { label: 'Simulador de crédito' }]}
+        title="Simulador de Crédito"
+        description="Calcula tu tabla de pagos con los tipos de crédito vigentes de la institución."
+        imageSrc={assets.creditSimulatorImage ?? creditPersonImage}
+        imageAlt="Persona simulando su crédito"
+      />
+      <div className="mx-auto max-w-3xl px-5 py-16 text-center sm:px-8">
+        {productosQuery.isPending ? (
+          <p className="text-sm text-muted-foreground">Cargando tipos de crédito…</p>
+        ) : productosQuery.isError ? (
+          <p className="text-sm text-destructive">No pudimos cargar los tipos de crédito. Inténtalo en unos minutos.</p>
+        ) : (
+          <>
+            <h2 className="text-xl">Aún no hay créditos disponibles</h2>
+            <p className="mt-2 text-sm text-muted-foreground">La institución todavía no publica tipos de crédito para simular.</p>
+          </>
+        )}
+        <Button asChild variant="outline" className="mt-6"><Link to="/">Volver al inicio</Link></Button>
+      </div>
+    </main>
+  )
+}
+
+// ─── Simulador ──────────────────────────────────────────────────────────────
+function SimuladorCredito({ productosDisponibles }: { productosDisponibles: ProductoSimulador[] }) {
+  const { account, hasPermission } = useAuth()
+  const { assets } = useInstitutionSettings()
+  const isAsesor = hasPermission('credit.products.manage') || (account?.roles?.includes('credit_advisor') ?? false)
+  const usuario = account ? { nombre: account.fullName || account.username } : null
+
+  const [resultado, setResultado] = useState<SimulacionClienteResponse | null>(null)
+  const [modalTablaAbierto, setModalTablaAbierto] = useState(false)
+
+  // Abrir una simulación guardada: /creditos/simulador?producto=&monto=&plazo=&sistema=&costo=&opcionales=
+  // rellena el formulario (valores iniciales) y la calcula al entrar.
+  const [searchParams] = useSearchParams()
+  const [inicial] = useState(() => {
+    const producto = productosDisponibles.find((p) => String(p.id) === searchParams.get('producto'))
+    const monto = Number(searchParams.get('monto'))
+    const plazo = Number(searchParams.get('plazo'))
+    if (!producto || !monto || !plazo) return null
+    const pedido = searchParams.get('sistema') as 'FRANCES' | 'ALEMAN' | null
+    const sistema = (pedido && producto.sistemasPermitidos.includes(pedido) ? pedido : producto.sistemasPermitidos[0] ?? 'FRANCES') as 'FRANCES' | 'ALEMAN'
+    const opcionales = (searchParams.get('opcionales') ?? '').split(',').map(Number)
+      .filter((id) => producto.cargosIndirectos?.some((c) => c.id === id && c.obligatorio === false))
+    return { productoId: producto.id, costoTotal: Math.max(Number(searchParams.get('costo')) || monto, monto), monto, plazo, sistema, opcionales }
+  })
+
+  const [cargosOpcionales, setCargosOpcionales] = useState<number[]>(inicial?.opcionales ?? [])
+  const defaultProd: ProductoSimulador = productosDisponibles[0]
 
   const {
     register,
@@ -294,7 +173,7 @@ export function SimuladorClientePage() {
     formState: { errors },
   } = useForm<SimuladorFormData>({
     resolver: zodResolver(simuladorSchema),
-    defaultValues: {
+    defaultValues: inicial ?? {
       productoId: defaultProd.id,
       costoTotal: 8000,
       monto: 5000,
@@ -313,6 +192,10 @@ export function SimuladorClientePage() {
   const productoSeleccionado = useMemo(() => {
     return productosDisponibles.find((p) => p.id === Number(productoIdActual)) || defaultProd
   }, [productosDisponibles, productoIdActual, defaultProd])
+
+  // Solo cuentan los opcionales del producto actual (al cambiar de producto se descartan los demás).
+  const cargosElegidos = cargosOpcionales.filter((id) =>
+    productoSeleccionado.cargosIndirectos?.some((c) => c.id === id && c.obligatorio === false))
 
   const esAnios = productoSeleccionado.unidadPlazo === 'ANIOS'
   const etiquetaPlazo = esAnios ? 'años' : 'meses'
@@ -357,7 +240,7 @@ export function SimuladorClientePage() {
     if (costoTotalActual && montoActual && montoActual > costoTotalActual) {
       setError('monto', {
         type: 'manual',
-        message: `El monto a prestar ($${montoActual}) no puede ser mayor que el costo total del bien ($${costoTotalActual})`,
+        message: `El monto a financiar (${fmt(montoActual)}) no puede superar el valor del bien (${fmt(costoTotalActual)}). La diferencia es tu entrada.`,
       })
     } else {
       clearErrors('monto')
@@ -365,16 +248,18 @@ export function SimuladorClientePage() {
   }, [costoTotalActual, montoActual, setError, clearErrors])
 
   const mutation = useMutation({
-    mutationFn: (data: SimuladorFormData) => {
+    mutationFn: (data: SimuladorFormData & { opcionales?: number[] }) => {
+      const producto = productosDisponibles.find((p) => p.id === data.productoId) ?? productoSeleccionado
       const payload: SimulacionClienteRequest = {
         productoId: data.productoId,
         creditTypeId: data.productoId,
         costoTotal: data.costoTotal,
         monto: data.monto,
-        frecuencia: esAnios ? 'ANUAL' : 'MENSUAL',
+        frecuencia: producto.unidadPlazo === 'ANIOS' ? 'ANUAL' : 'MENSUAL',
         plazo: data.plazo,
         sistema: data.sistema,
         usuario: usuario?.nombre,
+        cargosOpcionales: data.opcionales ?? cargosElegidos,
       }
       return simuladorService.calcularCliente(payload)
     },
@@ -384,11 +269,34 @@ export function SimuladorClientePage() {
         description: `${data.nombreProducto} — Tasa: ${data.tasaInteresAnual}% · Desgravamen: ${data.tasaDesgravamenMensual}%`,
       })
     },
-    onError: (err: any) => {
-      const msg = err.response?.data?.message || err.message || 'Error al realizar la simulación'
-      toast.error('No se pudo simular el crédito', { description: msg })
+    onError: (err) => {
+      toast.error('No se pudo simular el crédito', { description: messageFrom(err, 'Revisa los datos e inténtalo de nuevo.') })
     },
   })
+
+  const restaurada = useRef(false)
+  const { mutate: simular } = mutation
+  useEffect(() => {
+    if (restaurada.current || !inicial) return
+    restaurada.current = true
+    simular(inicial)
+  }, [inicial, simular])
+
+  const brandingFor = useExportBranding()
+  const [exportando, setExportando] = useState<'pdf' | 'excel' | null>(null)
+  async function exportar(formato: 'pdf' | 'excel') {
+    if (!resultado) return
+    setExportando(formato)
+    try {
+      const branding = await brandingFor()
+      if (formato === 'pdf') exportCreditPdf(resultado, branding, usuario?.nombre)
+      else await exportCreditExcel(resultado, branding, usuario?.nombre)
+    } catch {
+      toast.error(`No se pudo generar el ${formato === 'pdf' ? 'PDF' : 'Excel'}.`)
+    } finally {
+      setExportando(null)
+    }
+  }
 
   const onSubmit = (data: SimuladorFormData, e?: React.BaseSyntheticEvent) => {
     e?.preventDefault()
@@ -426,10 +334,10 @@ export function SimuladorClientePage() {
           { label: 'Servicios', href: '/#servicios' },
           { label: 'Simulador de crédito' },
         ]}
-        accentBadge="Simulador Oficial BCE"
+        accentBadge="Tasas dentro del tope BCE"
         title="Simulador de Crédito"
-        description="Calcula tu cronograma de pagos oficial conforme a la normativa vigente del Banco Central del Ecuador (BCE), con seguro de desgravamen y cargos transparentes."
-        imageSrc={creditPersonImage}
+        description="Calcula tu tabla de pagos con tasas que respetan el tope vigente del Banco Central del Ecuador, el seguro de desgravamen y todos los cobros indirectos a la vista."
+        imageSrc={assets.creditSimulatorImage ?? creditPersonImage}
         imageAlt="Persona simulando su crédito"
       />
 
@@ -445,7 +353,7 @@ export function SimuladorClientePage() {
             </div>
             <Button asChild size="sm" variant="outline" className="border-brand-teal/30 text-brand-teal hover:bg-brand-teal/10 gap-1.5 shrink-0">
               <Link to="/admin/creditos">
-                Administrar Productos
+                Administrar tipos de crédito
                 <ArrowRight className="size-3.5" />
               </Link>
             </Button>
@@ -522,13 +430,13 @@ export function SimuladorClientePage() {
                       <div className="space-y-0.5">
                         <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
                           <Percent className="size-3 text-brand-teal" />
-                          <span>Tasa Nominal</span>
+                          <span>Tasa efectiva anual</span>
                         </div>
                         <div className="font-sans font-semibold text-sm text-foreground">
                           {productoSeleccionado.tasaNominal.toFixed(2)}%{' '}
                           <span className="text-[10px] font-normal text-muted-foreground">anual</span>
                         </div>
-                        <p className="text-[10px] text-muted-foreground">Regulación BCE</p>
+                        <p className="text-[10px] text-muted-foreground">Dentro del tope del BCE</p>
                       </div>
 
                       <div className="space-y-0.5">
@@ -544,33 +452,60 @@ export function SimuladorClientePage() {
                       </div>
                     </div>
 
-                    {/* Cargos Indirectos Asociados (si existen) */}
+                    {/* Cobros indirectos del producto: los obligatorios siempre se suman; los opcionales, si el cliente los elige */}
                     {productoSeleccionado.cargosIndirectos && productoSeleccionado.cargosIndirectos.length > 0 && (
                       <div className="pt-2 border-t border-border/60">
-                        <div className="flex items-center gap-1 text-[11px] text-muted-foreground mb-1">
+                        <div className="flex items-center gap-1 text-[11px] text-muted-foreground mb-1.5">
                           <FileCheck2 className="size-3 text-brand-gold" />
-                          <span className="font-medium text-foreground">Cargos Indirectos aplicables:</span>
+                          <span className="font-medium text-foreground">Cobros indirectos</span>
                         </div>
-                        <div className="space-y-1">
-                          {productoSeleccionado.cargosIndirectos.map((c, i) => (
-                            <div key={i} className="flex justify-between text-[11px] text-muted-foreground">
-                              <span>• {c.nombre}:</span>
-                              <span className="font-medium text-foreground">
-                                {c.tipoCargo === 'PORCENTAJE' ? `${c.valor}% (${c.baseCalculo.toLowerCase()})` : `$${c.valor} (${c.periodicidad.toLowerCase()})`}
-                              </span>
-                            </div>
-                          ))}
+                        <div className="space-y-1.5">
+                          {productoSeleccionado.cargosIndirectos.map((c) => {
+                            const opcional = c.obligatorio === false && c.id != null
+                            const elegido = opcional && cargosOpcionales.includes(c.id!)
+                            return (
+                              <label key={c.id ?? c.nombre} className={`flex items-start justify-between gap-3 text-[11px] ${opcional ? 'cursor-pointer' : ''}`}>
+                                <span className="flex items-start gap-2 text-muted-foreground">
+                                  {opcional ? (
+                                    <input type="checkbox" className="mt-0.5 accent-[var(--brand-teal)]" checked={elegido}
+                                      onChange={(e) => setCargosOpcionales((prev) => e.target.checked ? [...prev, c.id!] : prev.filter((id) => id !== c.id))} />
+                                  ) : <span className="mt-1 size-1.5 shrink-0 rounded-full bg-brand-gold" aria-hidden="true" />}
+                                  <span>
+                                    {c.nombre}
+                                    <span className="block text-[10px]">
+                                      {opcional ? 'Opcional: márcalo si deseas agregarlo' : 'Incluido en tu cuota'}
+                                    </span>
+                                  </span>
+                                </span>
+                                <span className="shrink-0 font-medium text-foreground">{describirCargo(c)}</span>
+                              </label>
+                            )
+                          })}
                         </div>
                       </div>
                     )}
                   </div>
+
+                  <CapacidadPagoCard
+                    key={productoSeleccionado.id}
+                    productoId={productoSeleccionado.id}
+                    plazo={plazoActual}
+                    sistema={sistemaActual}
+                    cargosOpcionales={cargosElegidos}
+                    anual={esAnios}
+                    onUsar={(r) => {
+                      setValue('monto', Number(r.montoMaximo))
+                      if (!costoTotalActual || costoTotalActual < Number(r.montoMaximo)) setValue('costoTotal', Number(r.montoMaximo))
+                      setResultado(r.simulacion)
+                    }}
+                  />
 
                   {/* 2. Campo: ¿Cuánto cuesta el bien/servicio? */}
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
                       <Label htmlFor="costoTotal" className="text-xs font-medium text-foreground flex items-center gap-1.5">
                         <ShoppingBag className="size-3.5 text-brand-teal" />
-                        ¿Cuánto cuesta el bien/servicio?
+                        Valor del bien o servicio
                       </Label>
                       <span className="font-sans text-muted-foreground text-xs">{fmt(costoTotalActual)}</span>
                     </div>
@@ -588,7 +523,7 @@ export function SimuladorClientePage() {
                       <p className="text-[11px] text-destructive">{errors.costoTotal.message}</p>
                     )}
                     <p className="text-[10px] text-muted-foreground">
-                      Valor total del bien, vehículo, inmueble o servicio a adquirir.
+                      Precio total de lo que vas a comprar: vehículo, vivienda, estudios, equipo, etc.
                     </p>
                   </div>
 
@@ -597,7 +532,7 @@ export function SimuladorClientePage() {
                     <div className="flex items-center justify-between">
                       <Label htmlFor="monto" className="text-xs font-medium text-foreground flex items-center gap-1.5">
                         <Coins className="size-3.5 text-brand-teal" />
-                        ¿Cuánto desea prestar?
+                        ¿Cuánto necesitas financiar?
                       </Label>
                       <span className="font-sans text-brand-teal font-medium text-xs">{fmt(montoActual)}</span>
                     </div>
@@ -620,10 +555,18 @@ export function SimuladorClientePage() {
                       <span>Mín: {fmt(productoSeleccionado.montoMin)}</span>
                       <span>Máx: {fmt(productoSeleccionado.montoMax)}</span>
                     </div>
+                    {costoTotalActual > 0 && montoActual > 0 && montoActual <= costoTotalActual && (
+                      <p className="text-[11px] text-muted-foreground">
+                        Tu entrada: <strong className="text-foreground">{fmt(costoTotalActual - montoActual)}</strong>
+                        {' '}({Math.round(((costoTotalActual - montoActual) / costoTotalActual) * 100)} % del valor)
+                      </p>
+                    )}
 
                     {/* Chips de montos sugeridos (Estilo de develop) */}
                     <div className="flex flex-wrap gap-1.5 pt-1">
-                      {[1000, 3000, 5000, 10000, 20000].map((val) => (
+                      {[1000, 3000, 5000, 10000, 20000, 50000]
+                        .filter((val) => val >= productoSeleccionado.montoMin && val <= productoSeleccionado.montoMax && (!costoTotalActual || val <= costoTotalActual))
+                        .map((val) => (
                         <button
                           key={val}
                           type="button"
@@ -645,7 +588,7 @@ export function SimuladorClientePage() {
                     <div className="flex items-center justify-between">
                       <Label htmlFor="plazo" className="text-xs font-medium text-foreground flex items-center gap-1.5">
                         <Calendar className="size-3.5 text-brand-teal" />
-                        ¿En cuánto tiempo desea pagar?
+                        ¿En cuánto tiempo quieres pagar?
                       </Label>
                       <span className="text-muted-foreground text-xs">
                         {plazoActual} {etiquetaPlazo}
@@ -788,18 +731,22 @@ export function SimuladorClientePage() {
                       <TableProperties className="size-4" />
                       <span>Ver Pantalla Completa</span>
                     </Button>
-                    <Button
-                      type="button"
-                      onClick={() => exportarSimulacionPdf(resultado, usuario?.nombre)}
-                      variant="outline"
-                      size="sm"
-                      className="gap-2 shrink-0 border-brand-teal/30 text-brand-teal hover:bg-brand-teal/10 cursor-pointer"
-                    >
-                      <Download className="size-4" />
-                      <span>Descargar PDF</span>
-                    </Button>
+                    <DownloadMenu
+                      onSelect={(formato) => void exportar(formato)}
+                      pending={exportando}
+                      className="gap-1.5 shrink-0 border-brand-teal/30 text-brand-teal hover:bg-brand-teal/10"
+                    />
                   </div>
                 </div>
+
+                <CreditCostHighlight totals={{
+                  tea: resultado.tasaInteresAnual,
+                  monto: resultado.monto,
+                  totalIntereses: resultado.totalIntereses,
+                  totalDesgravamen: resultado.totalDesgravamen,
+                  totalCargos: resultado.totalCargosIndirectos ?? 0,
+                  totalPagar: resultado.totalPagar,
+                }} />
 
                 {/* 4 Métricas Clave (Nueva UI de develop) */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -851,6 +798,46 @@ export function SimuladorClientePage() {
                     </span>
                   </div>
                 </div>
+
+                <div className="flex flex-col gap-3 rounded-xl border border-brand-teal/20 bg-brand-teal/5 p-4">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">¿Te conviene este escenario?</p>
+                    <p className="text-xs text-muted-foreground">Envía tu solicitud en línea o guárdala para compararla después.</p>
+                  </div>
+                  <SimulationActions
+                    className=""
+                    scenario={{
+                      productType: 'CREDIT',
+                      productId: resultado.productoId,
+                      productName: resultado.nombreProducto,
+                      amount: resultado.monto,
+                      term: resultado.totalCuotas,
+                      termUnit: resultado.frecuencia === 'ANUAL' ? 'YEARS' : 'MONTHS',
+                      amortizationSystem: resultado.sistema,
+                      assetCost: resultado.costoTotal ?? undefined,
+                      optionalCharges: cargosElegidos,
+                    }}
+                  />
+                </div>
+
+                <CreditCompositionChart totals={{
+                  tea: resultado.tasaInteresAnual,
+                  monto: resultado.monto,
+                  totalIntereses: resultado.totalIntereses,
+                  totalDesgravamen: resultado.totalDesgravamen,
+                  totalCargos: resultado.totalCargosIndirectos ?? 0,
+                  totalPagar: resultado.totalPagar,
+                }} />
+                <CreditInstallmentsChart
+                  yearly={resultado.frecuencia === 'ANUAL'}
+                  rows={resultado.tablaCuotas.map((c) => ({
+                    numero: c.numeroCuota,
+                    capital: c.capital,
+                    interes: c.interes,
+                    desgravamen: c.desgravamen,
+                    cargos: c.cargosIndirectos ?? 0,
+                  }))}
+                />
 
                 {/* ── Tabla Oficial de Amortización (Directamente embebida como en develop) ──────────── */}
                 <div className="overflow-hidden rounded-xl border bg-card shadow-2xs">
@@ -961,16 +948,6 @@ export function SimuladorClientePage() {
                   {resultado?.nombreProducto} — {resultado?.totalCuotas} cuotas ({resultado?.sistema === 'FRANCES' ? 'Sistema Francés' : 'Sistema Alemán'})
                 </DialogDescription>
               </div>
-              <Button
-                type="button"
-                variant="brand"
-                size="sm"
-                onClick={() => resultado && exportarSimulacionPdf(resultado, usuario?.nombre)}
-                className="gap-2 font-medium shrink-0"
-              >
-                <Download className="size-4" />
-                <span>Descargar (PDF/Excel)</span>
-              </Button>
             </div>
           </DialogHeader>
 
@@ -1040,16 +1017,7 @@ export function SimuladorClientePage() {
               >
                 Cerrar
               </Button>
-              <Button
-                type="button"
-                variant="brand"
-                size="sm"
-                onClick={() => resultado && exportarSimulacionPdf(resultado, usuario?.nombre)}
-                className="gap-2 font-medium"
-              >
-                <Download className="size-4" />
-                <span>Descargar (PDF/Excel)</span>
-              </Button>
+              <DownloadMenu variant="brand" onSelect={(formato) => void exportar(formato)} pending={exportando} className="gap-1.5 font-medium" />
             </div>
           </DialogFooter>
         </DialogContent>

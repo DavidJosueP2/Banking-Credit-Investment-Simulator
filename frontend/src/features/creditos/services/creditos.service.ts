@@ -9,6 +9,7 @@ import {
   type SeguroCredito,
   type ConfigurarCreditoRequest,
   type ConfigurarCreditoResponse,
+  type MarcoNormativo,
 } from '@/types'
 
 const cleanUrl = (url: string) => url.startsWith('/api') ? url.substring(4) : url
@@ -22,6 +23,11 @@ export const creditosService = {
 
   actualizarCredito: async (id: number, dto: ConfigurarCreditoRequest): Promise<ConfigurarCreditoResponse> => {
     const { data } = await api.put<ConfigurarCreditoResponse>(cleanUrl(`/api/admin/creditos/${id}`), dto)
+    return data
+  },
+
+  getMarco: async (): Promise<MarcoNormativo> => {
+    const { data } = await api.get<MarcoNormativo>('/admin/creditos/configurar/marco')
     return data
   },
 

@@ -52,6 +52,7 @@ public record ConfigurarCreditoResponseDto(
             String periodicidad,
             String baseCalculo,
             String normaAplicable,
-            Boolean obligatorio
+            Boolean obligatorio,
+            String categoria
     ) {}
 }

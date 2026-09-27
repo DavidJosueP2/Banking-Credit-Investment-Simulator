@@ -47,11 +47,17 @@ public class ProfileService {
         return profile(username);
     }
 
-    /** Los datos que el nuevo documento no trajo legibles se conservan. */
+    /**
+     * Los datos que el nuevo documento no trajo legibles se conservan. Si la cuenta aún no tiene perfil
+     * de cliente (p. ej. una cuenta creada sin pasar por el registro), esta verificación lo crea con lo
+     * que leyó el documento: es el mismo control de identidad que en el registro.
+     */
     @Transactional
     public ProfileView updateIdentity(String username, IdentityCheckService.Evidence evidence) {
-        CustomerProfile profile = profileOf(username);
         IdentityCheckService.VerifiedIdentity document = evidence.identity();
+        IdentityService.Account account = identity.accountByUsername(username);
+        CustomerProfile profile = profiles.findByUserId(account.id()).orElse(null);
+        if (profile == null) profile = firstProfile(account, document);
         profile.replaceDocument(document.idType(), document.idNumber());
         if (document.firstNames() != null) profile.setFirstNames(IdentityRecordService.properName(document.firstNames()));
         if (document.lastNames() != null) profile.setLastNames(IdentityRecordService.properName(document.lastNames()));
@@ -61,8 +67,28 @@ public class ProfileService {
         return profile(username);
     }
 
+    /** Dueño de la verificación: la cuenta, tenga o no perfil todavía. */
     public long ownerId(String username) {
-        return profileOf(username).getUserId();
+        return identity.accountByUsername(username).id();
+    }
+
+    private CustomerProfile firstProfile(IdentityService.Account account, IdentityCheckService.VerifiedIdentity document) {
+        LocalDate birthDate = document.birthDate();
+        if (birthDate == null) {
+            throw new IllegalArgumentException(
+                    "No pudimos leer tu fecha de nacimiento en el documento. Usa tu cédula o una foto más nítida.");
+        }
+        if (birthDate.isAfter(LocalDate.now().minusYears(18))) {
+            throw new IllegalArgumentException("Debes ser mayor de edad para tener una cuenta de cliente.");
+        }
+        String[] names = account.fullName().trim().split("\\s+", 2);
+        String firstNames = document.firstNames() != null ? document.firstNames() : names[0];
+        String lastNames = document.lastNames() != null ? document.lastNames() : names.length > 1 ? names[1] : names[0];
+        CustomerProfile profile = new CustomerProfile(account.id(), document.idType(), document.idNumber(),
+                IdentityRecordService.properName(firstNames), IdentityRecordService.properName(lastNames), birthDate, null);
+        // La cuenta ya inicia sesión: su correo quedó verificado al crearla (o es una cuenta de ejemplo).
+        profile.setEmailVerified(true);
+        return profiles.save(profile);
     }
 
     private CustomerProfile profileOf(String username) {

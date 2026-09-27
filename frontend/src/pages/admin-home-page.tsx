@@ -1,14 +1,26 @@
-import { ArrowRight, ChartNoAxesCombined, Landmark, Settings2, UsersRound, type LucideIcon } from 'lucide-react'
+import { ArrowRight, ChartNoAxesCombined, Inbox, Landmark, Settings2, UsersRound, type LucideIcon } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 
 import { type Permission } from '@/app/access/permissions'
 import { useAuth } from '@/app/providers/auth-provider'
 import { PageHeader } from '@/components/shared/page-header'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
+import { getDashboardSummary, type Kpi } from '@/features/dashboard/dashboard-api'
+import { formatCurrency } from '@/lib/formatters'
 
 const managementAreas = [
   {
-    title: 'Productos de crédito',
+    title: 'Solicitudes en línea',
+    description: 'Revisión, recomendación y aprobación de créditos e inversiones solicitados por clientes.',
+    icon: Inbox,
+    permission: ['credit.requests.review', 'credit.requests.approve', 'investment.requests.review', 'requests.audit'],
+    status: 'Disponible',
+    url: '/admin/solicitudes',
+  },
+  {
+    title: 'Tipos de crédito',
     description: 'Tipos de crédito, tasas y cobros asociados.',
     icon: Landmark,
     permission: 'credit.products.manage',
@@ -34,7 +46,7 @@ const managementAreas = [
   title: string
   description: string
   icon: LucideIcon
-  permission: Permission
+  permission: Permission | Permission[]
   status?: string
   url?: string
 }>
@@ -42,7 +54,8 @@ const managementAreas = [
 export function AdminHomePage() {
   const { hasPermission } = useAuth()
   const canManageAccess = hasPermission('users.roles.manage')
-  const visibleAreas = managementAreas.filter((area) => hasPermission(area.permission))
+  const visibleAreas = managementAreas.filter((area) =>
+    (Array.isArray(area.permission) ? area.permission : [area.permission]).some(hasPermission))
 
   return (
     <div className="space-y-10 lg:space-y-12">
@@ -63,6 +76,8 @@ export function AdminHomePage() {
         }
         className="border-b pb-8"
       />
+
+      <KpiRow />
 
       {canManageAccess && (
         <section aria-labelledby="access-title" className="space-y-4">
@@ -118,5 +133,41 @@ export function AdminHomePage() {
         </section>
       )}
     </div>
+  )
+}
+
+/** Fila de indicadores: número principal, contexto en texto y acceso directo al área. */
+function KpiRow() {
+  const summary = useQuery({ queryKey: ['admin', 'dashboard'], queryFn: getDashboardSummary, refetchInterval: 60_000 })
+  if (summary.isError) return null
+  return (
+    <section aria-labelledby="kpi-title" className="space-y-4">
+      <h2 id="kpi-title" className="sr-only">Indicadores</h2>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {summary.isPending
+          ? Array.from({ length: 4 }, (_, index) => <Skeleton key={index} className="h-28 rounded-xl" />)
+          : summary.data.kpis.map((kpi) => <KpiTile key={kpi.key} kpi={kpi} />)}
+      </div>
+    </section>
+  )
+}
+
+function KpiTile({ kpi }: { kpi: Kpi }) {
+  const value = kpi.format === 'CURRENCY'
+    ? formatCurrency(kpi.value)
+    : kpi.value.toLocaleString('es-EC')
+  const content = (
+    <>
+      <p className="text-xs font-medium text-muted-foreground">{kpi.label}</p>
+      <p className="mt-2 text-3xl font-semibold tracking-tight tabular-nums text-foreground">{value}</p>
+      {kpi.hint && <p className="mt-1 text-xs text-muted-foreground">{kpi.hint}</p>}
+    </>
+  )
+  return kpi.href ? (
+    <Link to={kpi.href} className="rounded-xl border bg-card p-4 transition-colors hover:border-brand-teal/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+      {content}
+    </Link>
+  ) : (
+    <div className="rounded-xl border bg-card p-4">{content}</div>
   )
 }

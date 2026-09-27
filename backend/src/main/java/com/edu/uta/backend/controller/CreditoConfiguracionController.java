@@ -43,6 +43,15 @@ public class CreditoConfiguracionController {
     }
 
     /**
+     * Marco normativo vigente para el configurador: segmentos con su tasa máxima BCE, tipo de entidad
+     * de la institución, rango de desgravamen y topes de cobros indirectos.
+     */
+    @GetMapping("/marco")
+    public ResponseEntity<com.edu.uta.backend.service.NormativaRegulatoriaService.Marco> marco() {
+        return ResponseEntity.ok(service.marco());
+    }
+
+    /**
      * Lista todos los créditos configurados en el banco o cooperativa.
      */
     @GetMapping

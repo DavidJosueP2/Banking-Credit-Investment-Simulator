@@ -572,6 +572,15 @@ export function InstitutionSettingsPage() {
               <ConfigField label="Teléfono" onReset={() => resetField('institution', 'supportPhone')}><Input value={draft.institution.supportPhone} onChange={(event) => update('institution', 'supportPhone', event.target.value)} maxLength={40} required /></ConfigField>
               <ConfigField label="Ubicación o dirección" onReset={() => resetField('institution', 'address')}><Input value={draft.institution.address} onChange={(event) => update('institution', 'address', event.target.value)} maxLength={180} required /></ConfigField>
               <ConfigField label="Eslogan" onReset={() => resetField('institution', 'slogan')}><Input value={draft.institution.slogan} onChange={(event) => update('institution', 'slogan', event.target.value)} maxLength={180} required /></ConfigField>
+              <ConfigField label="Tipo de entidad financiera" hint="Todos los productos de crédito heredan este tipo. Define el rango prudencial del seguro de desgravamen; las tasas máximas del BCE son las mismas para ambos." onReset={() => resetField('institution', 'entityType')}>
+                <Select value={draft.institution.entityType} onValueChange={(value) => update('institution', 'entityType', value)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="BANCO">Banco (Superintendencia de Bancos)</SelectItem>
+                    <SelectItem value="COOPERATIVA">Cooperativa de ahorro y crédito (SEPS)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </ConfigField>
             </div>
             <ConfigField label="Descripción institucional" onReset={() => resetField('institution', 'description')}><Textarea value={draft.institution.description} onChange={(event) => update('institution', 'description', event.target.value)} maxLength={500} required /></ConfigField>
             <ConfigField label="Aviso legal" hint="Aparece en el pie del sitio público." onReset={() => resetField('institution', 'legalNotice')}><Textarea value={draft.institution.legalNotice} onChange={(event) => update('institution', 'legalNotice', event.target.value)} maxLength={800} required /></ConfigField>
@@ -741,6 +750,9 @@ export function InstitutionSettingsPage() {
           <form onSubmit={submit('credit')} className="max-w-4xl space-y-8">
             <div><h2 className="text-xl">Configuración general de créditos</h2><p className="mt-2 text-sm text-muted-foreground">Controla la disponibilidad del módulo y las funciones que podrán utilizar los productos de crédito.</p></div>
             <ConfigField label="Nombre visible del módulo" onReset={() => resetField('credit', 'displayName')}><Input value={draft.credit.displayName} onChange={(event) => update('credit', 'displayName', event.target.value)} maxLength={80} required /></ConfigField>
+            <ConfigField label="Atribución de aprobación del asesor (USD)" hint="Hasta este monto, y solo si la biometría fue aprobada, un asesor de crédito puede aprobar sin el analista. Sobre este monto, el asesor recomienda y decide el analista. Usa 0 para que todo pase por el analista." onReset={() => resetField('credit', 'advisorApprovalLimit')}>
+              <Input type="number" min="0" max="1000000" step="100" value={draft.credit.advisorApprovalLimit} onChange={(event) => update('credit', 'advisorApprovalLimit', event.target.value)} required />
+            </ConfigField>
             <div className="rounded-xl border bg-card px-5">
               <ToggleRow label="Mostrar créditos en el sitio público" description="Controla la navegación, los servicios y la sección pública de créditos." checked={draft.credit.moduleEnabled === 'true'} onCheckedChange={(value) => update('credit', 'moduleEnabled', String(value))} onReset={() => resetField('credit', 'moduleEnabled')} />
               <ToggleRow label="Habilitar simulador" description="Permite generar escenarios de pago desde la vista pública." checked={draft.credit.simulatorEnabled === 'true'} onCheckedChange={(value) => update('credit', 'simulatorEnabled', String(value))} onReset={() => resetField('credit', 'simulatorEnabled')} />

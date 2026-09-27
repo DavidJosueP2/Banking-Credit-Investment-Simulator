@@ -28,6 +28,7 @@ public record ProductoSimuladorDto(
             String periodicidad, // MENSUAL o UNICO
             String baseCalculo,  // SALDO_DEUDOR, MONTO_SOLICITADO, FIJO
             String normaAplicable,
-            Boolean obligatorio
+            Boolean obligatorio,
+            String categoria
     ) {}
 }

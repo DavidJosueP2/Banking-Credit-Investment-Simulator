@@ -48,7 +48,7 @@ type CreatedInternalUser = {
   temporaryPassword: string | null
 }
 
-const internalRoleCodes = new Set(['credit_advisor', 'investment_advisor', 'administrator'])
+const internalRoleCodes = new Set(['credit_advisor', 'credit_analyst', 'investment_advisor', 'administrator'])
 
 function requestError(error: unknown) {
   if (axios.isAxiosError(error)) {

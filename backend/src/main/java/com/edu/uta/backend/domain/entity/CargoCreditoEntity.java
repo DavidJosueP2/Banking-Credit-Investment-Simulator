@@ -44,6 +44,10 @@ public class CargoCreditoEntity {
     @Column(nullable = false)
     private Boolean obligatorio = true;
 
+    /** SEGURO, GASTO, DONACION u OTRO. */
+    @Column(nullable = false, length = 20)
+    private String categoria = "GASTO";
+
     @Column(columnDefinition = "TEXT")
     private String descripcion;
 

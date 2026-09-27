@@ -45,6 +45,9 @@ public class ReglaNormativaEntity {
     @Column(nullable = false, length = 50)
     private String organismo = "BCE";
 
+    @Column(name = "url_fuente", columnDefinition = "TEXT")
+    private String urlFuente;
+
     @Column(nullable = false)
     private Boolean activo = true;
 

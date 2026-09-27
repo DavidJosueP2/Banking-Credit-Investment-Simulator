@@ -202,7 +202,7 @@ public class InvestmentService {
         Product product = productById(request.productId(), true);
         if (request.amount() == null || request.amount().compareTo(product.minimumAmount()) < 0
                 || request.amount().compareTo(product.maximumAmount()) > 0) {
-            throw new IllegalArgumentException("El monto está fuera del rango permitido para el producto.");
+            throw new IllegalArgumentException("El monto está fuera del rango permitido para este plan.");
         }
         if (request.termValue() == null || request.termValue() <= 0 || request.termUnit() == null) {
             throw new IllegalArgumentException("Selecciona una unidad y un plazo válidos.");
@@ -212,14 +212,14 @@ public class InvestmentService {
             throw new IllegalArgumentException("El plazo mínimo para un depósito a plazo fijo es de 31 días.");
         }
         if (normalizedTermDays < product.minimumTermDays() || normalizedTermDays > product.maximumTermDays()) {
-            throw new IllegalArgumentException("El plazo está fuera del rango permitido para el producto.");
+            throw new IllegalArgumentException("El plazo está fuera del rango permitido para este plan.");
         }
         LocalDate today = LocalDate.now();
         LocalDate maturityDate = maturityDate(today, request.termValue(), request.termUnit());
         int actualTermDays = Math.toIntExact(ChronoUnit.DAYS.between(today, maturityDate));
         if (!product.payoutFrequencies().contains(request.payoutFrequency())
                 || !isFrequencyCompatible(request.payoutFrequency(), normalizedTermDays)) {
-            throw new IllegalArgumentException("Selecciona una forma de pago permitida para el producto.");
+            throw new IllegalArgumentException("Selecciona una forma de pago permitida para este plan.");
         }
         RateTier rate = product.rates().stream()
                 .filter(item -> request.amount().compareTo(item.minimumAmount()) >= 0
