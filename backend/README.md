@@ -105,16 +105,19 @@ En `.env`, configura `APP_BOOTSTRAP_PASSWORD` con una contraseña propia de al m
 
 Para trabajar con cuentas de ejemplo, usa `spring.profiles.active=dev` y `APP_EXAMPLE_PASSWORD=password123` en `backend/.env`. Esta contraseña corta se admite únicamente en la creación automática del perfil `dev`, nunca en la creación normal de usuarios. Se crean, si no existen, estas cuentas:
 
-| Correo | Rol |
-| --- | --- |
-| `admin@brunexa.com` | Administrador |
-| `credito@brunexa.com` | Asesor de crédito |
-| `inversiones@brunexa.com` | Asesor de inversiones |
-| `cliente@brunexa.com` | Cliente |
+| Usuario | Correo | Rol |
+| --- | --- | --- |
+| `admin` | `admin@brunexa.com` | Administrador |
+| `credito` | `credito@brunexa.com` | Asesor de crédito |
+| `analista` | `analista@brunexa.com` | Analista de crédito |
+| `inversiones` | `inversiones@brunexa.com` | Asesor de inversiones |
+| `cliente` | `cliente@brunexa.com` | Cliente |
+
+El login usa el **usuario**, no el correo (formulario `username`/`password` en `POST /api/auth/login`).
 
 En desarrollo usa solo `APP_EXAMPLE_PASSWORD` si quieres que las cuatro cuentas compartan esa contraseña inicial; no definas también `APP_BOOTSTRAP_PASSWORD` con otra contraseña. No publiques `password123` ni uses el perfil `dev` fuera del entorno local. La contraseña se almacena como hash BCrypt, no en texto plano en PostgreSQL. Quita el perfil `dev` y la variable de ejemplo fuera del entorno local.
 
-El frontend usa `GET /api/auth/csrf`, `POST /api/auth/login` (formulario `email`/`password`), `GET /api/auth/me` y `POST /api/auth/logout`. El administrador puede consultar `GET /api/admin/users`, `/roles`, `/permissions`, crear cuentas con `POST /api/admin/users` y asignar roles con `PUT /api/admin/users/{id}/roles`. El backend vuelve a comprobar las autoridades persistidas en cada petición privada; una revocación se aplica sin esperar a que expire la sesión.
+El frontend usa `GET /api/auth/csrf`, `POST /api/auth/login` (formulario `username`/`password`), `GET /api/auth/me` y `POST /api/auth/logout`. El administrador puede consultar `GET /api/admin/users`, `/roles`, `/permissions`, crear cuentas con `POST /api/admin/users` y asignar roles con `PUT /api/admin/users/{id}/roles`. El backend vuelve a comprobar las autoridades persistidas en cada petición privada; una revocación se aplica sin esperar a que expire la sesión.
 
 ## Flyway
 
