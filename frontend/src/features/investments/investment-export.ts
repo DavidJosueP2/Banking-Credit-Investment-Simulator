@@ -24,6 +24,7 @@ function shortDate(value: string) {
 /** Excel de la simulación de inversión con la misma información que el PDF del backend. */
 export async function exportInvestmentExcel(result: SimulationResult, branding: ExportBranding) {
   const [one, many] = UNITS[result.termUnit] ?? UNITS.DAYS
+  const withCharges = result.charges > 0
   const layout: ExcelLayout = {
     sheetName: 'Inversión',
     title: 'Simulación de inversión',
@@ -43,6 +44,10 @@ export async function exportInvestmentExcel(result: SimulationResult, branding: 
         ['Pago de intereses', payoutLabels[result.payoutFrequency]],
         ['Cálculo', `${calculationMethodLabels[result.calculationMethod]} · base ${result.dayCountBasis} días`],
         ['Retención', formatPercentage(result.withholdingRate)],
+        ...(withCharges
+          ? [['Costos adicionales', result.chargeDetails.map((charge) => `${charge.name}: ${money(charge.amount, result.currency)}`).join(' · ')] as [string, string]]
+          : []),
+        ['Rendimiento neto anual', formatPercentage(result.netAnnualYield)],
       ],
     }],
     columns: [
@@ -52,18 +57,21 @@ export async function exportInvestmentExcel(result: SimulationResult, branding: 
       { header: 'Interés bruto', width: 16, kind: 'money', total: true },
       { header: 'Retención', width: 15, kind: 'money', total: true },
       { header: 'Interés neto', width: 16, kind: 'money', total: true, emphasis: true },
+      ...(withCharges ? [{ header: 'Costos', width: 14, kind: 'money' as const, total: true }] : []),
       { header: 'Capital', width: 16, kind: 'money', total: true },
       { header: 'Total', width: 17, kind: 'money', total: true },
     ],
     rows: result.payments.map((p) => [
-      p.number, excelDate(p.paymentDate), p.periodDays, p.grossInterest, p.withholding, p.netInterest, p.capital, p.totalPayment,
+      p.number, excelDate(p.paymentDate), p.periodDays, p.grossInterest, p.withholding, p.netInterest,
+      ...(withCharges ? [p.charges] : []), p.capital, p.totalPayment,
     ]),
     // Totales e indicadores con fórmulas: el valor estimado es la suma de todo lo que recibe el cliente.
     kpis: [
       { label: 'Capital invertido', value: result.amount },
       { label: 'Retención', formula: (t) => t[4] },
       { label: 'Interés neto', formula: (t) => t[5], emphasis: true },
-      { label: 'Valor estimado', formula: (t) => t[7], emphasis: true },
+      ...(withCharges ? [{ label: 'Costos adicionales', formula: (t: string[]) => t[6] }] : []),
+      { label: 'Valor estimado', formula: (t) => t[withCharges ? 8 : 7], emphasis: true },
     ],
     footnote: 'Los intereses corresponden a cada período y el capital se devuelve al vencimiento. Valores referenciales.',
   }

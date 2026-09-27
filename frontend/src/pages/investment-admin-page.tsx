@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { CirclePlus, Pencil, Power, Plus, Trash2 } from 'lucide-react'
+import { CirclePlus, Pencil, Power, Plus, Trash2, TriangleAlert } from 'lucide-react'
 import { useMemo, useState, type FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -14,25 +14,28 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import {
-  calculationMethodLabels, createInvestmentProduct, getAdminInvestmentProducts, investmentKeys,
-  payoutLabels, setInvestmentProductStatus, updateInvestmentProduct,
-  type CalculationMethod, type InvestmentProduct, type InvestmentProductInput,
-  type PayoutFrequency,
+  calculationMethodLabels, createInvestmentProduct, getAdminInvestmentProducts,
+  investmentKeys, payoutLabels, setInvestmentProductStatus, updateInvestmentProduct,
+  type CalculationMethod, type InvestmentProduct, type InvestmentProductInput, type PayoutFrequency,
 } from '@/features/investments/investment-api'
 import { formatCurrency, formatPercentage } from '@/lib/formatters'
 
 interface RateDraft { minimumAmount: string; maximumAmount: string; minimumTermDays: string; maximumTermDays: string; annualRatePercent: string }
 interface TaxRuleDraft { name: string; value: string; exemptFromTermDays: string; active: boolean }
+interface ChargeDraft { name: string; percentage: string; description: string; mandatory: boolean; active: boolean }
 interface ProductDraft {
   name: string; description: string; minimumAmount: string; maximumAmount: string
   calculationMethod: CalculationMethod; capitalizationFrequency: PayoutFrequency | 'NONE'
   dayCountBasis: '360' | '365'; active: boolean; payoutFrequencies: PayoutFrequency[]
-  rates: RateDraft[]; taxRules: TaxRuleDraft[]
+  rates: RateDraft[]; taxRules: TaxRuleDraft[]; charges: ChargeDraft[]
 }
 
 const frequencies = Object.keys(payoutLabels) as PayoutFrequency[]
 const rateLabel = (from: string, to: string) => from === to ? `${from} días` : `${from}–${to} días`
 const decimalText = (value: number) => Number((value * 100).toFixed(6)).toString()
+/** Por encima de este porcentaje del interés, los costos son inusuales y se advierte (no se bloquea). */
+const CHARGES_WARNING_PERCENT = 30
+const MAXIMUM_CHARGES = 10
 
 const emptyDraft: ProductDraft = {
   name: '', description: '', minimumAmount: '500', maximumAmount: '500000',
@@ -41,7 +44,7 @@ const emptyDraft: ProductDraft = {
   rates: [[31, 31], [32, 60], [61, 90], [91, 180], [181, 360]].map(([from, to], index) => ({
     minimumAmount: '500', maximumAmount: '500000', minimumTermDays: String(from), maximumTermDays: String(to),
     annualRatePercent: String([3.7, 3.85, 4, 4.25, 4.5][index]),
-  })), taxRules: [],
+  })), taxRules: [], charges: [],
 }
 
 function draftFrom(product?: InvestmentProduct): ProductDraft {
@@ -54,6 +57,10 @@ function draftFrom(product?: InvestmentProduct): ProductDraft {
     rates: product.rates.map((rate) => ({ minimumAmount: String(rate.minimumAmount), maximumAmount: String(rate.maximumAmount), minimumTermDays: String(rate.minimumTermDays), maximumTermDays: String(rate.maximumTermDays), annualRatePercent: decimalText(rate.annualRate) })),
     taxRules: product.taxRules.slice(0, 1).map((rule) => ({
       name: rule.name, value: String(rule.value), exemptFromTermDays: rule.exemptFromTermDays == null ? '' : String(rule.exemptFromTermDays), active: rule.active,
+    })),
+    charges: (product.charges ?? []).map((charge) => ({
+      name: charge.name, percentage: String(charge.percentage), description: charge.description ?? '',
+      mandatory: charge.mandatory, active: charge.active,
     })),
   }
 }
@@ -80,6 +87,10 @@ function toInput(draft: ProductDraft): InvestmentProductInput {
     taxRules: draft.taxRules.map((rule) => ({
       name: rule.name.trim(), ruleType: 'PERCENTAGE', value: Number(rule.value), base: 'GROSS_INTEREST', active: rule.active,
       exemptFromTermDays: rule.exemptFromTermDays.trim() ? Number(rule.exemptFromTermDays) : null,
+    })),
+    charges: draft.charges.map((charge) => ({
+      name: charge.name.trim(), percentage: Number(charge.percentage), description: charge.description.trim() || null,
+      mandatory: charge.mandatory, active: charge.active,
     })),
   }
 }
@@ -133,7 +144,25 @@ function validateDraft(draft: ProductDraft) {
     }
   })
   if (draft.taxRules.length > 1) errors.taxRules = 'Solo puede existir una retención de Impuesto a la Renta por producto.'
+  draft.charges.forEach((charge, index) => {
+    const prefix = `charge.${index}`; const value = Number(charge.percentage)
+    if (!charge.name.trim()) errors[`${prefix}.name`] = 'El nombre es obligatorio.'
+    else if (charge.name.trim().length > 120) errors[`${prefix}.name`] = 'Máximo 120 caracteres.'
+    if (!Number.isFinite(value) || value <= 0) errors[`${prefix}.percentage`] = 'Debe ser mayor que cero.'
+    if (!charge.mandatory && !charge.description.trim()) errors[`${prefix}.description`] = 'Explica qué incluye: el cliente decide con esta descripción.'
+    else if (charge.description.trim().length > 300) errors[`${prefix}.description`] = 'Máximo 300 caracteres.'
+  })
+  if (draft.charges.length > MAXIMUM_CHARGES) errors.charges = `Configura como máximo ${MAXIMUM_CHARGES} costos adicionales.`
+  const { charges, withholding } = interestShares(draft)
+  if (charges + withholding >= 100) errors.charges = `Los costos (${charges} %) y la retención (${withholding} %) se llevarían todo el interés del cliente. Deben sumar menos del 100 %.`
   return errors
+}
+
+/** Porcentaje del interés que se llevan los costos activos (incluidos los opcionales) y la retención. */
+function interestShares(draft: ProductDraft) {
+  const charges = draft.charges.filter((charge) => charge.active).reduce((sum, charge) => sum + (Number(charge.percentage) || 0), 0)
+  const withholding = draft.taxRules.filter((rule) => rule.active).reduce((sum, rule) => sum + (Number(rule.value) || 0), 0)
+  return { charges: Number(charges.toFixed(4)), withholding: Number(withholding.toFixed(4)) }
 }
 
 function errorMessage(error: unknown) {
@@ -151,6 +180,7 @@ function errorMessage(error: unknown) {
 function ProductEditor({ product, onCancel, onSave, saving }: { product?: InvestmentProduct; onCancel: () => void; onSave: (input: InvestmentProductInput) => Promise<void>; saving: boolean }) {
   const [draft, setDraft] = useState(() => draftFrom(product))
   const errors = useMemo(() => validateDraft(draft), [draft])
+  const shares = useMemo(() => interestShares(draft), [draft])
   const set = <K extends keyof ProductDraft>(key: K, value: ProductDraft[K]) => setDraft((current) => ({ ...current, [key]: value }))
   const updateRate = (index: number, key: keyof RateDraft, value: string) => setDraft((current) => {
     const rates = current.rates.map((rate, position) => position === index ? { ...rate, [key]: value } : rate)
@@ -164,6 +194,9 @@ function ProductEditor({ product, onCancel, onSave, saving }: { product?: Invest
     set('rates', [...draft.rates, { minimumAmount: draft.minimumAmount, maximumAmount: draft.maximumAmount, minimumTermDays: String(nextDay), maximumTermDays: String(nextDay), annualRatePercent: '' }])
   }
   const removeRate = (index: number) => setDraft((current) => ({ ...current, rates: current.rates.filter((_, position) => position !== index).map((rate, position, rates) => position === 0 ? rate : { ...rate, minimumTermDays: String(Number(rates[position - 1].maximumTermDays) + 1) }) }))
+  const updateCharge = <K extends keyof ChargeDraft>(index: number, key: K, value: ChargeDraft[K]) => setDraft((current) => ({ ...current, charges: current.charges.map((charge, position) => position === index ? { ...charge, [key]: value } : charge) }))
+  const addCharge = () => set('charges', [...draft.charges, { name: '', percentage: '', description: '', mandatory: true, active: true }])
+  const removeCharge = (index: number) => set('charges', draft.charges.filter((_, position) => position !== index))
   const addTaxRule = () => set('taxRules', [{ name: 'Retención de Impuesto a la Renta', value: '3', exemptFromTermDays: '180', active: true }])
   async function submit(event: FormEvent) {
     event.preventDefault()
@@ -191,6 +224,44 @@ function ProductEditor({ product, onCancel, onSave, saving }: { product?: Invest
       <section className="space-y-3 border-t pt-5"><div className="flex items-center justify-between gap-2"><div><h3 className="font-medium">Tasas por plazo y monto</h3><p className="text-sm text-muted-foreground">El plazo mínimo es 31 días. Estos rangos definen los valores que el cliente podrá ingresar y cada rango comienza un día después del anterior.</p></div><Button type="button" variant="outline" size="sm" onClick={addRate}><Plus />Agregar tasa</Button></div>{errors.rates && <ErrorText>{errors.rates}</ErrorText>}{errors.ratesCoverage && <ErrorText>{errors.ratesCoverage}</ErrorText>}{draft.rates.map((rate, index) => <div key={index} className={`space-y-3 rounded-lg border p-3 ${errors[`rate.${index}.overlap`] ? 'border-destructive' : ''}`}><div className="flex items-center justify-between"><strong>{rateLabel(rate.minimumTermDays, rate.maximumTermDays)}</strong><Button type="button" variant="ghost" size="icon" aria-label="Quitar tasa" onClick={() => removeRate(index)}><Trash2 /></Button></div><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5"><Field label="Días desde" type="number" value={rate.minimumTermDays} onChange={(value) => updateRate(index, 'minimumTermDays', value)} error={errors[`rate.${index}.minimumTermDays`]} readOnly={index > 0} /><Field label="Días hasta" type="number" value={rate.maximumTermDays} onChange={(value) => updateRate(index, 'maximumTermDays', value)} error={errors[`rate.${index}.maximumTermDays`]} /><Field label="Monto desde" type="number" value={rate.minimumAmount} onChange={(value) => updateRate(index, 'minimumAmount', value)} error={errors[`rate.${index}.minimumAmount`]} /><Field label="Monto hasta" type="number" value={rate.maximumAmount} onChange={(value) => updateRate(index, 'maximumAmount', value)} error={errors[`rate.${index}.maximumAmount`]} /><Field label="Rendimiento anual (%)" type="number" value={rate.annualRatePercent} onChange={(value) => updateRate(index, 'annualRatePercent', value)} error={errors[`rate.${index}.annualRatePercent`]} /></div>{errors[`rate.${index}.overlap`] && <ErrorText>{errors[`rate.${index}.overlap`]}</ErrorText>}</div>)}</section>
 
       <section className="space-y-3 border-t pt-5"><div className="flex items-center justify-between gap-2"><div><h3 className="font-medium">Retención sobre rendimientos</h3><p className="text-sm text-muted-foreground">Se descuenta únicamente del interés generado, nunca del capital. La tarifa general vigente en Ecuador es 3 %; la exención desde 180 días depende de que se cumplan los requisitos legales.</p></div>{draft.taxRules.length === 0 && <Button type="button" variant="outline" size="sm" onClick={addTaxRule}><Plus />Configurar retención</Button>}</div>{errors.taxRules && <ErrorText>{errors.taxRules}</ErrorText>}{draft.taxRules.length === 0 && <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">Sin retención configurada. La simulación mostrará el interés bruto como interés neto.</p>}{draft.taxRules.map((rule, index) => <div key={index} className="rounded-lg border p-4"><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><Field label="Nombre visible" value={rule.name} onChange={(value) => updateTaxRule(index, 'name', value)} error={errors[`tax.${index}.name`]} /><Field label="Porcentaje sobre intereses (%)" type="number" value={rule.value} onChange={(value) => updateTaxRule(index, 'value', value)} error={errors[`tax.${index}.value`]} /><Field label="Exenta desde (días)" type="number" value={rule.exemptFromTermDays} onChange={(value) => updateTaxRule(index, 'exemptFromTermDays', value)} error={errors[`tax.${index}.exemptFromTermDays`]} /><label className="flex items-center gap-2 pt-7 text-sm"><Switch checked={rule.active} onCheckedChange={(value) => updateTaxRule(index, 'active', value)} />Aplicar retención</label></div><div className="mt-3 flex items-center justify-between gap-3"><p className="text-xs text-muted-foreground">Deja vacío el umbral únicamente si la retención debe aplicarse a todos los plazos.</p><Button type="button" variant="ghost" size="sm" onClick={() => set('taxRules', [])}><Trash2 />Quitar retención</Button></div></div>)}</section>
+      <section className="space-y-3 border-t pt-5">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <h3 className="font-medium">Costos adicionales</h3>
+            <p className="text-sm text-muted-foreground">Cobros de la institución, como seguros, comisiones o donaciones. Se configuran como un porcentaje del interés generado y se descuentan en cada pago, así nunca superan lo que gana el cliente. Son distintos de la retención de impuesto. Los opcionales los elige el cliente en el simulador.</p>
+          </div>
+          {draft.charges.length < MAXIMUM_CHARGES && <Button type="button" variant="outline" size="sm" onClick={addCharge}><Plus />Agregar costo</Button>}
+        </div>
+        {errors.charges && <ErrorText>{errors.charges}</ErrorText>}
+        {!errors.charges && shares.charges > CHARGES_WARNING_PERCENT && (
+          <p className="flex items-start gap-2 rounded-md bg-amber-500/10 p-2 text-xs text-amber-700 dark:text-amber-400"><TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />Los costos suman {shares.charges} % del interés: es inusualmente alto y reduce mucho el rendimiento del cliente.</p>
+        )}
+        {draft.charges.length === 0 && <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">Sin costos adicionales. El cliente recibirá el capital más el interés neto.</p>}
+        {draft.charges.map((charge, index) => {
+          const value = Number(charge.percentage)
+          return <div key={index} className="space-y-3 rounded-lg border p-4">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <Field label="Nombre visible" value={charge.name} onChange={(text) => updateCharge(index, 'name', text)} error={errors[`charge.${index}.name`]} />
+              <Field label="Porcentaje del interés (%)" type="number" value={charge.percentage} onChange={(text) => updateCharge(index, 'percentage', text)} error={errors[`charge.${index}.percentage`]} />
+              <label className="flex items-center gap-2 pt-7 text-sm"><Switch checked={charge.mandatory} onCheckedChange={(checked) => updateCharge(index, 'mandatory', checked)} />Obligatorio</label>
+              <label className="flex items-center gap-2 pt-7 text-sm"><Switch checked={charge.active} onCheckedChange={(checked) => updateCharge(index, 'active', checked)} />Activo</label>
+            </div>
+            <div className="space-y-2">
+              <Label>Descripción para el cliente{charge.mandatory ? ' (opcional)' : ''}</Label>
+              <Textarea value={charge.description} maxLength={300} rows={2} aria-invalid={Boolean(errors[`charge.${index}.description`])}
+                placeholder="Ej.: Seguro de vida que paga el capital invertido a tus beneficiarios en caso de fallecimiento."
+                onChange={(event) => updateCharge(index, 'description', event.target.value)} />
+              {errors[`charge.${index}.description`] && <ErrorText>{errors[`charge.${index}.description`]}</ErrorText>}
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs text-muted-foreground">
+                {value > 0 ? `Por cada $100 de interés se descontarán $${value.toLocaleString('es-EC', { maximumFractionDigits: 4 })}${charge.mandatory ? '.' : ', solo si el cliente lo elige.'}` : 'Completa el porcentaje para ver cómo se cobrará.'}
+              </p>
+              <Button type="button" variant="ghost" size="sm" onClick={() => removeCharge(index)}><Trash2 />Quitar</Button>
+            </div>
+          </div>
+        })}
+      </section>
       <div className="flex items-center justify-between gap-3 border-t pt-5"><p className="text-sm text-destructive">{Object.keys(errors).length ? `${Object.keys(errors).length} campo(s) requieren revisión.` : ''}</p><div className="flex gap-2"><Button type="button" variant="outline" onClick={onCancel} disabled={saving}>Cancelar</Button><Button type="submit" disabled={saving || Object.keys(errors).length > 0}>{saving ? 'Guardando…' : 'Guardar producto'}</Button></div></div>
     </form>
   </div>

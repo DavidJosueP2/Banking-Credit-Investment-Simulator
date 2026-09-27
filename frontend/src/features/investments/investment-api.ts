@@ -42,6 +42,31 @@ export interface InvestmentTaxRule {
   position?: number
 }
 
+/**
+ * Costo adicional de la institución (seguro, comisión, donación), separado de la retención de IR: un porcentaje
+ * del interés generado que se descuenta en cada pago, así nunca supera lo que gana el cliente.
+ */
+export interface InvestmentCharge {
+  id?: number
+  name: string
+  percentage: number
+  /** Si es false, el cliente decide si lo agrega en el simulador. */
+  mandatory: boolean
+  active: boolean
+  /** Qué cubre o a qué se destina; obligatoria en los opcionales para que el cliente pueda decidir. */
+  description: string | null
+  position?: number
+}
+
+export interface InvestmentChargeDetail {
+  id: number
+  name: string
+  percentage: number
+  mandatory: boolean
+  amount: number
+  description: string | null
+}
+
 export interface InvestmentWithholdingDetail {
   name: string
   percentage: number
@@ -76,6 +101,7 @@ export interface InvestmentProduct {
   rates: InvestmentRate[]
   taxRules: InvestmentTaxRule[]
   termConfigurations: InvestmentTermConfiguration[]
+  charges: InvestmentCharge[]
 }
 
 export interface InvestmentProductInput {
@@ -102,6 +128,7 @@ export interface InvestmentProductInput {
   rates: InvestmentRate[]
   taxRules: InvestmentTaxRule[]
   termConfigurations: InvestmentTermConfiguration[]
+  charges: InvestmentCharge[]
 }
 
 export interface SimulationRequest {
@@ -110,6 +137,8 @@ export interface SimulationRequest {
   termValue: number
   termUnit: TermUnit
   payoutFrequency: PayoutFrequency
+  /** Costos opcionales del plan que el cliente decidió agregar. */
+  optionalCharges?: number[]
 }
 
 export interface InvestmentPayment {
@@ -120,6 +149,7 @@ export interface InvestmentPayment {
   withholding: number
   netInterest: number
   capital: number
+  charges: number
   totalPayment: number
 }
 
@@ -150,6 +180,10 @@ export interface SimulationResult {
   withholdingDetails: InvestmentWithholdingDetail[]
   withholdingNote: string
   payments: InvestmentPayment[]
+  charges: number
+  chargeDetails: InvestmentChargeDetail[]
+  /** Rendimiento anual después de retención y costos, expresado igual que la tasa ofrecida. */
+  netAnnualYield: number
 }
 
 export const investmentKeys = {
@@ -187,6 +221,7 @@ export interface GoalRequest {
   termValue: number
   termUnit: TermUnit
   payoutFrequency: SimulationRequest['payoutFrequency']
+  optionalCharges?: number[]
 }
 
 export interface GoalResult {
@@ -218,6 +253,11 @@ export const payoutLabels: Record<PayoutFrequency, string> = {
 export const calculationMethodLabels: Record<CalculationMethod, string> = {
   SIMPLE: 'Interés simple',
   COMPOUND: 'Interés compuesto',
+}
+
+/** "5 % del interés generado". */
+export function describeCharge(charge: Pick<InvestmentCharge, 'percentage'>) {
+  return `${charge.percentage.toLocaleString('es-EC', { maximumFractionDigits: 4 })} % del interés generado`
 }
 
 export const rateTypeLabels: Record<RateType, string> = {

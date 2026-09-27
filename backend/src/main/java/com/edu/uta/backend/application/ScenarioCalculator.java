@@ -150,7 +150,8 @@ public class ScenarioCalculator {
             throw new IllegalArgumentException("Selecciona cómo quieres recibir los intereses.");
         }
         InvestmentService.SimulationResult result = investments.simulate(new InvestmentService.SimulationRequest(
-                scenario.productId(), scenario.amount(), scenario.term(), investmentTermUnit(scenario.termUnit()), frequency));
+                scenario.productId(), scenario.amount(), scenario.term(), investmentTermUnit(scenario.termUnit()), frequency,
+                scenario.optionalCharges() == null ? List.of() : scenario.optionalCharges()));
 
         List<Installment> schedule = result.payments().stream()
                 .map(this::installment)
@@ -159,13 +160,15 @@ public class ScenarioCalculator {
 
         return new Quote("INVESTMENT", result.productId(), result.productName(), result.amount(), result.termValue(),
                 result.termUnit(), null, result.payoutFrequency(), null, result.annualRate().multiply(HUNDRED),
-                periodic, result.netInterest(), BigDecimal.ZERO, BigDecimal.ZERO, result.withholding(),
-                result.maturityValue(), result.simulationDate(), schedule, List.of());
+                periodic, result.netInterest(), BigDecimal.ZERO, result.charges(), result.withholding(),
+                result.maturityValue(), result.simulationDate(), schedule,
+                result.chargeDetails().stream().filter(charge -> !charge.mandatory())
+                        .map(InvestmentService.ChargeDetail::id).toList());
     }
 
     private Installment installment(InvestmentCalculator.Payment payment) {
         return new Installment(payment.number(), payment.paymentDate(), null, payment.capital(),
-                payment.grossInterest(), BigDecimal.ZERO, BigDecimal.ZERO, payment.withholding(),
+                payment.grossInterest(), BigDecimal.ZERO, payment.charges(), payment.withholding(),
                 payment.totalPayment(), null);
     }
 

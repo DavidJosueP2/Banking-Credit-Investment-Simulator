@@ -263,6 +263,7 @@ function SimulationCard({ item }: { item: SavedSimulation }) {
         termValue: item.term,
         termUnit: item.termUnit,
         payoutFrequency: item.payoutFrequency as SimulationRequest['payoutFrequency'],
+        optionalCharges: item.optionalCharges,
       }
       if (format === 'pdf') {
         downloadBlob(await downloadInvestmentPdf(request), `simulacion-${fileSlug(item.productName)}.pdf`)
@@ -358,6 +359,7 @@ function simulatorPath(item: SavedSimulation) {
   }
   params.set('unidad', item.termUnit)
   if (item.payoutFrequency) params.set('pago', item.payoutFrequency)
+  if (item.optionalCharges.length) params.set('opcionales', item.optionalCharges.join(','))
   return `/inversiones/simulador?${params}`
 }
 
