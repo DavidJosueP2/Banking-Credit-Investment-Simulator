@@ -42,6 +42,7 @@ public class SecurityConfig {
                         "/api/auth/logout",
                         "/api/public/**",
                         "/api/simulador/calcular",
+                        "/api/simulador/capacidad",
                         "/api/simulador/productos",
                         "/api/simulador/entidades",
                         "/api/simulador/normativa/**",
@@ -54,6 +55,7 @@ public class SecurityConfig {
                                 "/api/auth/login",
                                 "/api/public/**",
                                 "/api/simulador/calcular",
+                                "/api/simulador/capacidad",
                                 "/api/simulador/productos",
                                 "/api/simulador/entidades",
                                 "/api/simulador/normativa/**",
@@ -64,6 +66,11 @@ public class SecurityConfig {
                         .requestMatchers("/api/profile/**", "/api/dev/liveness/**")
                             .hasAuthority("identity.verification.start")
                         .requestMatchers("/api/admin/creditos/**").hasAnyAuthority("credit.products.manage", "ROLE_ASESOR", "credit_advisor")
+                        .requestMatchers("/api/client/**").authenticated()
+                        .requestMatchers("/api/admin/applications/**")
+                            .hasAnyAuthority("credit.requests.review", "credit.requests.approve",
+                                    "investment.requests.review", "requests.audit")
+                        .requestMatchers("/api/admin/dashboard", "/api/admin/dashboard/**").hasAuthority("admin.dashboard.view")
                         .requestMatchers("/api/admin/settings/**").hasAuthority("institution.manage")
                         .requestMatchers("/api/admin/investments/**").hasAuthority("investment.products.manage")
                         .requestMatchers("/api/admin/**").hasAuthority("users.roles.manage")
