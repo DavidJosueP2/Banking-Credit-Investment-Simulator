@@ -176,7 +176,7 @@ public class InvestmentService {
         Product product = productById(request.productId(), true);
         if (request.amount() == null || request.amount().compareTo(product.minimumAmount()) < 0
                 || request.amount().compareTo(product.maximumAmount()) > 0) {
-            throw new IllegalArgumentException("El monto está fuera del rango permitido para el producto.");
+            throw new IllegalArgumentException("El monto está fuera del rango permitido para este plan.");
         }
         int termDays = termDays(request.termDays(), product.termUnit());
         boolean validTerm = product.termSelection().equals("RANGE")
@@ -185,10 +185,10 @@ public class InvestmentService {
                     && (request.termDays() - product.minimumTermValue()) % product.termIncrement() == 0
                 : product.terms().contains(request.termDays());
         if (!validTerm) {
-            throw new IllegalArgumentException("Selecciona uno de los plazos disponibles para el producto.");
+            throw new IllegalArgumentException("Selecciona uno de los plazos disponibles para este plan.");
         }
         if (!product.payoutFrequencies().contains(request.payoutFrequency())) {
-            throw new IllegalArgumentException("Selecciona una forma de pago permitida para el producto.");
+            throw new IllegalArgumentException("Selecciona una forma de pago permitida para este plan.");
         }
         RateTier rate = product.rates().stream()
                 .filter(item -> request.amount().compareTo(item.minimumAmount()) >= 0
