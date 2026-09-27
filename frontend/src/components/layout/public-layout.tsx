@@ -2,6 +2,7 @@ import { Link, Outlet, ScrollRestoration } from 'react-router-dom'
 
 import { useAuth } from '@/app/providers/auth-provider'
 import { useInstitutionSettings } from '@/app/providers/settings-provider'
+import { AccountMenu } from '@/components/layout/account-menu'
 import { BrandLogo } from '@/components/shared/brand-logo'
 import { ThemeToggle } from '@/components/shared/theme-toggle'
 
@@ -46,7 +47,7 @@ export function PublicLayout() {
   const { account, hasPermission } = useAuth()
   const { settings } = useInstitutionSettings()
   const { institution, landing, credit, investment } = settings
-  const destination = account ? hasPermission('admin.dashboard.view') ? '/admin' : '/cuenta' : '/login'
+  const destination = account ? hasPermission('admin.dashboard.view') ? '/admin' : '/cliente' : '/login'
 
   const navItems = [
     {
@@ -94,10 +95,8 @@ export function PublicLayout() {
               </PublicNavLink>
             ))}
           </nav>
-          <div className="flex items-center gap-3">
-            <Link className="hidden px-1 py-2 text-sm font-medium text-brand-teal transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background lg:inline" to={destination}>
-              {account ? hasPermission('admin.dashboard.view') ? 'Ir al panel' : 'Mi cuenta' : 'Ingresar'}
-            </Link>
+          <div className="flex items-center gap-2">
+            <AccountMenu />
             <ThemeToggle />
           </div>
         </div>
@@ -107,7 +106,6 @@ export function PublicLayout() {
               {item.label}
             </PublicNavLink>
           ))}
-          <Link to={destination} className="text-brand-teal hover:text-foreground">{account ? 'Mi cuenta' : 'Ingresar'}</Link>
         </nav>
       </header>
       <Outlet />

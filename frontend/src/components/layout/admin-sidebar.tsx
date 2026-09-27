@@ -3,6 +3,7 @@ import {
   ChartNoAxesCombined,
   ChevronsUpDown,
   Landmark,
+  Inbox,
   LayoutDashboard,
   LogOut,
   Settings2,
@@ -45,13 +46,14 @@ type NavItem = {
   url: string
   icon: typeof LayoutDashboard
   exact?: boolean
-  permission: Permission
+  permission: Permission | Permission[]
 }
 
 const mainNavItems: NavItem[] = [
   { title: 'Inicio', url: '/admin', icon: LayoutDashboard, exact: true, permission: 'admin.dashboard.view' },
   { title: 'Créditos', url: '/admin/creditos', icon: Landmark, permission: 'credit.products.manage' },
   { title: 'Inversiones', url: '/admin/inversiones', icon: ChartNoAxesCombined, permission: 'investment.products.manage' },
+  { title: 'Solicitudes', url: '/admin/solicitudes', icon: Inbox, permission: ['credit.requests.review', 'credit.requests.approve', 'investment.requests.review', 'requests.audit'] },
 ]
 
 const adminNavItems: NavItem[] = [
@@ -62,6 +64,7 @@ const adminNavItems: NavItem[] = [
 const accountRoleLabels: Record<string, string> = {
   administrator: 'Administrador',
   credit_advisor: 'Asesor de crédito',
+  credit_analyst: 'Analista de crédito',
   investment_advisor: 'Asesor de inversiones',
   client: 'Cliente',
 }
@@ -76,7 +79,8 @@ function SidebarNavGroup({ label, items, location, hasPermission }: {
   location: { pathname: string }
   hasPermission: (permission: Permission) => boolean
 }) {
-  const visibleItems = items.filter((item) => hasPermission(item.permission))
+  const visibleItems = items.filter((item) =>
+    (Array.isArray(item.permission) ? item.permission : [item.permission]).some(hasPermission))
   if (visibleItems.length === 0) return null
 
   return (

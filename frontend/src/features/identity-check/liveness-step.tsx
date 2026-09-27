@@ -1,6 +1,6 @@
 import '@aws-amplify/ui-react/styles.css'
 
-import { FaceLivenessDetector, type FaceLivenessDetectorProps } from '@aws-amplify/ui-react-liveness'
+import { FaceLivenessDetector } from '@aws-amplify/ui-react-liveness'
 import { ScanFace } from 'lucide-react'
 import { useState } from 'react'
 
@@ -14,6 +14,7 @@ import {
   type LivenessTicket,
   type VerifiedIdentity,
 } from './identity-check-api'
+import { displayText } from './liveness-display-text'
 import { applyLivenessCredentials } from './liveness-credentials'
 import { messageFrom, withMinimumDuration } from './utils'
 
@@ -27,51 +28,6 @@ interface LivenessStepProps {
   onVerified: (identity: VerifiedIdentity) => void
 }
 
-const displayText: FaceLivenessDetectorProps['displayText'] = {
-  hintMoveFaceFrontOfCameraText: 'Coloca tu rostro frente a la cámara',
-  hintTooManyFacesText: 'Asegúrate de que solo tu rostro esté frente a la cámara',
-  hintFaceDetectedText: 'Rostro detectado',
-  hintCanNotIdentifyText: 'Coloca tu rostro frente a la cámara',
-  hintTooCloseText: 'Aléjate un poco',
-  hintTooFarText: 'Acércate un poco',
-  hintConnectingText: 'Conectando…',
-  hintVerifyingText: 'Verificando…',
-  hintCheckCompleteText: 'Listo',
-  hintIlluminationTooBrightText: 'Busca un lugar con menos luz',
-  hintIlluminationTooDarkText: 'Busca un lugar con más luz',
-  hintIlluminationNormalText: 'Iluminación adecuada',
-  hintHoldFaceForFreshnessText: 'Quédate quieto',
-  hintCenterFaceText: 'Centra tu rostro',
-  hintCenterFaceInstructionText: 'Centra tu rostro en el óvalo',
-  hintFaceOffCenterText: 'Tu rostro no está centrado',
-  hintMatchIndicatorText: '50 % completado. Sigue acercándote.',
-  cameraMinSpecificationsHeadingText: 'La cámara no cumple los requisitos mínimos',
-  cameraMinSpecificationsMessageText: 'La cámara debe tener al menos 320×240 de resolución y 15 cuadros por segundo.',
-  cameraNotFoundHeadingText: 'No podemos acceder a la cámara',
-  cameraNotFoundMessageText: 'Revisa que esté conectada y que el navegador tenga permiso para usarla.',
-  retryCameraPermissionsText: 'Reintentar',
-  waitingCameraPermissionText: 'Esperando permiso para usar la cámara…',
-  a11yVideoLabelText: 'Vista de la cámara para la verificación facial',
-  recordingIndicatorText: 'Grabando',
-  cancelLivenessCheckText: 'Cancelar verificación',
-  errorLabelText: 'Error',
-  connectionTimeoutHeaderText: 'Se agotó el tiempo de conexión',
-  connectionTimeoutMessageText: 'No pudimos conectar con el servicio de verificación.',
-  timeoutHeaderText: 'Se agotó el tiempo',
-  timeoutMessageText: 'Tu rostro no llenó el óvalo a tiempo. Inténtalo de nuevo.',
-  faceDistanceHeaderText: 'Movimiento hacia adelante detectado',
-  faceDistanceMessageText: 'Evita acercarte mientras se conecta.',
-  multipleFacesHeaderText: 'Se detectó más de un rostro',
-  multipleFacesMessageText: 'Asegúrate de que solo tu rostro esté frente a la cámara.',
-  clientHeaderText: 'Error del cliente',
-  clientMessageText: 'La verificación falló por un problema del dispositivo.',
-  serverHeaderText: 'Error del servidor',
-  serverMessageText: 'No pudimos completar la verificación por un problema del servidor.',
-  landscapeHeaderText: 'Orientación horizontal no soportada',
-  landscapeMessageText: 'Gira tu dispositivo a vertical.',
-  portraitMessageText: 'Mantén el dispositivo en vertical durante la verificación.',
-  tryAgainText: 'Intentar de nuevo',
-}
 
 export function LivenessStep({ endpoint, claim, documentPreview, onBack, onVerified }: LivenessStepProps) {
   const [phase, setPhase] = useState<Phase>('intro')

@@ -9,6 +9,8 @@ export interface InstitutionSection {
   supportPhone: string
   address: string
   legalNotice: string
+  /** BANCO o COOPERATIVA: define el rango prudencial de desgravamen y la etiqueta de los productos. */
+  entityType: string
 }
 
 export interface AppearanceSection {
@@ -145,6 +147,8 @@ export interface CreditSection {
   germanSystemEnabled: string
   indirectChargesEnabled: string
   pdfReportEnabled: string
+  /** Monto hasta el cual el asesor puede aprobar sin pasar por el analista. */
+  advisorApprovalLimit: string
 }
 
 export interface InvestmentSection {
@@ -194,6 +198,7 @@ export const defaultInstitutionSettings: InstitutionSettings = {
     supportPhone: '+593 00 000 0000',
     address: 'Ecuador',
     legalNotice: 'Brunexa Bank es una institución ficticia. Los contenidos mostrados no constituyen una oferta financiera real.',
+    entityType: 'BANCO',
   },
   appearance: {
     brandPrimaryColor: '#08747b',
@@ -327,6 +332,7 @@ export const defaultInstitutionSettings: InstitutionSettings = {
     germanSystemEnabled: 'true',
     indirectChargesEnabled: 'true',
     pdfReportEnabled: 'true',
+    advisorApprovalLimit: '2000',
   },
   investment: {
     moduleEnabled: 'true',

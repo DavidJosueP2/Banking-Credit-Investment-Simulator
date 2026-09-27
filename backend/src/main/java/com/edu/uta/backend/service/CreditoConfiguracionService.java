@@ -10,6 +10,7 @@ import com.edu.uta.backend.domain.enums.SistemaAmortizacion;
 import com.edu.uta.backend.domain.enums.TipoCargo;
 import com.edu.uta.backend.domain.enums.TipoTasa;
 import com.edu.uta.backend.dto.ConfigurarCreditoRequestDto;
+import com.edu.uta.backend.dto.ConfigurarCreditoRequestDto.CargoConfiguracionDto;
 import com.edu.uta.backend.dto.ConfigurarCreditoResponseDto;
 import com.edu.uta.backend.dto.ConfigurarCreditoResponseDto.CargoResponseDto;
 import com.edu.uta.backend.repository.CargoCreditoRepository;
@@ -17,6 +18,7 @@ import com.edu.uta.backend.repository.ProductoCreditoRepository;
 import com.edu.uta.backend.repository.SegmentoCreditoRepository;
 import com.edu.uta.backend.repository.TasaCreditoRepository;
 import com.edu.uta.backend.repository.TipoCreditoRepository;
+import com.edu.uta.backend.settings.InstitutionSettingsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -24,9 +26,15 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
+/**
+ * Productos de crédito que crea el asesor. El nombre es libre; el segmento, la tasa máxima y los
+ * rangos salen de la normativa vigente, y el tipo de entidad de la configuración institucional.
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -38,254 +46,63 @@ public class CreditoConfiguracionService {
     private final TasaCreditoRepository tasaCreditoRepository;
     private final CargoCreditoRepository cargoCreditoRepository;
     private final NormativaRegulatoriaService normativaService;
+    private final InstitutionSettingsService settings;
 
-    // ─── Normativa Oficial Banco Central del Ecuador (BCE) ────────────────────
-    public record ReglaSegmentoBce(
-            String codigo,
-            String nombreOficial,
-            BigDecimal tasaMaximaLegal,
-            BigDecimal montoMaximoLegal,
-            Integer plazoMaximoMesesLegal
-    ) {}
-
-    private static final Map<String, ReglaSegmentoBce> REGLAS_BCE = new LinkedHashMap<>();
-
-    static {
-        // Productivo
-        REGLAS_BCE.put("PRODUCTIVO_CORPORATIVO", new ReglaSegmentoBce("PRODUCTIVO_CORPORATIVO", "Productivo Corporativo", new BigDecimal("9.33"), null, 60));
-        REGLAS_BCE.put("PRODUCTIVO_EMPRESARIAL", new ReglaSegmentoBce("PRODUCTIVO_EMPRESARIAL", "Productivo Empresarial", new BigDecimal("10.21"), null, 144));
-        REGLAS_BCE.put("PRODUCTIVO_PYMES", new ReglaSegmentoBce("PRODUCTIVO_PYMES", "Productivo PYMES", new BigDecimal("11.83"), new BigDecimal("1000000.00"), 120));
-
-        // Consumo
-        REGLAS_BCE.put("CONSUMO_PRIORITARIO", new ReglaSegmentoBce("CONSUMO_PRIORITARIO", "Consumo Prioritario", new BigDecimal("16.77"), new BigDecimal("30000.00"), 60));
-        REGLAS_BCE.put("CONSUMO_ORDINARIO", new ReglaSegmentoBce("CONSUMO_ORDINARIO", "Consumo Ordinario", new BigDecimal("17.30"), new BigDecimal("30000.00"), 60));
-
-        // Vivienda / Inmobiliario
-        REGLAS_BCE.put("INMOBILIARIO", new ReglaSegmentoBce("INMOBILIARIO", "Inmobiliario", new BigDecimal("10.40"), new BigDecimal("500000.00"), 240));
-        REGLAS_BCE.put("VIVIENDA_VIP", new ReglaSegmentoBce("VIVIENDA_VIP", "Vivienda de Interés Público (VIP)", new BigDecimal("4.99"), new BigDecimal("105000.00"), 360));
-        REGLAS_BCE.put("VIVIENDA_VIS", new ReglaSegmentoBce("VIVIENDA_VIS", "Vivienda de Interés Social (VIS)", new BigDecimal("4.99"), new BigDecimal("80000.00"), 360));
-
-        // Microcrédito
-        REGLAS_BCE.put("MICROCREDITO_MINORISTA", new ReglaSegmentoBce("MICROCREDITO_MINORISTA", "Microcrédito Minorista", new BigDecimal("28.23"), new BigDecimal("3000.00"), 36));
-        REGLAS_BCE.put("MICROCREDITO_SIMPLE", new ReglaSegmentoBce("MICROCREDITO_SIMPLE", "Microcrédito Acumulación Simple", new BigDecimal("25.50"), new BigDecimal("10000.00"), 48));
-        REGLAS_BCE.put("MICROCREDITO_AMPLIADA", new ReglaSegmentoBce("MICROCREDITO_AMPLIADA", "Microcrédito Acumulación Ampliada", new BigDecimal("25.50"), new BigDecimal("30000.00"), 60));
-
-        // Educativo
-        REGLAS_BCE.put("EDUCATIVO", new ReglaSegmentoBce("EDUCATIVO", "Educativo", new BigDecimal("9.50"), new BigDecimal("20000.00"), 84));
-    }
-
-    public static Map<String, ReglaSegmentoBce> getReglasBce() {
-        return Collections.unmodifiableMap(REGLAS_BCE);
-    }
-
-    private void validarRangosBasicos(ConfigurarCreditoRequestDto dto) {
-        if (dto.montoMin().compareTo(BigDecimal.ZERO) <= 0) {
-            throw new NormativaFinancieraException("El monto mínimo debe ser mayor a 0");
-        }
-        if (dto.montoMax().compareTo(dto.montoMin()) < 0) {
-            throw new NormativaFinancieraException("El monto máximo ($" + dto.montoMax() + ") no puede ser menor al monto mínimo ($" + dto.montoMin() + ")");
-        }
-        if (dto.plazoMinMeses() <= 0) {
-            throw new NormativaFinancieraException("El plazo mínimo debe ser de al menos 1 mes");
-        }
-        if (dto.plazoMaxMeses() < dto.plazoMinMeses()) {
-            throw new NormativaFinancieraException("El plazo máximo (" + dto.plazoMaxMeses() + " meses) no puede ser menor al plazo mínimo (" + dto.plazoMinMeses() + " meses)");
-        }
-        if (dto.sistemasPermitidos() == null || dto.sistemasPermitidos().isEmpty()) {
-            throw new NormativaFinancieraException("Debe seleccionar al menos un sistema de amortización permitido (FRANCES o ALEMAN)");
-        }
-        if (dto.tasaDesgravamenMensual() != null && dto.tasaDesgravamenMensual().compareTo(new BigDecimal("0.30")) > 0) {
-            throw new NormativaFinancieraException("La tasa de desgravamen mensual (" + dto.tasaDesgravamenMensual() + "%) excede el rango prudencial financiero (máximo 0.30% mensual)");
-        }
+    public NormativaRegulatoriaService.Marco marco() {
+        return normativaService.marco(settings.entityType(), LocalDate.now());
     }
 
     @Transactional
     public ConfigurarCreditoResponseDto configurar(ConfigurarCreditoRequestDto dto) {
-        log.info("Asesor configurando producto de crédito: '{}', entidad: '{}', segmento: '{}'",
-                dto.nombre(), dto.entidad(), dto.segmentoBce());
+        List<CargoConfiguracionDto> cargos = validar(dto, null);
+        log.info("Asesor configurando producto de crédito '{}' en el segmento '{}'", dto.nombre(), dto.segmentoBce());
 
-        // 1. Validaciones básicas de rangos
-        validarRangosBasicos(dto);
-
-        // 2. Validación de Normativa del Banco Central del Ecuador (BCE)
-        validarNormativaBce(dto);
-
-        // 3. Obtener o asignar un Tipo de Crédito padre
-        TipoCreditoEntity tipoCredito = resolverTipoCredito(dto.segmentoBce(), dto.nombre().toString());
-
-        // 4. Crear y guardar ProductoCreditoEntity
         ProductoCreditoEntity producto = new ProductoCreditoEntity();
-        producto.setTipoCredito(tipoCredito);
-        producto.setNombre(dto.nombre());
-        producto.setDescripcion(dto.descripcion() != null ? dto.descripcion().trim() : "Configurado por asesor");
-        producto.setEntidad(dto.entidad().trim());
-        producto.setSegmentoBce(dto.segmentoBce().trim());
-        producto.setMontoMin(dto.montoMin());
-        producto.setMontoMax(dto.montoMax());
-        producto.setPlazoMinMeses(dto.plazoMinMeses());
-        producto.setPlazoMaxMeses(dto.plazoMaxMeses());
-        producto.setUnidadPlazo(dto.unidadPlazo() != null ? dto.unidadPlazo().trim().toUpperCase() : "MESES");
-        producto.setTasaDesgravamenMensual(dto.tasaDesgravamenMensual() != null ? dto.tasaDesgravamenMensual() : new BigDecimal("0.0600"));
-
-        String sistemasJoined = dto.sistemasPermitidos().stream()
-                .map(Enum::name)
-                .collect(Collectors.joining(","));
-        producto.setSistemasPermitidos(sistemasJoined);
+        aplicar(producto, dto);
         producto.setActivo(true);
-
         producto = productoRepository.save(producto);
 
-        // 5. Crear la Tasa asociada al producto
         TasaCreditoEntity tasa = new TasaCreditoEntity();
         tasa.setProducto(producto);
         tasa.setTipoTasa(TipoTasa.ADMIN_CONFIGURED);
-        tasa.setNombre("Tasa activa configurada - " + dto.nombre());
-        tasa.setValor(dto.tasaInteres());
         tasa.setFechaVigencia(LocalDate.now());
-        tasa.setSegmentoBce(dto.segmentoBce());
-        tasa.setObservacion("Configurada según resolución BCE por asesor");
-        tasa.setActivo(true);
-        tasaCreditoRepository.save(tasa);
+        guardarTasa(tasa, dto);
 
-        // 6. Guardar Cargos Indirectos si fueron especificados
-        List<CargoResponseDto> cargosCreados = new ArrayList<>();
-        if (dto.cargosIndirectos() != null && !dto.cargosIndirectos().isEmpty() && cargoCreditoRepository != null) {
-            for (var cDto : dto.cargosIndirectos()) {
-                CargoCreditoEntity cargo = new CargoCreditoEntity();
-                cargo.setProducto(producto);
-                cargo.setNombre(cDto.nombre().trim());
-                cargo.setTipoCargo("PORCENTAJE".equalsIgnoreCase(cDto.tipoCargo()) ? TipoCargo.PORCENTAJE : TipoCargo.FIJO);
-                cargo.setValor(cDto.valor());
-                cargo.setPeriodicidad(cDto.periodicidad() != null ? cDto.periodicidad().trim().toUpperCase() : "MENSUAL");
-                cargo.setBaseCalculo(cDto.baseCalculo() != null ? cDto.baseCalculo().trim().toUpperCase() : "SALDO_DEUDOR");
-                cargo.setNormaAplicable(cDto.normaAplicable());
-                cargo.setObligatorio(cDto.obligatorio() != null ? cDto.obligatorio() : true);
-                cargo.setActivo(true);
-                CargoCreditoEntity saved = cargoCreditoRepository.save(cargo);
-                cargosCreados.add(new CargoResponseDto(
-                        saved.getId(), saved.getNombre(), saved.getTipoCargo().name(),
-                        saved.getValor(), saved.getPeriodicidad(), saved.getBaseCalculo(),
-                        saved.getNormaAplicable(), saved.getObligatorio()
-                ));
-            }
-        }
-
-        return toResponseDto(producto, dto.tasaInteres(), dto.sistemasPermitidos(), cargosCreados);
+        return toResponseDto(producto, dto.tasaInteres(), parseSistemas(producto.getSistemasPermitidos()),
+                guardarCargos(producto, cargos));
     }
 
     @Transactional
     public ConfigurarCreditoResponseDto actualizar(Long id, ConfigurarCreditoRequestDto dto) {
-        log.info("Actualizando producto de crédito id: {}, nombre: '{}', entidad: '{}', segmento: '{}'",
-                id, dto.nombre(), dto.entidad(), dto.segmentoBce());
-
-        // 1. Validaciones básicas de rangos
-        validarRangosBasicos(dto);
-
-        // 2. Validación de Normativa del Banco Central del Ecuador (BCE)
-        validarNormativaBce(dto);
-
-        // 3. Recuperar entidad existente sin crear duplicados
         ProductoCreditoEntity producto = productoRepository.findById(id)
                 .orElseThrow(() -> new jakarta.persistence.EntityNotFoundException("Producto de crédito no encontrado con ID: " + id));
+        List<CargoConfiguracionDto> cargos = validar(dto, producto.getSegmentoBce());
+        log.info("Actualizando producto de crédito id {} ('{}')", id, dto.nombre());
 
-        // 4. Asignar o actualizar Tipo de Crédito padre
-        TipoCreditoEntity tipoCredito = resolverTipoCredito(dto.segmentoBce(), dto.nombre().toString());
-        producto.setTipoCredito(tipoCredito);
-
-        // 5. Actualizar propiedades del producto
-        producto.setNombre(dto.nombre());
-        producto.setDescripcion(dto.descripcion() != null ? dto.descripcion().trim() : "Configurado por asesor");
-        producto.setEntidad(dto.entidad().trim());
-        producto.setSegmentoBce(dto.segmentoBce().trim());
-        producto.setMontoMin(dto.montoMin());
-        producto.setMontoMax(dto.montoMax());
-        producto.setPlazoMinMeses(dto.plazoMinMeses());
-        producto.setPlazoMaxMeses(dto.plazoMaxMeses());
-        producto.setUnidadPlazo(dto.unidadPlazo() != null ? dto.unidadPlazo().trim().toUpperCase() : "MESES");
-        producto.setTasaDesgravamenMensual(dto.tasaDesgravamenMensual() != null ? dto.tasaDesgravamenMensual() : new BigDecimal("0.0600"));
-
-        String sistemasJoined = dto.sistemasPermitidos().stream()
-                .map(Enum::name)
-                .collect(Collectors.joining(","));
-        producto.setSistemasPermitidos(sistemasJoined);
-
+        aplicar(producto, dto);
         producto = productoRepository.save(producto);
 
-        // 6. Actualizar o crear la tasa activa asociada
-        List<TasaCreditoEntity> tasasExistentes = tasaCreditoRepository.findAllByProductoIdAndActivoTrueOrderByFechaVigenciaDesc(producto.getId());
-        TasaCreditoEntity tasa;
-        if (!tasasExistentes.isEmpty()) {
-            tasa = tasasExistentes.get(0);
-        } else {
-            tasa = new TasaCreditoEntity();
+        List<TasaCreditoEntity> tasas = tasaCreditoRepository.findAllByProductoIdAndActivoTrueOrderByFechaVigenciaDesc(producto.getId());
+        TasaCreditoEntity tasa = tasas.isEmpty() ? new TasaCreditoEntity() : tasas.getFirst();
+        if (tasas.isEmpty()) {
             tasa.setProducto(producto);
             tasa.setTipoTasa(TipoTasa.ADMIN_CONFIGURED);
-            tasa.setFechaVigencia(LocalDate.now());
         }
-        tasa.setNombre("Tasa activa configurada - " + dto.nombre());
-        tasa.setValor(dto.tasaInteres());
-        tasa.setSegmentoBce(dto.segmentoBce());
-        tasa.setObservacion("Actualizada según resolución BCE por asesor");
-        tasa.setActivo(true);
-        tasaCreditoRepository.save(tasa);
+        tasa.setFechaVigencia(LocalDate.now());
+        guardarTasa(tasa, dto);
 
-        // 7. Sincronizar cargos indirectos
-        List<CargoResponseDto> cargosActualizados = new ArrayList<>();
-        if (cargoCreditoRepository != null) {
-            List<CargoCreditoEntity> prevCargos = cargoCreditoRepository.findAllByProductoId(producto.getId());
-            for (CargoCreditoEntity pc : prevCargos) {
-                pc.setActivo(false);
-                cargoCreditoRepository.save(pc);
-            }
-            if (dto.cargosIndirectos() != null && !dto.cargosIndirectos().isEmpty()) {
-                for (var cDto : dto.cargosIndirectos()) {
-                    CargoCreditoEntity cargo = new CargoCreditoEntity();
-                    cargo.setProducto(producto);
-                    cargo.setNombre(cDto.nombre().trim());
-                    cargo.setTipoCargo("PORCENTAJE".equalsIgnoreCase(cDto.tipoCargo()) ? TipoCargo.PORCENTAJE : TipoCargo.FIJO);
-                    cargo.setValor(cDto.valor());
-                    cargo.setPeriodicidad(cDto.periodicidad() != null ? cDto.periodicidad().trim().toUpperCase() : "MENSUAL");
-                    cargo.setBaseCalculo(cDto.baseCalculo() != null ? cDto.baseCalculo().trim().toUpperCase() : "SALDO_DEUDOR");
-                    cargo.setNormaAplicable(cDto.normaAplicable());
-                    cargo.setObligatorio(cDto.obligatorio() != null ? cDto.obligatorio() : true);
-                    cargo.setActivo(true);
-                    CargoCreditoEntity saved = cargoCreditoRepository.save(cargo);
-                    cargosActualizados.add(new CargoResponseDto(
-                            saved.getId(), saved.getNombre(), saved.getTipoCargo().name(),
-                            saved.getValor(), saved.getPeriodicidad(), saved.getBaseCalculo(),
-                            saved.getNormaAplicable(), saved.getObligatorio()
-                    ));
-                }
-            }
+        for (CargoCreditoEntity previo : cargoCreditoRepository.findAllByProductoId(producto.getId())) {
+            previo.setActivo(false);
+            cargoCreditoRepository.save(previo);
         }
-
-        return toResponseDto(producto, dto.tasaInteres(), dto.sistemasPermitidos(), cargosActualizados);
+        return toResponseDto(producto, dto.tasaInteres(), parseSistemas(producto.getSistemasPermitidos()),
+                guardarCargos(producto, cargos));
     }
 
     @Transactional(readOnly = true)
     public List<ConfigurarCreditoResponseDto> listarConfigurados() {
         return productoRepository.findAllByOrderByIdDesc().stream()
-                .map(p -> {
-                    BigDecimal tasaValor = p.getTasas().stream()
-                            .filter(TasaCreditoEntity::getActivo)
-                            .findFirst()
-                            .map(TasaCreditoEntity::getValor)
-                            .orElse(new BigDecimal("15.50"));
-
-                    List<SistemaAmortizacion> sistemas = parseSistemas(p.getSistemasPermitidos());
-
-                    List<CargoResponseDto> cargos = p.getCargos() != null
-                            ? p.getCargos().stream()
-                            .filter(CargoCreditoEntity::getActivo)
-                            .map(c -> new CargoResponseDto(
-                                    c.getId(), c.getNombre(), c.getTipoCargo().name(),
-                                    c.getValor(), c.getPeriodicidad(), c.getBaseCalculo(),
-                                    c.getNormaAplicable(), c.getObligatorio()
-                            )).toList()
-                            : List.of();
-
-                    return toResponseDto(p, tasaValor, sistemas, cargos);
-                })
+                .map(p -> toResponseDto(p, tasaActiva(p), parseSistemas(p.getSistemasPermitidos()), cargosActivos(p)))
                 .toList();
     }
 
@@ -293,116 +110,102 @@ public class CreditoConfiguracionService {
     public ConfigurarCreditoResponseDto cambiarEstado(Long id, Boolean active) {
         ProductoCreditoEntity p = productoRepository.findById(id)
                 .orElseThrow(() -> new jakarta.persistence.EntityNotFoundException("Producto no encontrado: " + id));
-        boolean nuevoEstado = (active != null) ? active : !Boolean.TRUE.equals(p.getActivo());
+        boolean nuevoEstado = active != null ? active : !Boolean.TRUE.equals(p.getActivo());
+        if (nuevoEstado && tasaActiva(p) == null) {
+            throw new NormativaFinancieraException("El producto no tiene una tasa activa: edítalo antes de activarlo.");
+        }
         p.setActivo(nuevoEstado);
         p = productoRepository.save(p);
-
-        BigDecimal tasaValor = p.getTasas().stream()
-                .filter(TasaCreditoEntity::getActivo)
-                .findFirst()
-                .map(TasaCreditoEntity::getValor)
-                .orElse(new BigDecimal("15.50"));
-
-        List<SistemaAmortizacion> sistemas = parseSistemas(p.getSistemasPermitidos());
-
-        List<CargoResponseDto> cargos = p.getCargos() != null
-                ? p.getCargos().stream()
-                .filter(CargoCreditoEntity::getActivo)
-                .map(c -> new CargoResponseDto(
-                        c.getId(), c.getNombre(), c.getTipoCargo().name(),
-                        c.getValor(), c.getPeriodicidad(), c.getBaseCalculo(),
-                        c.getNormaAplicable(), c.getObligatorio()
-                )).toList()
-                : List.of();
-
-        return toResponseDto(p, tasaValor, sistemas, cargos);
+        return toResponseDto(p, tasaActiva(p), parseSistemas(p.getSistemasPermitidos()), cargosActivos(p));
     }
 
-    // ─── Validaciones Normativas BCE ─────────────────────────────────────────
+    // ─── Validaciones ────────────────────────────────────────────────────────
 
-    private void validarNormativaBce(ConfigurarCreditoRequestDto dto) {
-        if (normativaService != null) {
-            normativaService.validarTasa(dto.segmentoBce(), dto.tasaInteres(), LocalDate.now());
-            normativaService.validarMonto(dto.segmentoBce(), dto.montoMax(), LocalDate.now());
-            normativaService.validarPlazo(dto.segmentoBce(), dto.plazoMaxMeses(), LocalDate.now());
-            normativaService.validarDesgravamen(dto.entidad(), dto.tasaDesgravamenMensual());
-
-            if (dto.cargosIndirectos() != null) {
-                for (var cargo : dto.cargosIndirectos()) {
-                    normativaService.validarCargoIndirecto(cargo.nombre(), cargo.tipoCargo(), cargo.valor(), cargo.baseCalculo());
-                }
-            }
-            return;
+    /** Devuelve los cobros indirectos normalizados; cualquier incumplimiento detiene el guardado. */
+    private List<CargoConfiguracionDto> validar(ConfigurarCreditoRequestDto dto, String segmentoActual) {
+        LocalDate hoy = LocalDate.now();
+        if (dto.montoMin().signum() <= 0) {
+            throw new NormativaFinancieraException("El monto mínimo debe ser mayor a 0.");
+        }
+        if (dto.montoMax().compareTo(dto.montoMin()) < 0) {
+            throw new NormativaFinancieraException(String.format(Locale.ROOT,
+                    "El monto máximo ($%.2f) no puede ser menor al monto mínimo ($%.2f).", dto.montoMax(), dto.montoMin()));
+        }
+        if (dto.plazoMinMeses() == null || dto.plazoMinMeses() <= 0) {
+            throw new NormativaFinancieraException("El plazo mínimo debe ser de al menos 1 mes.");
+        }
+        if (dto.plazoMaxMeses() < dto.plazoMinMeses()) {
+            throw new NormativaFinancieraException("El plazo máximo (" + dto.plazoMaxMeses()
+                    + " meses) no puede ser menor al plazo mínimo (" + dto.plazoMinMeses() + " meses).");
+        }
+        if (dto.plazoMaxMeses() > 360) {
+            throw new NormativaFinancieraException("El plazo máximo no puede superar 360 meses (30 años).");
+        }
+        String unidad = unidadPlazo(dto.unidadPlazo());
+        if (unidad.equals("ANIOS") && (dto.plazoMinMeses() % 12 != 0 || dto.plazoMaxMeses() % 12 != 0)) {
+            throw new NormativaFinancieraException("Si el cliente elige el plazo en años, los plazos deben ser años completos (múltiplos de 12 meses).");
+        }
+        if (dto.sistemasPermitidos() == null || dto.sistemasPermitidos().isEmpty()) {
+            throw new NormativaFinancieraException("Selecciona al menos un sistema de amortización (francés o alemán).");
         }
 
-        // Validación de respaldo si normativaService fuese nulo
-        String key = normalizarSegmentoKey(dto.segmentoBce());
-        ReglaSegmentoBce regla = REGLAS_BCE.get(key);
-
-        if (regla != null) {
-            if (dto.tasaInteres().compareTo(regla.tasaMaximaLegal()) > 0) {
-                throw new NormativaFinancieraException(String.format(Locale.ROOT,
-                        "La tasa ingresada (%.2f%%) supera la tasa máxima legal del %.2f%% permitida por el Banco Central del Ecuador (BCE) para el segmento '%s'.",
-                        dto.tasaInteres(), regla.tasaMaximaLegal(), regla.nombreOficial()
-                ));
-            }
-            if (regla.montoMaximoLegal() != null && dto.montoMax().compareTo(regla.montoMaximoLegal()) > 0) {
-                throw new NormativaFinancieraException(String.format(Locale.ROOT,
-                        "El monto máximo ingresado ($%.2f) excede el tope legal de $%.2f fijado por la Junta de Política y Regulación Financiera para el segmento '%s'.",
-                        dto.montoMax(), regla.montoMaximoLegal(), regla.nombreOficial()
-                ));
-            }
-            if (regla.plazoMaximoMesesLegal() != null && dto.plazoMaxMeses() > regla.plazoMaximoMesesLegal()) {
-                throw new NormativaFinancieraException(String.format(Locale.ROOT,
-                        "El plazo máximo ingresado (%d meses) excede el límite normativo de %d meses fijado para el segmento '%s'.",
-                        dto.plazoMaxMeses(), regla.plazoMaximoMesesLegal(), regla.nombreOficial()
-                ));
-            }
+        String segmento = normativaService.normalizarSegmentoKey(dto.segmentoBce());
+        boolean mismoSegmento = segmento.equals(normativaService.normalizarSegmentoKey(segmentoActual));
+        if (!normativaService.segmentoOfertable(segmento) && !mismoSegmento) {
+            throw new NormativaFinancieraException("El segmento '" + segmento + "' ya no está vigente para productos nuevos.");
         }
-
-        if (dto.entidad() != null) {
-            String entidadNorm = dto.entidad().trim().toLowerCase(Locale.ROOT);
-            if (entidadNorm.contains("banco")) {
-                if (dto.tasaDesgravamenMensual() != null && dto.tasaDesgravamenMensual().compareTo(new BigDecimal("0.0650")) > 0) {
-                    throw new NormativaFinancieraException(String.format(Locale.ROOT,
-                            "Para Bancos, la tasa de desgravamen mensual (%.4f%%) excede el tope legal de 0.0650%% mensual fijado por la Superintendencia de Bancos.",
-                            dto.tasaDesgravamenMensual()));
-                }
-                if (key.startsWith("MICROCREDITO")) {
-                    throw new NormativaFinancieraException("Los segmentos de Microcrédito corresponden normativamente al sector cooperativo y microfinanciero, no a Banca Comercial.");
-                }
-            } else if (entidadNorm.contains("cooperativa")) {
-                if (dto.tasaDesgravamenMensual() != null &&
-                        (dto.tasaDesgravamenMensual().compareTo(new BigDecimal("0.0400")) < 0 ||
-                         dto.tasaDesgravamenMensual().compareTo(new BigDecimal("0.1200")) > 0)) {
-                    throw new NormativaFinancieraException(String.format(Locale.ROOT,
-                            "Para Cooperativas, la tasa de desgravamen mensual (%.4f%%) debe ubicarse en el rango normativo de la SEPS (0.0400%% a 0.1200%% mensual).",
-                            dto.tasaDesgravamenMensual()));
-                }
-            }
-        }
+        normativaService.validarTasa(segmento, dto.tasaInteres(), hoy);
+        normativaService.validarMonto(segmento, dto.montoMax(), hoy);
+        normativaService.validarPlazo(segmento, dto.plazoMaxMeses(), hoy);
+        normativaService.validarDesgravamen(settings.entityType(), dto.tasaDesgravamenMensual(), hoy);
+        return normativaService.validarCargos(dto.cargosIndirectos(), hoy);
     }
 
-    private String normalizarSegmentoKey(String input) {
-        if (input == null) return "CONSUMO_PRIORITARIO";
-        String s = input.toUpperCase().trim();
-        for (String key : REGLAS_BCE.keySet()) {
-            if (s.contains(key) || key.contains(s)) return key;
+    // ─── Persistencia ────────────────────────────────────────────────────────
+
+    private void aplicar(ProductoCreditoEntity producto, ConfigurarCreditoRequestDto dto) {
+        String segmento = normativaService.normalizarSegmentoKey(dto.segmentoBce());
+        producto.setTipoCredito(resolverTipoCredito(segmento, dto.nombre().trim()));
+        producto.setNombre(dto.nombre().trim().replaceAll("\\s+", " "));
+        producto.setDescripcion(dto.descripcion() != null && !dto.descripcion().isBlank() ? dto.descripcion().trim() : null);
+        producto.setEntidad(settings.entityLabel());
+        producto.setSegmentoBce(segmento);
+        producto.setMontoMin(dto.montoMin());
+        producto.setMontoMax(dto.montoMax());
+        producto.setPlazoMinMeses(dto.plazoMinMeses());
+        producto.setPlazoMaxMeses(dto.plazoMaxMeses());
+        producto.setUnidadPlazo(unidadPlazo(dto.unidadPlazo()));
+        producto.setTasaDesgravamenMensual(dto.tasaDesgravamenMensual());
+        producto.setSistemasPermitidos(dto.sistemasPermitidos().stream().distinct().map(Enum::name)
+                .collect(Collectors.joining(",")));
+    }
+
+    private void guardarTasa(TasaCreditoEntity tasa, ConfigurarCreditoRequestDto dto) {
+        tasa.setNombre("Tasa activa efectiva - " + dto.nombre().trim());
+        tasa.setValor(dto.tasaInteres());
+        tasa.setSegmentoBce(normativaService.normalizarSegmentoKey(dto.segmentoBce()));
+        tasa.setObservacion("Validada contra la tasa máxima vigente del BCE");
+        tasa.setActivo(true);
+        tasaCreditoRepository.save(tasa);
+    }
+
+    private List<CargoResponseDto> guardarCargos(ProductoCreditoEntity producto, List<CargoConfiguracionDto> cargos) {
+        List<CargoResponseDto> guardados = new ArrayList<>();
+        for (CargoConfiguracionDto dto : cargos) {
+            CargoCreditoEntity cargo = new CargoCreditoEntity();
+            cargo.setProducto(producto);
+            cargo.setNombre(dto.nombre());
+            cargo.setCategoria(dto.categoria());
+            cargo.setTipoCargo(TipoCargo.valueOf(dto.tipoCargo()));
+            cargo.setValor(dto.valor());
+            cargo.setPeriodicidad(dto.periodicidad());
+            cargo.setBaseCalculo(dto.baseCalculo());
+            cargo.setNormaAplicable(dto.normaAplicable());
+            cargo.setObligatorio(dto.obligatorio());
+            cargo.setActivo(true);
+            guardados.add(toCargoDto(cargoCreditoRepository.save(cargo)));
         }
-        if (s.contains("MICRO")) {
-            if (s.contains("MIN")) return "MICROCREDITO_MINORISTA";
-            if (s.contains("AMPLI")) return "MICROCREDITO_AMPLIADA";
-            return "MICROCREDITO_SIMPLE";
-        }
-        if (s.contains("VIP")) return "VIVIENDA_VIP";
-        if (s.contains("VIS")) return "VIVIENDA_VIS";
-        if (s.contains("VIVIENDA") || s.contains("INMOB")) return "INMOBILIARIO";
-        if (s.contains("CORP")) return "PRODUCTIVO_CORPORATIVO";
-        if (s.contains("EMPRE")) return "PRODUCTIVO_EMPRESARIAL";
-        if (s.contains("PYME") || s.contains("PROD")) return "PRODUCTIVO_PYMES";
-        if (s.contains("EDUC")) return "EDUCATIVO";
-        if (s.contains("ORDINARIO")) return "CONSUMO_ORDINARIO";
-        return "CONSUMO_PRIORITARIO";
+        return guardados;
     }
 
     private TipoCreditoEntity resolverTipoCredito(String segmentoBce, String nombreProducto) {
@@ -429,8 +232,8 @@ public class CreditoConfiguracionService {
                 });
     }
 
-    private String mapearCodigoSegmento(String segmentoBce) {
-        String s = segmentoBce != null ? segmentoBce.toUpperCase() : "";
+    private static String mapearCodigoSegmento(String segmentoBce) {
+        String s = segmentoBce != null ? segmentoBce.toUpperCase(Locale.ROOT) : "";
         if (s.contains("CONSUMO")) return "CONSUMO";
         if (s.contains("MICRO")) return "MICROCREDITO";
         if (s.contains("VIVIENDA") || s.contains("INMOB")) return "VIVIENDA";
@@ -439,38 +242,65 @@ public class CreditoConfiguracionService {
         return "CONSUMO";
     }
 
-    private List<SistemaAmortizacion> parseSistemas(String sistemasCsv) {
+    private static String unidadPlazo(String unidad) {
+        String value = unidad == null ? "MESES" : unidad.trim().toUpperCase(Locale.ROOT);
+        if (!value.equals("MESES") && !value.equals("ANIOS")) {
+            throw new NormativaFinancieraException("La unidad de plazo debe ser meses o años.");
+        }
+        return value;
+    }
+
+    // ─── Respuestas ──────────────────────────────────────────────────────────
+
+    private static BigDecimal tasaActiva(ProductoCreditoEntity p) {
+        return p.getTasas() == null ? null : p.getTasas().stream()
+                .filter(TasaCreditoEntity::getActivo)
+                .findFirst()
+                .map(TasaCreditoEntity::getValor)
+                .orElse(null);
+    }
+
+    private static List<CargoResponseDto> cargosActivos(ProductoCreditoEntity p) {
+        return p.getCargos() == null ? List.of() : p.getCargos().stream()
+                .filter(CargoCreditoEntity::getActivo)
+                .map(CreditoConfiguracionService::toCargoDto)
+                .toList();
+    }
+
+    private static CargoResponseDto toCargoDto(CargoCreditoEntity c) {
+        return new CargoResponseDto(c.getId(), c.getNombre(), c.getTipoCargo().name(), c.getValor(),
+                c.getPeriodicidad(), c.getBaseCalculo(), c.getNormaAplicable(), c.getObligatorio(), c.getCategoria());
+    }
+
+    private static List<SistemaAmortizacion> parseSistemas(String sistemasCsv) {
         if (sistemasCsv == null || sistemasCsv.isBlank()) {
             return List.of(SistemaAmortizacion.FRANCES, SistemaAmortizacion.ALEMAN);
         }
         List<SistemaAmortizacion> result = new ArrayList<>();
         for (String part : sistemasCsv.split(",")) {
             try {
-                result.add(SistemaAmortizacion.valueOf(part.trim().toUpperCase()));
-            } catch (Exception ignored) {}
+                result.add(SistemaAmortizacion.valueOf(part.trim().toUpperCase(Locale.ROOT)));
+            } catch (IllegalArgumentException ignored) {
+                // Valores antiguos no reconocidos se omiten.
+            }
         }
         return result.isEmpty() ? List.of(SistemaAmortizacion.FRANCES) : result;
     }
 
-    private ConfigurarCreditoResponseDto toResponseDto(
-            ProductoCreditoEntity p,
-            BigDecimal tasaInteres,
-            List<SistemaAmortizacion> sistemas,
-            List<CargoResponseDto> cargos
-    ) {
-        String nombreEnumStr = p.getNombreEnum() != null ? p.getNombreEnum().name()
-                : (p.getNombre() != null ? p.getNombre() : "CONSUMO_PRIORITARIO");
+    private static ConfigurarCreditoResponseDto toResponseDto(ProductoCreditoEntity p, BigDecimal tasaInteres,
+                                                              List<SistemaAmortizacion> sistemas,
+                                                              List<CargoResponseDto> cargos) {
         return new ConfigurarCreditoResponseDto(
                 p.getId(),
-                nombreEnumStr,
-                p.getEntidad() != null ? p.getEntidad() : "Banco",
-                p.getSegmentoBce() != null ? p.getSegmentoBce() : "Consumo Prioritario",
+                p.getNombre(),
+                p.getEntidad(),
+                p.getSegmentoBce(),
                 p.getMontoMin(),
                 p.getMontoMax(),
                 p.getPlazoMinMeses(),
                 p.getPlazoMaxMeses(),
                 tasaInteres,
-                p.getTasaDesgravamenMensual() != null ? p.getTasaDesgravamenMensual() : new BigDecimal("0.0600"),
+                p.getTasaDesgravamenMensual(),
                 sistemas,
                 p.getDescripcion(),
                 p.getActivo(),

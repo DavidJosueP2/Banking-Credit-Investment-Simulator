@@ -1,11 +1,17 @@
+import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 
 import { useAuth } from '@/app/providers/auth-provider'
 import { Button } from '@/components/ui/button'
+import { StatusBadge } from '@/components/shared/status-badge'
+import { applicationKeys, getReadiness } from '@/features/applications/applications-api'
+import { formatDate } from '@/lib/formatters'
 
 export function AccountPage() {
   const { account, isPending, isError, logout, hasPermission } = useAuth()
+  const isClient = hasPermission('own.requests.read')
+  const readiness = useQuery({ queryKey: applicationKeys.readiness, queryFn: getReadiness, enabled: isClient })
   const navigate = useNavigate()
   const [signingOut, setSigningOut] = useState(false)
   const [error, setError] = useState('')
@@ -37,11 +43,31 @@ export function AccountPage() {
         <div><dt className="text-sm text-muted-foreground">Correo</dt><dd className="mt-1 font-medium">{account.email}</dd></div>
         <div><dt className="text-sm text-muted-foreground">Roles asignados</dt><dd className="mt-1 font-medium">{account.roles.join(', ')}</dd></div>
         <div><dt className="text-sm text-muted-foreground">Estado</dt><dd className="mt-1 font-medium text-brand-teal">{account.enabled ? 'Activa' : 'Inactiva'}</dd></div>
+        {isClient && readiness.data && (
+          <div>
+            <dt className="text-sm text-muted-foreground">Verificación de identidad</dt>
+            <dd className="mt-1">
+              {readiness.data.identityVerified ? (
+                <StatusBadge tone="success">
+                  Verificada{readiness.data.identityVerifiedAt && ` el ${formatDate(readiness.data.identityVerifiedAt)}`}
+                </StatusBadge>
+              ) : (
+                <span className="flex items-center gap-2">
+                  <StatusBadge tone="warning">Pendiente</StatusBadge>
+                  <Link to="/perfil" className="text-xs text-brand-gold underline underline-offset-4 hover:text-foreground">
+                    Completarla
+                  </Link>
+                </span>
+              )}
+            </dd>
+          </div>
+        )}
       </dl>
       <div className="mt-8 flex flex-wrap items-center gap-3">
         <Link to="/perfil" className="text-sm text-brand-gold underline underline-offset-4 hover:text-foreground">
           Mi perfil y verificación de identidad
         </Link>
+        {hasPermission('own.requests.read') && <Button asChild variant="brand"><Link to="/cliente">Ir a mi espacio</Link></Button>}
         {hasPermission('admin.dashboard.view') && <Button asChild><Link to="/admin">Abrir panel interno</Link></Button>}
         <Button variant="outline" onClick={signOut} disabled={signingOut}>{signingOut ? 'Saliendo…' : 'Cerrar sesión'}</Button>
       </div>

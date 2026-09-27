@@ -1,20 +1,21 @@
 package com.edu.uta.backend.dto;
 
-import com.edu.uta.backend.domain.enums.SegmentoCreditoBCE;
 import com.edu.uta.backend.domain.enums.SistemaAmortizacion;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
 import java.util.List;
 
 public record ConfigurarCreditoRequestDto(
-        @NotNull(message = "El nombre del crédito es obligatorio")
-        SegmentoCreditoBCE nombre,
+        @NotBlank(message = "El nombre del producto es obligatorio")
+        @Size(min = 3, max = 120, message = "El nombre del producto debe tener entre 3 y 120 caracteres")
+        String nombre,
 
-        @NotBlank(message = "La entidad (Banco/Cooperativa) es obligatoria")
+        /** Ignorado: el tipo de entidad sale de la configuración institucional. */
         String entidad,
 
         @NotBlank(message = "El segmento regulatorio BCE es obligatorio")
@@ -62,27 +63,8 @@ public record ConfigurarCreditoRequestDto(
             List<SistemaAmortizacion> sistemasPermitidos,
             String descripcion
     ) {
-        this(SegmentoCreditoBCE.fromString(nombre), entidad, segmentoBce, montoMin, montoMax, plazoMinMeses, plazoMaxMeses,
+        this(nombre, entidad, segmentoBce, montoMin, montoMax, plazoMinMeses, plazoMaxMeses,
                 tasaInteres, tasaDesgravamenMensual, sistemasPermitidos, descripcion, "MESES", List.of());
-    }
-
-    public ConfigurarCreditoRequestDto(
-            String nombre,
-            String entidad,
-            String segmentoBce,
-            BigDecimal montoMin,
-            BigDecimal montoMax,
-            Integer plazoMinMeses,
-            Integer plazoMaxMeses,
-            BigDecimal tasaInteres,
-            BigDecimal tasaDesgravamenMensual,
-            List<SistemaAmortizacion> sistemasPermitidos,
-            String descripcion,
-            String unidadPlazo,
-            List<CargoConfiguracionDto> cargosIndirectos
-    ) {
-        this(SegmentoCreditoBCE.fromString(nombre), entidad, segmentoBce, montoMin, montoMax, plazoMinMeses, plazoMaxMeses,
-                tasaInteres, tasaDesgravamenMensual, sistemasPermitidos, descripcion, unidadPlazo, cargosIndirectos);
     }
 
     public record CargoConfiguracionDto(
@@ -92,6 +74,12 @@ public record ConfigurarCreditoRequestDto(
             String periodicidad, // MENSUAL o UNICO
             String baseCalculo,  // SALDO_DEUDOR, MONTO_SOLICITADO, FIJO
             String normaAplicable,
-            Boolean obligatorio
-    ) {}
+            Boolean obligatorio,
+            String categoria     // SEGURO, GASTO, DONACION u OTRO
+    ) {
+        public CargoConfiguracionDto(String nombre, String tipoCargo, BigDecimal valor, String periodicidad,
+                                     String baseCalculo, String normaAplicable, Boolean obligatorio) {
+            this(nombre, tipoCargo, valor, periodicidad, baseCalculo, normaAplicable, obligatorio, null);
+        }
+    }
 }

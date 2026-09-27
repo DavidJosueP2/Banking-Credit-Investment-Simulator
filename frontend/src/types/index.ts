@@ -145,6 +145,7 @@ export interface CargoIndirectoInfo {
   baseCalculo: 'SALDO_DEUDOR' | 'MONTO_SOLICITADO' | 'FIJO' | string
   normaAplicable?: string
   obligatorio?: boolean
+  categoria?: 'SEGURO' | 'GASTO' | 'DONACION' | 'OTRO'
 }
 
 export interface ProductoSimulador {
@@ -200,6 +201,8 @@ export interface SimulacionClienteRequest {
   creditTypeId?: number
   entidad?: string
   usuario?: string
+  /** Cobros opcionales (p. ej. donaciones) que el cliente decide sumar. */
+  cargosOpcionales?: number[]
 }
 
 export interface SimulacionClienteResponse {
@@ -263,11 +266,43 @@ export interface CargoConfiguracionDto {
   baseCalculo?: 'SALDO_DEUDOR' | 'MONTO_SOLICITADO' | 'FIJO' | string
   normaAplicable?: string
   obligatorio?: boolean
+  categoria?: CategoriaCargo
+}
+
+export type CategoriaCargo = 'SEGURO' | 'GASTO' | 'DONACION' | 'OTRO'
+
+export interface SegmentoNormativo {
+  codigo: string
+  nombre: string
+  descripcion: string | null
+  tasaMaxima: number | null
+  tasaReferencial: number | null
+  montoMaximo: number | null
+  plazoMaximoMeses: number | null
+  fuenteTasa: string | null
+  resolucion: string | null
+  urlFuente: string | null
+  vigenteDesde: string | null
+}
+
+/** Marco vigente para configurar créditos: lo arma el backend desde la normativa registrada. */
+export interface MarcoNormativo {
+  tipoEntidad: 'BANCO' | 'COOPERATIVA'
+  fecha: string
+  segmentos: SegmentoNormativo[]
+  desgravamen: { minimo: number; maximo: number; fuente: string | null }
+  cargos: {
+    porcentajeMensualMaximo: number
+    fijoMensualMaximo: number
+    unicoPorcentajeMaximo: number
+    unicoFijoMaximo: number
+    maximoPorProducto: number
+  }
 }
 
 export interface ConfigurarCreditoRequest {
   nombre: string
-  entidad: string
+  entidad?: string
   segmentoBce: string
   montoMin: number
   montoMax: number

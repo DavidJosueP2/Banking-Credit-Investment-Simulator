@@ -1,1111 +1,760 @@
-import { useState, useMemo } from 'react'
-import { useNavigate, useParams, Link } from 'react-router-dom'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useForm, Controller } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { AlertTriangle, CirclePlus, Copy, ExternalLink, HandHeart, Pencil, Plus, Power, Receipt, Shield, Trash2 } from 'lucide-react'
+import { useMemo, useState, type FormEvent } from 'react'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import {
-  CirclePlus,
-  Pencil,
-  Power,
-  Plus,
-  Trash2,
-  AlertTriangle,
-  ShieldAlert,
-  Shield,
-  Percent,
-} from 'lucide-react'
 
+import { useAuth } from '@/app/providers/auth-provider'
 import { PageHeader } from '@/components/shared/page-header'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { creditosService } from '@/features/creditos/services/creditos.service'
+import { messageFrom } from '@/features/identity-check/utils'
 import { formatCurrency } from '@/lib/formatters'
-import { useAuth } from '@/app/providers/auth-provider'
-import {
-  type SistemaAmortizacion,
-  type ConfigurarCreditoRequest,
-  type ConfigurarCreditoResponse,
-  type CargoConfiguracionDto,
+import { cn } from '@/lib/utils'
+import type {
+  CargoConfiguracionDto,
+  CategoriaCargo,
+  ConfigurarCreditoRequest,
+  ConfigurarCreditoResponse,
+  MarcoNormativo,
+  SegmentoNormativo,
+  SistemaAmortizacion,
 } from '@/types'
 
-// ─── Segmentos Oficiales del Banco Central del Ecuador (BCE) ─────────────────
+const MARCO_KEY = ['creditos', 'marco'] as const
+const PRODUCTOS_KEY = ['creditosConfigurados'] as const
 
-export interface SegmentoBceInfo {
-  id: string
-  nombre: string
-  tasaMaxima: number
-  tasaSugerida: number
-  montoMinSugerido: number
-  montoMaximoLegal?: number
-  plazoMinSugerido: number
-  plazoMaximoMeses: number
-  desgravamenSugerido: number
-  categoria: 'PRODUCTIVO' | 'CONSUMO' | 'VIVIENDA' | 'MICROCREDITO' | 'EDUCATIVO'
-  entidadesPermitidas: ('Banco' | 'Cooperativa')[]
+const entidadLabels: Record<MarcoNormativo['tipoEntidad'], string> = {
+  BANCO: 'Banco',
+  COOPERATIVA: 'Cooperativa de ahorro y crédito',
 }
 
-export const SEGMENTOS_BCE: SegmentoBceInfo[] = [
-  // Productivo
-  { id: 'PRODUCTIVO_CORPORATIVO', nombre: 'Productivo Corporativo', tasaMaxima: 9.33, tasaSugerida: 8.50, montoMinSugerido: 100000, montoMaximoLegal: 2000000, plazoMinSugerido: 12, plazoMaximoMeses: 60, desgravamenSugerido: 0.0200, categoria: 'PRODUCTIVO', entidadesPermitidas: ['Banco'] },
-  { id: 'PRODUCTIVO_EMPRESARIAL', nombre: 'Productivo Empresarial', tasaMaxima: 10.21, tasaSugerida: 9.50, montoMinSugerido: 50000, montoMaximoLegal: 1000000, plazoMinSugerido: 12, plazoMaximoMeses: 60, desgravamenSugerido: 0.0250, categoria: 'PRODUCTIVO', entidadesPermitidas: ['Banco'] },
-  { id: 'PRODUCTIVO_PYMES',       nombre: 'Productivo PYMES',       tasaMaxima: 11.83, tasaSugerida: 11.00, montoMinSugerido: 10000, montoMaximoLegal: 500000, plazoMinSugerido: 6, plazoMaximoMeses: 60, desgravamenSugerido: 0.0300, categoria: 'PRODUCTIVO', entidadesPermitidas: ['Banco', 'Cooperativa'] },
-  // Consumo
-  { id: 'CONSUMO_PRIORITARIO',    nombre: 'Consumo Prioritario',    tasaMaxima: 16.77, tasaSugerida: 14.00, montoMinSugerido: 500, montoMaximoLegal: 30000, plazoMinSugerido: 12, plazoMaximoMeses: 60, desgravamenSugerido: 0.0600, categoria: 'CONSUMO', entidadesPermitidas: ['Banco', 'Cooperativa'] },
-  { id: 'CONSUMO_ORDINARIO',      nombre: 'Consumo Ordinario',      tasaMaxima: 17.30, tasaSugerida: 15.50, montoMinSugerido: 500, montoMaximoLegal: 30000, plazoMinSugerido: 12, plazoMaximoMeses: 60, desgravamenSugerido: 0.0700, categoria: 'CONSUMO', entidadesPermitidas: ['Banco', 'Cooperativa'] },
-  // Vivienda / Inmobiliario
-  { id: 'INMOBILIARIO',           nombre: 'Vivienda (Inmobiliario)',tasaMaxima: 10.40, tasaSugerida: 9.00, montoMinSugerido: 40000, montoMaximoLegal: 500000, plazoMinSugerido: 120, plazoMaximoMeses: 240, desgravamenSugerido: 0.0300, categoria: 'VIVIENDA', entidadesPermitidas: ['Banco', 'Cooperativa'] },
-  { id: 'VIVIENDA_VIP',           nombre: 'Vivienda Interés Público (VIP)', tasaMaxima: 4.99, tasaSugerida: 4.99, montoMinSugerido: 40000, montoMaximoLegal: 105000, plazoMinSugerido: 120, plazoMaximoMeses: 240, desgravamenSugerido: 0.0200, categoria: 'VIVIENDA', entidadesPermitidas: ['Banco', 'Cooperativa'] },
-  { id: 'VIVIENDA_VIS',           nombre: 'Vivienda Interés Social (VIS)',  tasaMaxima: 4.99, tasaSugerida: 4.99, montoMinSugerido: 40000, montoMaximoLegal: 80000, plazoMinSugerido: 120, plazoMaximoMeses: 240, desgravamenSugerido: 0.0200, categoria: 'VIVIENDA', entidadesPermitidas: ['Banco', 'Cooperativa'] },
-  // Microcrédito
-  { id: 'MICROCREDITO_MINORISTA', nombre: 'Microcrédito Minorista', tasaMaxima: 28.23, tasaSugerida: 20.00, montoMinSugerido: 500, montoMaximoLegal: 3000, plazoMinSugerido: 3, plazoMaximoMeses: 36, desgravamenSugerido: 0.0800, categoria: 'MICROCREDITO', entidadesPermitidas: ['Cooperativa'] },
-  { id: 'MICROCREDITO_SIMPLE',    nombre: 'Microcrédito Acumulación Simple', tasaMaxima: 25.50, tasaSugerida: 18.00, montoMinSugerido: 3000, montoMaximoLegal: 10000, plazoMinSugerido: 6, plazoMaximoMeses: 48, desgravamenSugerido: 0.0750, categoria: 'MICROCREDITO', entidadesPermitidas: ['Cooperativa'] },
-  { id: 'MICROCREDITO_AMPLIADA',  nombre: 'Microcrédito Acumulación Ampliada', tasaMaxima: 25.50, tasaSugerida: 22.00, montoMinSugerido: 10000, montoMaximoLegal: 30000, plazoMinSugerido: 12, plazoMaximoMeses: 60, desgravamenSugerido: 0.0700, categoria: 'MICROCREDITO', entidadesPermitidas: ['Cooperativa'] },
-  // Educativo
-  { id: 'EDUCATIVO',              nombre: 'Educativo',              tasaMaxima: 9.50, tasaSugerida: 8.00, montoMinSugerido: 1000, montoMaximoLegal: 20000, plazoMinSugerido: 12, plazoMaximoMeses: 84, desgravamenSugerido: 0.0300, categoria: 'EDUCATIVO', entidadesPermitidas: ['Banco', 'Cooperativa'] },
-]
+const categoriaLabels: Record<CategoriaCargo, string> = {
+  SEGURO: 'Seguro',
+  GASTO: 'Gasto o comisión',
+  DONACION: 'Donación',
+  OTRO: 'Otro',
+}
 
-export const OPCIONES_PRODUCTO_BCE = [
-  { value: 'CONSUMO_PRIORITARIO', label: 'Crédito de Consumo Prioritario' },
-  { value: 'CONSUMO_ORDINARIO', label: 'Crédito de Consumo Ordinario' },
-  { value: 'EDUCATIVO', label: 'Crédito Educativo' },
-  { value: 'MICROCREDITO_MINORISTA', label: 'Microcrédito Minorista' },
-  { value: 'MICROCREDITO_SIMPLE', label: 'Microcrédito Acumulación Simple' },
-  { value: 'MICROCREDITO_AMPLIADA', label: 'Microcrédito Acumulación Ampliada' },
-  { value: 'VIVIENDA_INMOBILIARIO', label: 'Crédito Hipotecario / Vivienda' },
-  { value: 'VIVIENDA_VIP', label: 'Crédito Vivienda de Interés Público (VIP)' },
-  { value: 'VIVIENDA_VIS', label: 'Crédito Vivienda de Interés Social (VIS)' },
-  { value: 'PRODUCTIVO_PYMES', label: 'Crédito Productivo PYMES' },
-  { value: 'PRODUCTIVO_EMPRESARIAL', label: 'Crédito Productivo Empresarial' },
-  { value: 'PRODUCTIVO_CORPORATIVO', label: 'Crédito Productivo Corporativo' },
-] as const
+const pct = (value: number | null | undefined, digits = 2) =>
+  value === null || value === undefined ? '—' : `${value.toLocaleString('es-EC', { minimumFractionDigits: digits, maximumFractionDigits: 4 })} %`
 
-export function normalizarOpcionBce(valor?: string): string {
-  if (!valor) return 'CONSUMO_PRIORITARIO'
-  const match = OPCIONES_PRODUCTO_BCE.find(
-    (o) => o.value === valor || o.label.toLowerCase() === valor.toLowerCase()
+/** A partir del 90 % de la tasa máxima se avisa en ámbar; por encima, en rojo. */
+const UMBRAL_TOPE = 0.9
+
+type NivelTasa = 'ok' | 'cerca' | 'excede'
+
+function nivelTasa(tasa: number | null | undefined, maxima: number | null | undefined): NivelTasa {
+  if (tasa == null || maxima == null || !Number.isFinite(tasa) || tasa <= 0) return 'ok'
+  if (tasa > maxima) return 'excede'
+  return tasa >= maxima * UMBRAL_TOPE ? 'cerca' : 'ok'
+}
+
+function nombreSegmento(marco: MarcoNormativo | undefined, codigo: string) {
+  return marco?.segmentos.find((s) => s.codigo === codigo)?.nombre ?? codigo.replaceAll('_', ' ').toLowerCase()
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Listado de productos
+// ═════════════════════════════════════════════════════════════════════════════
+
+export function CreditosAdminPage() {
+  const navigate = useNavigate()
+  const client = useQueryClient()
+  const marco = useQuery({ queryKey: MARCO_KEY, queryFn: creditosService.getMarco })
+  const productos = useQuery({ queryKey: PRODUCTOS_KEY, queryFn: creditosService.getConfigurados })
+
+  const estado = useMutation({
+    mutationFn: ({ id, active }: { id: number; active: boolean }) => creditosService.cambiarEstado(id, active),
+    onSuccess: async (_, { active }) => {
+      await client.invalidateQueries({ queryKey: PRODUCTOS_KEY })
+      await client.invalidateQueries({ queryKey: ['simulador', 'productos'] })
+      toast.success(active ? 'Tipo de crédito activado.' : 'Tipo de crédito desactivado.')
+    },
+    onError: (error) => toast.error(messageFrom(error, 'No se pudo cambiar el estado del producto.')),
+  })
+
+  const lista = productos.data ?? []
+
+  return (
+    <div className="space-y-8">
+      <PageHeader
+        title="Tipos de crédito"
+        description="Crea los tipos de crédito que verán los clientes en el simulador. Las tasas se validan contra la tasa máxima vigente del BCE."
+        actions={<Button onClick={() => navigate('/admin/creditos/nuevo')}><CirclePlus />Nuevo tipo de crédito</Button>}
+      />
+
+      {marco.data && <MarcoResumen marco={marco.data} />}
+
+      <div className="overflow-x-auto rounded-xl border">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b text-left text-muted-foreground">
+              <th className="p-4 font-medium">Tipo de crédito</th>
+              <th className="p-4 font-medium">Montos y plazos</th>
+              <th className="p-4 font-medium">Tasa</th>
+              <th className="p-4 font-medium">Estado</th>
+              <th className="p-4" />
+            </tr>
+          </thead>
+          <tbody>
+            {lista.map((producto) => {
+              const segmento = marco.data?.segmentos.find((s) => s.codigo === producto.segmentoBce)
+              const nivel = nivelTasa(producto.tasaInteres, segmento?.tasaMaxima)
+              const anios = producto.unidadPlazo === 'ANIOS'
+              return (
+                <tr key={producto.id} className="border-b last:border-0 align-top">
+                  <td className="p-4">
+                    <p className="font-medium text-foreground">{producto.nombre}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {nombreSegmento(marco.data, producto.segmentoBce)} · {producto.entidad}
+                    </p>
+                    {producto.cargosIndirectos && producto.cargosIndirectos.length > 0 && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {producto.cargosIndirectos.length} cobro{producto.cargosIndirectos.length === 1 ? '' : 's'} indirecto{producto.cargosIndirectos.length === 1 ? '' : 's'}
+                      </p>
+                    )}
+                  </td>
+                  <td className="p-4 tabular-nums">
+                    {formatCurrency(producto.montoMin)} – {formatCurrency(producto.montoMax)}
+                    <span className="block text-xs text-muted-foreground">
+                      {anios ? `${producto.plazoMinMeses / 12} a ${producto.plazoMaxMeses / 12} años` : `${producto.plazoMinMeses} a ${producto.plazoMaxMeses} meses`}
+                    </span>
+                  </td>
+                  <td className="p-4">
+                    <span className={cn('font-medium tabular-nums', nivel === 'excede' && 'text-destructive', nivel === 'cerca' && 'text-brand-gold')}>{pct(producto.tasaInteres)}</span>
+                    <span className="block text-xs text-muted-foreground">Desgravamen {pct(producto.tasaDesgravamenMensual, 4)} mensual</span>
+                    {nivel === 'excede' && (
+                      <span className="mt-1 flex items-center gap-1 text-xs text-destructive">
+                        <AlertTriangle className="size-3.5" aria-hidden="true" />
+                        Supera el tope vigente ({pct(segmento?.tasaMaxima)}): no se ofrece
+                      </span>
+                    )}
+                    {nivel === 'cerca' && (
+                      <span className="mt-1 flex items-center gap-1 text-xs text-brand-gold">
+                        <AlertTriangle className="size-3.5" aria-hidden="true" />
+                        {producto.tasaInteres === segmento?.tasaMaxima ? 'En el tope' : 'Cerca del tope'} ({pct(segmento?.tasaMaxima)}): revisa al publicarse nuevas tasas
+                      </span>
+                    )}
+                  </td>
+                  <td className="p-4">
+                    <StatusBadge tone={producto.activo ? 'success' : 'neutral'}>{producto.activo ? 'Activo' : 'Inactivo'}</StatusBadge>
+                  </td>
+                  <td className="whitespace-nowrap p-4 text-right">
+                    <Button variant="ghost" size="sm" onClick={() => navigate(`/admin/creditos/${producto.id}/editar`)}>
+                      <Pencil className="size-4" />Editar
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => navigate(`/admin/creditos/nuevo?desde=${producto.id}`)}>
+                      <Copy className="size-4" />Duplicar
+                    </Button>
+                    <Button variant="ghost" size="sm" disabled={estado.isPending}
+                      onClick={() => estado.mutate({ id: producto.id, active: !producto.activo })}>
+                      <Power className="size-4" />{producto.activo ? 'Desactivar' : 'Activar'}
+                    </Button>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+        {productos.isPending && <p className="p-6 text-sm text-muted-foreground">Cargando productos…</p>}
+        {productos.isError && <p className="p-6 text-sm text-destructive">{messageFrom(productos.error, 'No se pudieron cargar los productos.')}</p>}
+        {!productos.isPending && lista.length === 0 && (
+          <p className="p-6 text-sm text-muted-foreground">Todavía no hay productos. Crea el primero para que aparezca en el simulador.</p>
+        )}
+      </div>
+    </div>
   )
-  if (match) return match.value
-  const vUpper = valor.toUpperCase()
-  if (vUpper.includes('EDUC')) return 'EDUCATIVO'
-  if (vUpper.includes('VIVIENDA') || vUpper.includes('INMOB')) return 'VIVIENDA_INMOBILIARIO'
-  if (vUpper.includes('VIP')) return 'VIVIENDA_VIP'
-  if (vUpper.includes('VIS')) return 'VIVIENDA_VIS'
-  if (vUpper.includes('MINORISTA')) return 'MICROCREDITO_MINORISTA'
-  if (vUpper.includes('MICRO')) return 'MICROCREDITO_MINORISTA'
-  if (vUpper.includes('PYME') || vUpper.includes('PROD')) return 'PRODUCTIVO_PYMES'
-  if (vUpper.includes('ORDINARIO')) return 'CONSUMO_ORDINARIO'
-  return 'CONSUMO_PRIORITARIO'
 }
 
-// ─── Normativa Oficial Diferenciada por Tipo de Entidad (BCE / SB / SEPS) ───
+function MarcoResumen({ marco }: { marco: MarcoNormativo }) {
+  const { hasPermission } = useAuth()
+  const fuente = marco.segmentos.find((s) => s.urlFuente)
+  return (
+    <div className="flex flex-col gap-2 rounded-xl border bg-muted/40 px-5 py-4 text-sm sm:flex-row sm:items-center sm:justify-between">
+      <p>
+        Institución configurada como <strong>{entidadLabels[marco.tipoEntidad]}</strong>.
+        Desgravamen permitido: {pct(marco.desgravamen.minimo, 4)} a {pct(marco.desgravamen.maximo, 4)} mensual.
+        {hasPermission('institution.manage') && (
+          <> <Link to="/admin/configuracion" className="text-brand-teal underline underline-offset-4">Cambiar tipo de entidad</Link></>
+        )}
+      </p>
+      {fuente?.urlFuente && (
+        <a href={fuente.urlFuente} target="_blank" rel="noreferrer" className="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+          Tasas BCE: {fuente.fuenteTasa}<ExternalLink className="size-3" aria-hidden="true" />
+        </a>
+      )}
+    </div>
+  )
+}
 
-export const NORMATIVA_ENTIDAD = {
-  Banco: {
-    nombre: 'Banco Comercial / Privado',
-    regulador: 'Superintendencia de Bancos & BCE',
-    desgravamenMin: 0.0100,
-    desgravamenMax: 0.0650,
-    desgravamenSugerido: 0.0600,
-    tasaAbsolutaMaxima: 17.30,
-    descripcion: 'Regulado por la Superintendencia de Bancos. Desgravamen legal: 0.0100% - 0.0650% mensual. Topes BCE vigentes.',
-  },
-  Cooperativa: {
-    nombre: 'Cooperativa de Ahorro y Crédito',
-    regulador: 'SEPS & BCE',
-    desgravamenMin: 0.0400,
-    desgravamenMax: 0.1200,
-    desgravamenSugerido: 0.0700,
-    tasaAbsolutaMaxima: 28.23,
-    descripcion: 'Regulado por la SEPS. Desgravamen legal: 0.0400% - 0.1200% mensual. Permite microcréditos hasta 28.23% según BCE.',
-  },
-} as const
+// ═════════════════════════════════════════════════════════════════════════════
+// Editor
+// ═════════════════════════════════════════════════════════════════════════════
 
-// ─── Seguros Regulatorios Sugeridos según Categoría BCE ───────────────────────
+type Unidad = 'MESES' | 'ANIOS'
 
-export interface SeguroBceSugerido {
+interface Borrador {
   nombre: string
-  tipoCargo: 'PORCENTAJE' | 'FIJO'
-  valor: number
+  segmentoBce: string
+  descripcion: string
+  montoMin: string
+  montoMax: string
+  unidadPlazo: Unidad
+  plazoMin: string
+  plazoMax: string
+  tasaInteres: string
+  tasaDesgravamenMensual: string
+  frances: boolean
+  aleman: boolean
+  activo: boolean
+}
+
+interface CargoBorrador {
+  key: number
+  categoria: CategoriaCargo
+  nombre: string
+  tipoCargo: 'FIJO' | 'PORCENTAJE'
+  valor: string
   periodicidad: 'MENSUAL' | 'UNICO'
   baseCalculo: 'SALDO_DEUDOR' | 'MONTO_SOLICITADO' | 'FIJO'
   normaAplicable: string
   obligatorio: boolean
 }
 
-export const SEGUROS_SUGERIDOS_BCE: Record<string, SeguroBceSugerido[]> = {
-  VIVIENDA: [
-    {
-      nombre: 'Seguro de Incendio y Terremoto (Todo Riesgo Inmueble)',
-      tipoCargo: 'PORCENTAJE',
-      valor: 0.0250,
-      periodicidad: 'MENSUAL',
-      baseCalculo: 'SALDO_DEUDOR',
-      normaAplicable: 'Resolución SB-2024 / BCE - Ley General de Seguros Art. 12',
-      obligatorio: true,
-    },
-  ],
-  PRODUCTIVO: [
-    {
-      nombre: 'Seguro Multirriesgo Maquinaria y Garantías Mobiliarias',
-      tipoCargo: 'PORCENTAJE',
-      valor: 0.0300,
-      periodicidad: 'MENSUAL',
-      baseCalculo: 'SALDO_DEUDOR',
-      normaAplicable: 'Normativa SB / SEPS Garantías Crediticias en Prenda',
-      obligatorio: false,
-    },
-  ],
-  CONSUMO: [
-    {
-      nombre: 'Seguro de Desempleo y Cesantía Laboral',
-      tipoCargo: 'FIJO',
-      valor: 3.50,
-      periodicidad: 'MENSUAL',
-      baseCalculo: 'FIJO',
-      normaAplicable: 'Resolución JPRFM - Pólizas de Asistencia Financiera',
-      obligatorio: false,
-    },
-  ],
-  MICROCREDITO: [
-    {
-      nombre: 'Microseguro Agrícola / Protección de Capital Productivo',
-      tipoCargo: 'PORCENTAJE',
-      valor: 0.0350,
-      periodicidad: 'MENSUAL',
-      baseCalculo: 'SALDO_DEUDOR',
-      normaAplicable: 'Resolución SEPS Marco de Finanzas Populares y Solidarias',
-      obligatorio: false,
-    },
-  ],
-  EDUCATIVO: [
-    {
-      nombre: 'Seguro de Continuidad de Estudios y Renta Educativa',
-      tipoCargo: 'FIJO',
-      valor: 2.00,
-      periodicidad: 'MENSUAL',
-      baseCalculo: 'FIJO',
-      normaAplicable: 'Norma de Crédito Educativo y Formación Superior',
-      obligatorio: false,
-    },
-  ],
-}
+let nextKey = 1
 
-// ─── Esquema Zod ─────────────────────────────────────────────────────────────
-
-const formSchema = z.object({
-  nombre: z.string().min(1, 'Seleccione un producto oficial BCE'),
-  entidad: z.enum(['Banco', 'Cooperativa'], { message: 'Seleccione la entidad (Banco o Cooperativa)' }),
-  segmentoBce: z.string().min(1, 'Seleccione un segmento regulatorio del BCE'),
-  montoMin: z.number({ message: 'Monto mínimo inválido' }).min(50, 'El monto mínimo no puede ser menor a $50'),
-  montoMax: z.number({ message: 'Monto máximo inválido' }).min(50, 'El monto máximo no puede ser menor a $50'),
-  plazoMinMeses: z.number().min(1, 'Plazo mínimo al menos 1 mes'),
-  plazoMaxMeses: z.number().min(1, 'Plazo máximo al menos 1 mes'),
-  tasaInteres: z.number().min(0.01, 'La tasa debe ser mayor a 0%'),
-  tasaDesgravamenMensual: z.number({ message: 'Desgravamen inválido' }).min(0.0001, 'El desgravamen debe ser mayor a 0%'),
-  permiteFrances: z.boolean(),
-  permiteAleman: z.boolean(),
-  descripcion: z.string().optional(),
-  activo: z.boolean(),
-}).superRefine((data, ctx) => {
-  if (data.montoMax < data.montoMin) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'El monto máximo no puede ser menor al monto mínimo',
-      path: ['montoMax'],
-    })
+function borradorInicial(producto: ConfigurarCreditoResponse | undefined, marco: MarcoNormativo,
+                         plantilla?: ConfigurarCreditoResponse): Borrador {
+  if (!producto && plantilla) {
+    // Copia inactiva: el asesor revisa la variante antes de publicarla.
+    return { ...borradorInicial(plantilla, marco), nombre: `${plantilla.nombre} (copia)`.slice(0, 120), activo: false }
   }
-  if (data.plazoMaxMeses < data.plazoMinMeses) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'El plazo máximo no puede ser menor al plazo mínimo',
-      path: ['plazoMaxMeses'],
-    })
-  }
-  if (!data.permiteFrances && !data.permiteAleman) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Debe habilitar al menos un sistema de amortización',
-      path: ['permiteFrances'],
-    })
-  }
-
-  const seg = SEGMENTOS_BCE.find((s) => s.id === data.segmentoBce)
-  if (seg && data.tasaInteres > seg.tasaMaxima) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: `La tasa (${data.tasaInteres}%) supera el tope legal del BCE (${seg.tasaMaxima}%) para ${seg.nombre}`,
-      path: ['tasaInteres'],
-    })
-  }
-
-  const norm = NORMATIVA_ENTIDAD[data.entidad]
-  if (norm) {
-    if (data.tasaDesgravamenMensual < norm.desgravamenMin || data.tasaDesgravamenMensual > norm.desgravamenMax) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: `Para ${data.entidad}, el desgravamen mensual debe ubicarse entre ${norm.desgravamenMin}% y ${norm.desgravamenMax}% (${norm.regulador})`,
-        path: ['tasaDesgravamenMensual'],
-      })
+  if (producto) {
+    const anios = producto.unidadPlazo === 'ANIOS'
+    return {
+      nombre: producto.nombre,
+      segmentoBce: producto.segmentoBce,
+      descripcion: producto.descripcion ?? '',
+      montoMin: String(producto.montoMin),
+      montoMax: String(producto.montoMax),
+      unidadPlazo: anios ? 'ANIOS' : 'MESES',
+      plazoMin: String(anios ? producto.plazoMinMeses / 12 : producto.plazoMinMeses),
+      plazoMax: String(anios ? producto.plazoMaxMeses / 12 : producto.plazoMaxMeses),
+      tasaInteres: producto.tasaInteres != null ? String(producto.tasaInteres) : '',
+      tasaDesgravamenMensual: String(producto.tasaDesgravamenMensual ?? ''),
+      frances: producto.sistemasPermitidos.includes('FRANCES'),
+      aleman: producto.sistemasPermitidos.includes('ALEMAN'),
+      activo: producto.activo,
     }
   }
-})
-
-type FormValues = z.infer<typeof formSchema>
-
-// ═════════════════════════════════════════════════════════════════════════════
-// 1. PANTALLA DE LISTADO (TABLA PRINCIPAL FULL-WIDTH)
-// ═════════════════════════════════════════════════════════════════════════════
-
-export function CreditosAdminPage() {
-  const navigate = useNavigate()
-  const queryClient = useQueryClient()
-  const { account, hasPermission } = useAuth()
-
-  const roles = account?.roles?.map((r) => r.toLowerCase()) ?? []
-  const esAdministrador = roles.includes('administrator') || roles.includes('admin') || roles.includes('role_administrator')
-  const esAsesorCredito = roles.includes('credit_advisor') || roles.includes('asesor') || roles.includes('role_asesor') || roles.includes('role_credit_advisor')
-  const esRolAutorizado = esAdministrador || esAsesorCredito || hasPermission('credit.products.manage')
-
-  const { data: creditos = [], isLoading } = useQuery({
-    queryKey: ['creditosConfigurados'],
-    queryFn: creditosService.getConfigurados,
-    enabled: esRolAutorizado,
-  })
-
-  const status = useMutation({
-    mutationFn: ({ producto, active }: { producto: ConfigurarCreditoResponse; active: boolean }) =>
-      creditosService.cambiarEstado(producto.id, active),
-    onSuccess: async (updatedProduct, { producto, active }) => {
-      queryClient.setQueryData<ConfigurarCreditoResponse[]>(['creditosConfigurados'], (old) =>
-        old ? old.map((item) => (item.id === producto.id ? (updatedProduct || { ...item, activo: active }) : item)) : []
-      )
-      await queryClient.invalidateQueries({ queryKey: ['creditosConfigurados'] })
-      await queryClient.invalidateQueries({ queryKey: ['simulador', 'productos'] })
-      await queryClient.invalidateQueries({ queryKey: ['productos'] })
-      toast.success(active ? 'Producto activado exitosamente.' : 'Producto desactivado exitosamente.')
-    },
-    onError: (err: any) => {
-      const msg = err.response?.data?.message || err.message || 'No se pudo actualizar el estado del producto.'
-      toast.error(msg)
-    },
-  })
-
-  if (!esRolAutorizado) {
-    return (
-      <div className="mx-auto max-w-xl py-20 px-4 text-center space-y-4">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-destructive/10 text-destructive">
-          <ShieldAlert className="h-7 w-7" />
-        </div>
-        <h2 className="text-2xl font-bold tracking-tight text-foreground">Acceso Restringido</h2>
-        <p className="text-sm text-muted-foreground leading-relaxed">
-          Esta vista está reservada exclusivamente para usuarios con rol de <strong>Administrador</strong> o <strong>Asesor de crédito</strong>.
-        </p>
-        <div className="pt-2">
-          <Button asChild variant="outline">
-            <Link to="/simulador">Ir al Simulador Público</Link>
-          </Button>
-        </div>
-      </div>
-    )
+  const segmento = marco.segmentos.find((s) => s.codigo === 'CONSUMO_PRIORITARIO') ?? marco.segmentos[0]
+  // Solo se precarga la tasa referencial publicada por el BCE; montos, plazos y desgravamen los decide el asesor.
+  return {
+    nombre: '',
+    segmentoBce: segmento?.codigo ?? '',
+    descripcion: '',
+    montoMin: '',
+    montoMax: '',
+    unidadPlazo: 'MESES',
+    plazoMin: '',
+    plazoMax: '',
+    tasaInteres: segmento?.tasaReferencial != null ? String(segmento.tasaReferencial) : '',
+    tasaDesgravamenMensual: '',
+    frances: true,
+    aleman: true,
+    activo: true,
   }
-
-  return (
-    <div className="space-y-8">
-      <PageHeader
-        title="Productos de crédito"
-        description="Configura productos, plazos en meses, tasas de interés, seguros y condiciones según normativa BCE."
-        actions={
-          <Button onClick={() => navigate('/admin/creditos/nuevo')}>
-            <CirclePlus />
-            Nuevo producto
-          </Button>
-        }
-      />
-
-      <div className="overflow-x-auto rounded-xl border">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b text-left">
-              <th className="p-4">Producto</th>
-              <th className="p-4">Plazos</th>
-              <th className="p-4">Tasas</th>
-              <th className="p-4">Estado</th>
-              <th className="p-4 text-right" />
-            </tr>
-          </thead>
-          <tbody>
-            {creditos.map((c) => (
-              <tr key={c.id} className="border-b last:border-0">
-                <td className="p-4">
-                  <div className="flex items-center gap-2">
-                    <strong>
-                      {OPCIONES_PRODUCTO_BCE.find((o) => o.value === c.nombre)?.label ?? c.nombre}
-                    </strong>
-                    <span className="text-[11px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-normal">
-                      {c.entidad}
-                    </span>
-                  </div>
-                  <span className="block text-xs text-muted-foreground mt-0.5">
-                    {formatCurrency(c.montoMin)} – {formatCurrency(c.montoMax)} · {c.segmentoBce}
-                  </span>
-                </td>
-                <td className="p-4">
-                  {c.plazoMinMeses} – {c.plazoMaxMeses} meses
-                </td>
-                <td className="p-4">
-                  <div>
-                    <span className="font-medium text-foreground">{c.tasaInteres}%</span>
-                    <span className="text-xs text-muted-foreground"> · Desgravamen {c.tasaDesgravamenMensual}%</span>
-                  </div>
-                  {c.cargosIndirectos && c.cargosIndirectos.length > 0 && (
-                    <span className="text-[11px] text-muted-foreground block">
-                      +{c.cargosIndirectos.length} seguro(s) adicional(es)
-                    </span>
-                  )}
-                </td>
-                <td className="p-4">
-                  <StatusBadge tone={c.activo ? 'success' : 'neutral'}>
-                    {c.activo ? 'Activo' : 'Inactivo'}
-                  </StatusBadge>
-                </td>
-                <td className="p-4 text-right">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => navigate(`/admin/creditos/${c.id}/editar`)}
-                  >
-                    <Pencil className="size-4" />
-                    Editar
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={status.isPending}
-                    onClick={() => status.mutate({ producto: c, active: !c.activo })}
-                  >
-                    <Power className="size-4" />
-                    {c.activo ? 'Desactivar' : 'Activar'}
-                  </Button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {isLoading && (
-          <p className="p-6 text-sm text-muted-foreground">Cargando productos de crédito…</p>
-        )}
-        {!isLoading && creditos.length === 0 && (
-          <p className="p-6 text-sm text-muted-foreground">Todavía no existen productos de crédito configurados.</p>
-        )}
-      </div>
-    </div>
-  )
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-// 2. PANTALLA DE CREACIÓN / EDICIÓN (FORMULARIO FULL-WIDTH)
-// ═════════════════════════════════════════════════════════════════════════════
+function cargoDesde(dto: CargoConfiguracionDto): CargoBorrador {
+  return {
+    key: nextKey++,
+    categoria: dto.categoria ?? (dto.nombre.toLowerCase().includes('seguro') ? 'SEGURO' : 'GASTO'),
+    nombre: dto.nombre,
+    tipoCargo: dto.tipoCargo === 'PORCENTAJE' ? 'PORCENTAJE' : 'FIJO',
+    valor: String(dto.valor),
+    periodicidad: dto.periodicidad === 'UNICO' ? 'UNICO' : 'MENSUAL',
+    baseCalculo: (dto.baseCalculo as CargoBorrador['baseCalculo']) ?? 'SALDO_DEUDOR',
+    normaAplicable: dto.normaAplicable ?? '',
+    obligatorio: dto.obligatorio ?? true,
+  }
+}
+
+/** Plantillas sin valores: el asesor debe ingresar el monto o porcentaje real. */
+function cargoNuevo(categoria: CategoriaCargo): CargoBorrador {
+  const base = { key: nextKey++, categoria, nombre: '', valor: '', normaAplicable: '' }
+  switch (categoria) {
+    case 'SEGURO':
+      return { ...base, tipoCargo: 'PORCENTAJE', periodicidad: 'MENSUAL', baseCalculo: 'SALDO_DEUDOR', obligatorio: true }
+    case 'DONACION':
+      return { ...base, tipoCargo: 'FIJO', periodicidad: 'MENSUAL', baseCalculo: 'FIJO', obligatorio: false }
+    default:
+      return { ...base, tipoCargo: 'FIJO', periodicidad: 'UNICO', baseCalculo: 'FIJO', obligatorio: true }
+  }
+}
+
+function normalizarBase(cargo: CargoBorrador): CargoBorrador {
+  if (cargo.tipoCargo === 'FIJO') return { ...cargo, baseCalculo: 'FIJO' }
+  if (cargo.periodicidad === 'UNICO') return { ...cargo, baseCalculo: 'MONTO_SOLICITADO' }
+  return cargo.baseCalculo === 'FIJO' ? { ...cargo, baseCalculo: 'SALDO_DEUDOR' } : cargo
+}
+
+function errorCargo(cargo: CargoBorrador, marco: MarcoNormativo, todos: CargoBorrador[]): string | null {
+  const nombre = cargo.nombre.trim()
+  if (nombre.length < 3) return 'Escribe un nombre de al menos 3 caracteres.'
+  if (nombre.toLowerCase().includes('desgravamen')) return 'El desgravamen se configura en su propio campo.'
+  if (todos.filter((c) => c.nombre.trim().toLowerCase() === nombre.toLowerCase()).length > 1) return 'Hay otro cobro con este nombre.'
+  const valor = Number(cargo.valor)
+  if (!cargo.valor || !Number.isFinite(valor) || valor <= 0) return 'Ingresa un valor mayor a 0.'
+  const l = marco.cargos
+  const tope = cargo.tipoCargo === 'PORCENTAJE'
+    ? cargo.periodicidad === 'MENSUAL' ? l.porcentajeMensualMaximo : l.unicoPorcentajeMaximo
+    : cargo.periodicidad === 'MENSUAL' ? l.fijoMensualMaximo : l.unicoFijoMaximo
+  if (valor > tope) return `Supera el tope prudencial de ${cargo.tipoCargo === 'PORCENTAJE' ? pct(tope) : formatCurrency(tope)}${cargo.periodicidad === 'MENSUAL' ? ' por cuota' : ''}.`
+  if (cargo.categoria === 'DONACION' && cargo.obligatorio) return 'Una donación no puede ser obligatoria.'
+  return null
+}
 
 interface CreditoEditorProps {
   producto?: ConfigurarCreditoResponse
-  onCancel: () => void
-  onSave: (data: ConfigurarCreditoRequest, activoDeseado: boolean) => Promise<void>
+  plantilla?: ConfigurarCreditoResponse
+  marco: MarcoNormativo
   saving: boolean
+  onCancel: () => void
+  onSave: (request: ConfigurarCreditoRequest, activo: boolean) => void
 }
 
-function CreditoEditor({ producto, onCancel, onSave, saving }: CreditoEditorProps) {
-  const [seguros, setSeguros] = useState<CargoConfiguracionDto[]>(() => {
-    if (producto?.cargosIndirectos && producto.cargosIndirectos.length > 0) {
-      return structuredClone(producto.cargosIndirectos)
-    }
-    return []
-  })
+function CreditoEditor({ producto, plantilla, marco, saving, onCancel, onSave }: CreditoEditorProps) {
+  const [form, setForm] = useState<Borrador>(() => borradorInicial(producto, marco, plantilla))
+  const [cargos, setCargos] = useState<CargoBorrador[]>(() =>
+    ((producto ?? plantilla)?.cargosIndirectos ?? []).map(cargoDesde))
+  const [intentado, setIntentado] = useState(false)
 
-  const {
-    register,
-    handleSubmit,
-    control,
-    watch,
-    setValue,
-    formState: { errors },
-  } = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      nombre: normalizarOpcionBce(producto?.nombre),
-      entidad: (producto?.entidad as 'Banco' | 'Cooperativa') ?? 'Banco',
-      segmentoBce: producto?.segmentoBce ?? 'CONSUMO_PRIORITARIO',
-      montoMin: producto?.montoMin ?? 500,
-      montoMax: producto?.montoMax ?? 20000,
-      plazoMinMeses: producto?.plazoMinMeses ?? 6,
-      plazoMaxMeses: producto?.plazoMaxMeses ?? 60,
-      tasaInteres: producto?.tasaInteres ?? 14.00,
-      tasaDesgravamenMensual: producto?.tasaDesgravamenMensual ?? 0.0600,
-      permiteFrances: producto?.sistemasPermitidos ? producto.sistemasPermitidos.includes('FRANCES') : true,
-      permiteAleman: producto?.sistemasPermitidos ? producto.sistemasPermitidos.includes('ALEMAN') : true,
-      descripcion: producto?.descripcion ?? 'Crédito regulado según normativa vigente del BCE con seguro de desgravamen.',
-      activo: producto?.activo ?? true,
-    },
-  })
+  const segmentosVisibles = useMemo(() => {
+    const vigentes = marco.segmentos
+    // Un producto antiguo puede estar en un segmento derogado: se muestra para no perder el dato.
+    return producto && !vigentes.some((s) => s.codigo === producto.segmentoBce)
+      ? [...vigentes, { codigo: producto.segmentoBce, nombre: `${producto.segmentoBce} (ya no vigente)` } as SegmentoNormativo]
+      : vigentes
+  }, [marco.segmentos, producto])
+  const segmento = marco.segmentos.find((s) => s.codigo === form.segmentoBce)
+  const nivelActual = nivelTasa(Number(form.tasaInteres), segmento?.tasaMaxima)
 
-  const entidadActual = watch('entidad') as 'Banco' | 'Cooperativa'
-  const segmentoActualId = watch('segmentoBce')
-  const tasaActual = watch('tasaInteres')
-  const desgravamenActual = watch('tasaDesgravamenMensual')
-  const permiteFrances = watch('permiteFrances')
-  const permiteAleman = watch('permiteAleman')
-  const activo = watch('activo')
+  const set = <K extends keyof Borrador>(key: K, value: Borrador[K]) => setForm((prev) => ({ ...prev, [key]: value }))
+  const factor = form.unidadPlazo === 'ANIOS' ? 12 : 1
+  const unidadTexto = form.unidadPlazo === 'ANIOS' ? 'años' : 'meses'
 
-  const normativaActual = NORMATIVA_ENTIDAD[entidadActual] || NORMATIVA_ENTIDAD.Banco
-  const desgravamenFueraDeRango =
-    desgravamenActual < normativaActual.desgravamenMin || desgravamenActual > normativaActual.desgravamenMax
+  const errores = useMemo(() => {
+    const e: Partial<Record<keyof Borrador, string>> = {}
+    const nombre = form.nombre.trim()
+    if (nombre.length < 3 || nombre.length > 120) e.nombre = 'Escribe un nombre de 3 a 120 caracteres.'
+    if (!segmento) e.segmentoBce = 'Selecciona un segmento vigente.'
+    const montoMin = Number(form.montoMin)
+    const montoMax = Number(form.montoMax)
+    if (!form.montoMin || montoMin < 50) e.montoMin = 'El monto mínimo debe ser de al menos $50.'
+    if (!form.montoMax) e.montoMax = 'Ingresa el monto máximo.'
+    else if (montoMax < montoMin) e.montoMax = 'El monto máximo no puede ser menor al mínimo.'
+    else if (segmento?.montoMaximo != null && montoMax > segmento.montoMaximo) e.montoMax = `La política institucional permite hasta ${formatCurrency(segmento.montoMaximo)} en este segmento.`
+    const plazoMin = Number(form.plazoMin)
+    const plazoMax = Number(form.plazoMax)
+    if (!form.plazoMin || !Number.isInteger(plazoMin) || plazoMin < 1) e.plazoMin = `Ingresa un plazo mínimo entero en ${unidadTexto}.`
+    if (!form.plazoMax || !Number.isInteger(plazoMax)) e.plazoMax = `Ingresa un plazo máximo entero en ${unidadTexto}.`
+    else if (plazoMax < plazoMin) e.plazoMax = 'El plazo máximo no puede ser menor al mínimo.'
+    else if (plazoMax * factor > 360) e.plazoMax = 'El plazo máximo no puede superar 30 años.'
+    else if (segmento?.plazoMaximoMeses != null && plazoMax * factor > segmento.plazoMaximoMeses) e.plazoMax = `La política institucional permite hasta ${segmento.plazoMaximoMeses} meses en este segmento.`
+    const tasa = Number(form.tasaInteres)
+    if (!form.tasaInteres || tasa <= 0) e.tasaInteres = 'Ingresa la tasa efectiva anual.'
+    else if (segmento?.tasaMaxima != null && tasa > segmento.tasaMaxima) e.tasaInteres = `Supera la tasa máxima del BCE para este segmento (${pct(segmento.tasaMaxima)}).`
+    const desgravamen = Number(form.tasaDesgravamenMensual)
+    if (!form.tasaDesgravamenMensual) e.tasaDesgravamenMensual = 'Ingresa la tasa mensual del seguro de desgravamen.'
+    else if (desgravamen < marco.desgravamen.minimo || desgravamen > marco.desgravamen.maximo) e.tasaDesgravamenMensual = `Debe estar entre ${pct(marco.desgravamen.minimo, 4)} y ${pct(marco.desgravamen.maximo, 4)} para un ${entidadLabels[marco.tipoEntidad].toLowerCase()}.`
+    if (!form.frances && !form.aleman) e.frances = 'Habilita al menos un sistema de amortización.'
+    return e
+  }, [form, segmento, marco, factor, unidadTexto])
 
-  const segmentosDisponibles = useMemo(() => {
-    if (entidadActual === 'Cooperativa') {
-      return SEGMENTOS_BCE.filter((s) => s.entidadesPermitidas.includes('Cooperativa'))
-        .sort((a, b) => {
-          if (a.categoria === 'MICROCREDITO' && b.categoria !== 'MICROCREDITO') return -1
-          if (a.categoria !== 'MICROCREDITO' && b.categoria === 'MICROCREDITO') return 1
-          return 0
-        })
-    }
-    return SEGMENTOS_BCE.filter((s) => s.entidadesPermitidas.includes('Banco'))
-  }, [entidadActual])
+  const erroresCargos = cargos.map((c) => errorCargo(c, marco, cargos))
+  const hayErrores = Object.keys(errores).length > 0 || erroresCargos.some(Boolean)
 
-  const infoSegmento = SEGMENTOS_BCE.find((s) => s.id === segmentoActualId) || segmentosDisponibles[0] || SEGMENTOS_BCE[3]
-  const tasaSuperaTope = tasaActual > infoSegmento.tasaMaxima
+  function actualizarCargo(key: number, cambios: Partial<CargoBorrador>) {
+    setCargos((prev) => prev.map((c) => {
+      if (c.key !== key) return c
+      const nuevo = normalizarBase({ ...c, ...cambios })
+      return nuevo.categoria === 'DONACION' ? { ...nuevo, obligatorio: false } : nuevo
+    }))
+  }
 
-  // Seguros sugeridos por el BCE para la categoría actual
-  const segurosSugeridosActuales = useMemo(() => {
-    return SEGUROS_SUGERIDOS_BCE[infoSegmento.categoria] || []
-  }, [infoSegmento.categoria])
-
-  const agregarSeguroSugerido = (seguro: SeguroBceSugerido) => {
-    if (seguros.some((s) => s.nombre.toLowerCase() === seguro.nombre.toLowerCase())) {
-      toast.info('Este seguro ya ha sido agregado.')
+  function submit(event: FormEvent) {
+    event.preventDefault()
+    setIntentado(true)
+    if (hayErrores) {
+      toast.error('Revisa los campos marcados antes de guardar.')
       return
     }
-    setSeguros((prev) => [
-      ...prev,
-      {
-        nombre: seguro.nombre,
-        tipoCargo: seguro.tipoCargo,
-        valor: seguro.valor,
-        periodicidad: seguro.periodicidad,
-        baseCalculo: seguro.baseCalculo,
-        normaAplicable: seguro.normaAplicable,
-        obligatorio: seguro.obligatorio,
-      },
-    ])
-  }
-
-  const agregarNuevoSeguro = () => {
-    setSeguros((prev) => [
-      ...prev,
-      {
-        nombre: 'Nuevo seguro',
-        tipoCargo: 'PORCENTAJE',
-        valor: 0.02,
-        periodicidad: 'MENSUAL',
-        baseCalculo: 'SALDO_DEUDOR',
-        normaAplicable: 'Normativa Superintendencia de Bancos / SEPS',
-        obligatorio: true,
-      },
-    ])
-  }
-
-  const actualizarSeguro = <K extends keyof CargoConfiguracionDto>(index: number, key: K, value: CargoConfiguracionDto[K]) => {
-    setSeguros((prev) =>
-      prev.map((s, idx) => (idx === index ? { ...s, [key]: value } : s))
-    )
-  }
-
-  const quitarSeguro = (index: number) => {
-    setSeguros((prev) => prev.filter((_, idx) => idx !== index))
-  }
-
-  const onSubmit = async (values: FormValues) => {
     const sistemas: SistemaAmortizacion[] = []
-    if (values.permiteFrances) sistemas.push('FRANCES')
-    if (values.permiteAleman) sistemas.push('ALEMAN')
-
-    const requestPayload: ConfigurarCreditoRequest = {
-      nombre: values.nombre.trim(),
-      entidad: values.entidad,
-      segmentoBce: values.segmentoBce,
-      montoMin: values.montoMin,
-      montoMax: values.montoMax,
-      plazoMinMeses: values.plazoMinMeses,
-      plazoMaxMeses: values.plazoMaxMeses,
-      tasaInteres: values.tasaInteres,
-      tasaDesgravamenMensual: values.tasaDesgravamenMensual,
+    if (form.frances) sistemas.push('FRANCES')
+    if (form.aleman) sistemas.push('ALEMAN')
+    onSave({
+      nombre: form.nombre.trim(),
+      segmentoBce: form.segmentoBce,
+      descripcion: form.descripcion.trim() || undefined,
+      montoMin: Number(form.montoMin),
+      montoMax: Number(form.montoMax),
+      plazoMinMeses: Number(form.plazoMin) * factor,
+      plazoMaxMeses: Number(form.plazoMax) * factor,
+      unidadPlazo: form.unidadPlazo,
+      tasaInteres: Number(form.tasaInteres),
+      tasaDesgravamenMensual: Number(form.tasaDesgravamenMensual),
       sistemasPermitidos: sistemas,
-      descripcion: values.descripcion?.trim(),
-      unidadPlazo: 'MESES',
-      cargosIndirectos: seguros,
-    }
-
-    await onSave(requestPayload, values.activo)
+      cargosIndirectos: cargos.map((c) => ({
+        nombre: c.nombre.trim(),
+        categoria: c.categoria,
+        tipoCargo: c.tipoCargo,
+        valor: Number(c.valor),
+        periodicidad: c.periodicidad,
+        baseCalculo: c.baseCalculo,
+        normaAplicable: c.normaAplicable.trim() || undefined,
+        obligatorio: c.obligatorio,
+      })),
+    }, form.activo)
   }
+
+  const error = (key: keyof Borrador) => intentado && errores[key]
+    ? <p className="text-xs text-destructive">{errores[key]}</p> : null
 
   return (
     <div className="space-y-8">
-      {/* Encabezado */}
       <PageHeader
-        title={producto ? 'Editar producto de crédito' : 'Nuevo producto'}
-        description="Configura los datos generales, plazos, tasas y seguros obligatorios según el marco regulatorio del BCE."
-        actions={
-          <Button type="button" variant="outline" onClick={onCancel} disabled={saving}>
-            Volver a productos
-          </Button>
-        }
+        title={producto ? 'Editar tipo de crédito' : plantilla ? `Duplicar “${plantilla.nombre}”` : 'Nuevo tipo de crédito'}
+        description="Define cómo verán y simularán los clientes este crédito. Los límites se validan contra la normativa vigente."
+        actions={<Button type="button" variant="outline" onClick={onCancel} disabled={saving}>Volver a tipos de crédito</Button>}
       />
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-        {/* ─── Tarjeta 1 (Datos Generales) ─────────────────────────────────── */}
-        <div className="rounded-xl border bg-card p-5 shadow-sm sm:p-6 space-y-4">
-          <div className="border-b pb-3">
-            <h3 className="font-semibold text-base text-foreground">Datos generales</h3>
-            <p className="text-xs text-muted-foreground">
-              Información comercial, institución financiera, segmento regulatorio y montos autorizados.
-            </p>
-          </div>
-
+      <form onSubmit={submit} noValidate className="space-y-6">
+        <Card title="Tipo de crédito" description={`Se publicará como crédito de ${entidadLabels[marco.tipoEntidad].toLowerCase()}; el tipo de entidad viene de la configuración institucional.`}>
           <div className="grid gap-4 sm:grid-cols-2">
-            {/* Nombre del Producto Restringido al BCE */}
             <div className="space-y-2">
-              <Label htmlFor="nombre">Nombre Oficial del Producto (BCE) *</Label>
-              <Controller
-                name="nombre"
-                control={control}
-                render={({ field }) => (
-                  <Select
-                    value={field.value}
-                    onValueChange={(val) => {
-                      field.onChange(val)
-                      const segKey = val === 'VIVIENDA_INMOBILIARIO' ? 'INMOBILIARIO' : val
-                      const matchedSeg = SEGMENTOS_BCE.find((s) => s.id === val || s.id === segKey)
-                      if (matchedSeg) {
-                        setValue('segmentoBce', matchedSeg.id)
-                      }
-                    }}
-                  >
-                    <SelectTrigger id="nombre">
-                      <SelectValue placeholder="Seleccione el producto oficial BCE" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {OPCIONES_PRODUCTO_BCE.map((opc) => (
-                        <SelectItem key={opc.value} value={opc.value}>
-                          {opc.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-              {errors.nombre && <p className="text-xs text-destructive">{errors.nombre.message}</p>}
+              <Label htmlFor="nombre">Nombre comercial *</Label>
+              <Input id="nombre" value={form.nombre} maxLength={120} onChange={(e) => set('nombre', e.target.value)}
+                placeholder="Ej. Crédito Auto Fácil" aria-invalid={Boolean(intentado && errores.nombre)} />
+              {error('nombre')}
             </div>
-
-            {/* Entidad */}
             <div className="space-y-2">
-              <Label htmlFor="entidad">Entidad Financiera *</Label>
-              <Controller
-                name="entidad"
-                control={control}
-                render={({ field }) => (
-                  <Select
-                    value={field.value}
-                    onValueChange={(val: 'Banco' | 'Cooperativa') => {
-                      field.onChange(val)
-                      if (val === 'Cooperativa') {
-                        const segAct = SEGMENTOS_BCE.find((s) => s.id === watch('segmentoBce'))
-                        if (!segAct?.entidadesPermitidas.includes('Cooperativa')) {
-                          setValue('segmentoBce', 'MICROCREDITO_MINORISTA')
-                          setValue('nombre', 'MICROCREDITO_MINORISTA')
-                          setValue('tasaInteres', 20.00)
-                          setValue('montoMin', 500)
-                          setValue('montoMax', 3000)
-                          setValue('plazoMinMeses', 3)
-                          setValue('plazoMaxMeses', 36)
-                          setValue('tasaDesgravamenMensual', 0.0800)
-                        }
-                      } else if (val === 'Banco') {
-                        const segAct = SEGMENTOS_BCE.find((s) => s.id === watch('segmentoBce'))
-                        if (!segAct?.entidadesPermitidas.includes('Banco')) {
-                          setValue('segmentoBce', 'CONSUMO_PRIORITARIO')
-                          setValue('nombre', 'CONSUMO_PRIORITARIO')
-                          setValue('tasaInteres', 14.00)
-                          setValue('montoMin', 500)
-                          setValue('montoMax', 30000)
-                          setValue('plazoMinMeses', 12)
-                          setValue('plazoMaxMeses', 60)
-                          setValue('tasaDesgravamenMensual', 0.0600)
-                        }
-                      }
-                    }}
-                  >
-                    <SelectTrigger id="entidad">
-                      <SelectValue placeholder="Seleccione el tipo de entidad" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Banco">Banco Comercial / Privado</SelectItem>
-                      <SelectItem value="Cooperativa">Cooperativa de Ahorro y Crédito</SelectItem>
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-              {errors.entidad && <p className="text-xs text-destructive">{errors.entidad.message}</p>}
+              <Label htmlFor="segmento">Segmento de crédito (BCE) *</Label>
+              <Select value={form.segmentoBce} onValueChange={(value) => {
+                const nuevo = marco.segmentos.find((s) => s.codigo === value)
+                setForm((prev) => ({
+                  ...prev,
+                  segmentoBce: value,
+                  // Al cambiar de segmento se propone la tasa referencial publicada por el BCE.
+                  tasaInteres: !producto && nuevo?.tasaReferencial != null ? String(nuevo.tasaReferencial) : prev.tasaInteres,
+                }))
+              }}>
+                <SelectTrigger id="segmento"><SelectValue placeholder="Selecciona el segmento" /></SelectTrigger>
+                <SelectContent className="max-h-72">
+                  {segmentosVisibles.map((s) => (
+                    <SelectItem key={s.codigo} value={s.codigo}>
+                      {s.nombre}{s.tasaMaxima != null && ` · máx. ${pct(s.tasaMaxima)}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {segmento && <p className="text-xs text-muted-foreground">{segmento.descripcion}</p>}
+              {error('segmentoBce')}
             </div>
-
-            {/* Segmento BCE */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="segmentoBce">Segmento Regulatorio BCE *</Label>
-                <span className="text-xs font-mono text-muted-foreground">
-                  Tope legal: {infoSegmento.tasaMaxima}%
-                </span>
-              </div>
-              <Controller
-                name="segmentoBce"
-                control={control}
-                render={({ field }) => (
-                  <Select
-                    value={field.value}
-                    onValueChange={(val) => {
-                      field.onChange(val)
-                      const seg = SEGMENTOS_BCE.find((s) => s.id === val)
-                      if (seg) {
-                        setValue('tasaInteres', seg.tasaSugerida)
-                        setValue('montoMin', seg.montoMinSugerido)
-                        if (seg.montoMaximoLegal) {
-                          setValue('montoMax', seg.montoMaximoLegal)
-                        }
-                        setValue('plazoMinMeses', seg.plazoMinSugerido)
-                        setValue('plazoMaxMeses', seg.plazoMaximoMeses)
-                        setValue('tasaDesgravamenMensual', seg.desgravamenSugerido)
-                        const matchingOpc = OPCIONES_PRODUCTO_BCE.find((o) => o.value === seg.id || (seg.id === 'INMOBILIARIO' && o.value === 'VIVIENDA_INMOBILIARIO'))
-                        setValue('nombre', matchingOpc ? matchingOpc.value : (seg.id as any))
-                      }
-                    }}
-                  >
-                    <SelectTrigger id="segmentoBce">
-                      <SelectValue placeholder="Seleccione el segmento BCE" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-60">
-                      {segmentosDisponibles.map((seg) => (
-                        <SelectItem key={seg.id} value={seg.id}>
-                          {seg.nombre} (Máx {seg.tasaMaxima}%)
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-              {errors.segmentoBce && <p className="text-xs text-destructive">{errors.segmentoBce.message}</p>}
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="descripcion">Descripción para el cliente</Label>
+              <Textarea id="descripcion" rows={2} maxLength={400} value={form.descripcion} onChange={(e) => set('descripcion', e.target.value)}
+                placeholder="Para qué sirve y quién puede solicitarlo" />
             </div>
-
-            {/* Monto Mínimo */}
-            <div className="space-y-2">
-              <Label htmlFor="montoMin">Monto Mínimo ($) *</Label>
-              <Input
-                id="montoMin"
-                type="number"
-                step="50"
-                {...register('montoMin', { valueAsNumber: true })}
-              />
-              {errors.montoMin && <p className="text-xs text-destructive">{errors.montoMin.message}</p>}
-            </div>
-
-            {/* Monto Máximo */}
-            <div className="space-y-2">
-              <Label htmlFor="montoMax">Monto Máximo ($) *</Label>
-              <Input
-                id="montoMax"
-                type="number"
-                step="50"
-                {...register('montoMax', { valueAsNumber: true })}
-              />
-              {errors.montoMax && <p className="text-xs text-destructive">{errors.montoMax.message}</p>}
-            </div>
-
-            {/* Switch / Toggle: Producto activo y visible */}
-            <div className="flex items-center gap-3 pt-6 sm:col-span-2">
-              <Switch
-                checked={activo}
-                onCheckedChange={(val) => setValue('activo', val)}
-              />
-              <Label className="cursor-pointer">Producto activo y visible</Label>
-            </div>
+            <label className="flex items-center gap-3 sm:col-span-2">
+              <Switch checked={form.activo} onCheckedChange={(value) => set('activo', value)} />
+              <span className="text-sm">Visible en el simulador público</span>
+            </label>
           </div>
-        </div>
+        </Card>
 
-        {/* ─── Tarjeta 2 (Plazos y Tasas) ──────────────────────────────────── */}
-        <div className="rounded-xl border bg-card p-5 shadow-sm sm:p-6 space-y-5">
-          <div className="border-b pb-3">
-            <h3 className="font-semibold text-base text-foreground">Plazos y tasas</h3>
-            <p className="text-xs text-muted-foreground">
-              Configura los plazos en meses, tasa nominal regulada por el BCE y seguro de desgravamen legal.
-            </p>
-          </div>
-
+        <Card title="Condiciones" description="Montos, plazos, tasa y seguro de desgravamen que aplicará el simulador.">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-2">
-              <Label htmlFor="plazoMinMeses">Plazo Mínimo (meses) *</Label>
-              <Input
-                id="plazoMinMeses"
-                type="number"
-                min="1"
-                {...register('plazoMinMeses', { valueAsNumber: true })}
-              />
-              {errors.plazoMinMeses && <p className="text-xs text-destructive">{errors.plazoMinMeses.message}</p>}
+              <Label htmlFor="montoMin">Monto mínimo (USD) *</Label>
+              <Input id="montoMin" type="number" min="50" step="50" value={form.montoMin} onChange={(e) => set('montoMin', e.target.value)} />
+              {error('montoMin')}
             </div>
-
             <div className="space-y-2">
-              <Label htmlFor="plazoMaxMeses">Plazo Máximo (meses) *</Label>
-              <Input
-                id="plazoMaxMeses"
-                type="number"
-                min="1"
-                {...register('plazoMaxMeses', { valueAsNumber: true })}
-              />
-              {errors.plazoMaxMeses && <p className="text-xs text-destructive">{errors.plazoMaxMeses.message}</p>}
+              <Label htmlFor="montoMax">Monto máximo (USD) *</Label>
+              <Input id="montoMax" type="number" min="50" step="50" value={form.montoMax} onChange={(e) => set('montoMax', e.target.value)} />
+              {segmento?.montoMaximo != null && <p className="text-xs text-muted-foreground">Política institucional: hasta {formatCurrency(segmento.montoMaximo)}</p>}
+              {error('montoMax')}
             </div>
-
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="tasaInteres" className="flex items-center gap-1">
-                  <Percent className="size-3.5 text-muted-foreground" />
-                  Tasa Nominal Anual (%) *
-                </Label>
+              <Label htmlFor="unidad">El cliente elige el plazo en</Label>
+              <Select value={form.unidadPlazo} onValueChange={(value: Unidad) => set('unidadPlazo', value)}>
+                <SelectTrigger id="unidad"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="MESES">Meses (cuota mensual)</SelectItem>
+                  <SelectItem value="ANIOS">Años (cuota anual)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-2">
+                <Label htmlFor="plazoMin">Plazo mín. *</Label>
+                <Input id="plazoMin" type="number" min="1" step="1" value={form.plazoMin} onChange={(e) => set('plazoMin', e.target.value)} />
               </div>
-              <Input
-                id="tasaInteres"
-                type="number"
-                step="0.01"
-                className={tasaSuperaTope ? 'border-destructive focus-visible:ring-destructive bg-destructive/5' : ''}
-                {...register('tasaInteres', { valueAsNumber: true })}
-              />
-              {errors.tasaInteres && <p className="text-xs text-destructive">{errors.tasaInteres.message}</p>}
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="desgravamen" className="flex items-center gap-1">
-                  <Shield className="size-3.5 text-muted-foreground" />
-                  Desgravamen Mensual (%) *
-                </Label>
-                <span className="text-[11px] font-mono text-muted-foreground">
-                  {normativaActual.desgravamenMin}% – {normativaActual.desgravamenMax}%
-                </span>
+              <div className="space-y-2">
+                <Label htmlFor="plazoMax">Plazo máx. *</Label>
+                <Input id="plazoMax" type="number" min="1" step="1" value={form.plazoMax} onChange={(e) => set('plazoMax', e.target.value)} />
               </div>
-              <Input
-                id="desgravamen"
-                type="number"
-                step="0.001"
-                className={desgravamenFueraDeRango ? 'border-destructive focus-visible:ring-destructive bg-destructive/5' : ''}
-                {...register('tasaDesgravamenMensual', { valueAsNumber: true })}
-              />
-              {errors.tasaDesgravamenMensual && <p className="text-xs text-destructive">{errors.tasaDesgravamenMensual.message}</p>}
+              <p className="col-span-2 text-xs text-muted-foreground">En {unidadTexto}{segmento?.plazoMaximoMeses != null && ` · política: hasta ${segmento.plazoMaximoMeses} meses`}</p>
+              <div className="col-span-2">{error('plazoMin') ?? error('plazoMax')}</div>
             </div>
-          </div>
 
-          {/* Alertas BCE si aplican */}
-          {tasaSuperaTope && (
-            <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive flex items-start gap-2">
-              <AlertTriangle className="size-4 shrink-0 mt-0.5" />
-              <div>
-                <p className="font-semibold">Violación de Tasa Máxima Legal (BCE)</p>
-                <p className="mt-0.5 leading-relaxed">
-                  La tasa de {tasaActual}% supera el techo regulatorio de {infoSegmento.tasaMaxima}% para el segmento {infoSegmento.nombre}. No se permite guardar créditos con usura.
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="tasa">Tasa efectiva anual (%) *</Label>
+              <Input id="tasa" type="number" step="0.01" min="0.01" value={form.tasaInteres} onChange={(e) => set('tasaInteres', e.target.value)}
+                aria-describedby="tasa-tope"
+                className={cn(nivelActual === 'excede' && 'border-destructive', nivelActual === 'cerca' && 'border-brand-gold')} />
+              {nivelActual === 'cerca' && segmento?.tasaMaxima != null && (
+                <p id="tasa-tope" className="flex items-center gap-1 text-xs text-brand-gold">
+                  <AlertTriangle className="size-3.5" aria-hidden="true" />
+                  Está al {Math.round((Number(form.tasaInteres) / segmento.tasaMaxima) * 100)} % de la tasa máxima: si el BCE la baja, este crédito dejará de ofrecerse.
                 </p>
-              </div>
-            </div>
-          )}
-
-          {desgravamenFueraDeRango && (
-            <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive flex items-start gap-2">
-              <AlertTriangle className="size-4 shrink-0 mt-0.5" />
-              <div>
-                <p className="font-semibold">Desgravamen fuera de rango normativo ({entidadActual})</p>
-                <p className="mt-0.5 leading-relaxed">
-                  Para {entidadActual === 'Banco' ? 'Bancos (Superintendencia de Bancos)' : 'Cooperativas (SEPS)'}, el seguro de desgravamen debe ubicarse entre {normativaActual.desgravamenMin}% y {normativaActual.desgravamenMax}% mensual.
+              )}
+              {segmento && (
+                <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                  <span>Máxima BCE: <strong className="text-foreground">{pct(segmento.tasaMaxima)}</strong></span>
+                  <span>Referencial: {pct(segmento.tasaReferencial)}</span>
+                  {segmento.tasaReferencial != null && String(segmento.tasaReferencial) !== form.tasaInteres && (
+                    <button type="button" className="text-brand-teal underline underline-offset-4" onClick={() => set('tasaInteres', String(segmento.tasaReferencial))}>
+                      Usar la referencial
+                    </button>
+                  )}
                 </p>
-              </div>
+              )}
+              {error('tasaInteres')}
             </div>
-          )}
-
-          {/* Sistemas de amortización */}
-          <div className="space-y-2 pt-2 border-t">
-            <Label className="text-xs font-semibold">Sistemas de Amortización Autorizados *</Label>
-            <div className="grid gap-3 sm:grid-cols-2 max-w-md">
-              <label className={`flex items-center gap-2.5 p-3 rounded-lg border cursor-pointer text-sm transition-colors ${permiteFrances ? 'border-primary bg-accent/40 font-medium' : 'border-border text-muted-foreground'}`}>
-                <input
-                  type="checkbox"
-                  className="rounded border-input text-primary focus:ring-primary"
-                  {...register('permiteFrances')}
-                />
-                <span>Francés (Cuota Fija)</span>
-              </label>
-
-              <label className={`flex items-center gap-2.5 p-3 rounded-lg border cursor-pointer text-sm transition-colors ${permiteAleman ? 'border-primary bg-accent/40 font-medium' : 'border-border text-muted-foreground'}`}>
-                <input
-                  type="checkbox"
-                  className="rounded border-input text-primary focus:ring-primary"
-                  {...register('permiteAleman')}
-                />
-                <span>Alemán (Capital Fijo)</span>
-              </label>
-            </div>
-            {errors.permiteFrances && <p className="text-xs text-destructive">{errors.permiteFrances.message}</p>}
-          </div>
-
-          {/* Observaciones */}
-          <div className="space-y-2 pt-2 border-t">
-            <Label htmlFor="descripcion" className="text-xs text-muted-foreground">
-              Observaciones / Políticas de Otorgamiento (Opcional)
-            </Label>
-            <Textarea
-              id="descripcion"
-              rows={2}
-              placeholder="Condiciones específicas, garantías requeridas o políticas institucionales..."
-              {...register('descripcion')}
-            />
-          </div>
-        </div>
-
-        {/* ─── Tarjeta 3 (Seguros del Crédito según Normativa BCE) ─────────── */}
-        <div className="rounded-xl border bg-card p-5 shadow-sm sm:p-6 space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-3">
-            <div>
-              <h3 className="font-semibold text-base text-foreground">
-                Seguros correspondientes del crédito (Normativa BCE)
-              </h3>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="desgravamen" className="flex items-center gap-1"><Shield className="size-3.5 text-muted-foreground" />Desgravamen mensual sobre saldo (%) *</Label>
+              <Input id="desgravamen" type="number" step="0.0001" min="0" value={form.tasaDesgravamenMensual} onChange={(e) => set('tasaDesgravamenMensual', e.target.value)}
+                placeholder={`${marco.desgravamen.minimo} a ${marco.desgravamen.maximo}`} />
               <p className="text-xs text-muted-foreground">
-                Configura seguros obligatorios o complementarios según el segmento {infoSegmento.nombre} ({infoSegmento.categoria}).
+                Rango para {entidadLabels[marco.tipoEntidad].toLowerCase()}: {pct(marco.desgravamen.minimo, 4)} – {pct(marco.desgravamen.maximo, 4)}. La prima real la fija la aseguradora.
               </p>
+              {error('tasaDesgravamenMensual')}
             </div>
-            <div className="flex items-center gap-2">
-              {segurosSugeridosActuales.map((sug, i) => (
-                <Button
-                  key={`sug-${i}`}
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => agregarSeguroSugerido(sug)}
-                >
-                  <Plus className="size-3.5 mr-1" />
-                  {sug.nombre.split(' ')[0]} {sug.nombre.split(' ')[1]} (BCE)
+          </div>
+
+          <div className="mt-5 space-y-2 border-t pt-4">
+            <p className="text-sm font-medium">Sistemas de amortización *</p>
+            <div className="flex flex-wrap gap-3">
+              {([['frances', 'Francés (cuota fija)'], ['aleman', 'Alemán (capital fijo)']] as const).map(([key, label]) => (
+                <label key={key} className={cn('flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm', form[key] ? 'border-brand-teal bg-brand-teal/5' : 'text-muted-foreground')}>
+                  <input type="checkbox" checked={form[key]} onChange={(e) => set(key, e.target.checked)} className="accent-[var(--brand-teal)]" />
+                  {label}
+                </label>
+              ))}
+            </div>
+            {error('frances')}
+          </div>
+        </Card>
+
+        <Card
+          title="Cobros indirectos"
+          description={`Seguros adicionales, gastos y donaciones. En el simulador se suman en una sola columna. Máximo ${marco.cargos.maximoPorProducto}.`}
+          actions={
+            <div className="flex flex-wrap gap-2">
+              {([['SEGURO', 'Seguro', Shield], ['GASTO', 'Gasto', Receipt], ['DONACION', 'Donación', HandHeart]] as const).map(([categoria, label, Icon]) => (
+                <Button key={categoria} type="button" variant="outline" size="sm" disabled={cargos.length >= marco.cargos.maximoPorProducto}
+                  onClick={() => setCargos((prev) => [...prev, cargoNuevo(categoria)])}>
+                  <Plus className="size-3.5" /><Icon className="size-3.5" />{label}
                 </Button>
               ))}
-              <Button type="button" variant="outline" size="sm" onClick={agregarNuevoSeguro}>
-                <Plus className="size-3.5 mr-1" />
-                Agregar seguro
-              </Button>
             </div>
-          </div>
-
-          {seguros.length === 0 ? (
-            <div className="rounded-lg border border-dashed p-4 text-xs text-muted-foreground space-y-1">
-              <p className="font-medium text-foreground">Sin seguros adicionales configurados</p>
-              <p>
-                Este producto solo aplicará el seguro de desgravamen base ({desgravamenActual}% mensual). Puedes agregar seguros complementarios como incendio/terremoto o desempleo según la categoría.
-              </p>
-            </div>
+          }
+        >
+          {cargos.length === 0 ? (
+            <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+              Sin cobros adicionales: el cliente pagará capital, interés y desgravamen.
+            </p>
           ) : (
             <div className="space-y-3">
-              {seguros.map((seg, index) => (
-                <div
-                  key={`seguro-${index}`}
-                  className="grid gap-3 rounded-lg border p-3.5 sm:grid-cols-2 lg:grid-cols-6 items-end bg-muted/20"
-                >
-                  <div className="space-y-1 lg:col-span-2">
-                    <Label className="text-xs">Nombre del Seguro / Cargo</Label>
-                    <Input
-                      value={seg.nombre}
-                      onChange={(e) => actualizarSeguro(index, 'nombre', e.target.value)}
-                      placeholder="Ej. Seguro de Incendio y Terremoto"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <Label className="text-xs">Tipo de Cargo</Label>
-                    <Select
-                      value={seg.tipoCargo}
-                      onValueChange={(val) => actualizarSeguro(index, 'tipoCargo', val as 'PORCENTAJE' | 'FIJO')}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="PORCENTAJE">Porcentaje (%)</SelectItem>
-                        <SelectItem value="FIJO">Valor Fijo ($)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <Label className="text-xs">
-                      {seg.tipoCargo === 'PORCENTAJE' ? 'Tasa Mensual (%)' : 'Valor Fijo ($)'}
-                    </Label>
-                    <Input
-                      type="number"
-                      step={seg.tipoCargo === 'PORCENTAJE' ? '0.001' : '0.50'}
-                      value={seg.valor}
-                      onChange={(e) => actualizarSeguro(index, 'valor', Number(e.target.value))}
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <Label className="text-xs">Base de Cálculo</Label>
-                    <Select
-                      value={seg.baseCalculo ?? 'SALDO_DEUDOR'}
-                      onValueChange={(val) => actualizarSeguro(index, 'baseCalculo', val)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="SALDO_DEUDOR">Saldo Deudor</SelectItem>
-                        <SelectItem value="MONTO_SOLICITADO">Monto Original</SelectItem>
-                        <SelectItem value="FIJO">Fijo</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="flex items-center justify-between gap-2 pt-2">
-                    <label className="flex items-center gap-2 text-xs font-medium cursor-pointer">
-                      <Switch
-                        checked={seg.obligatorio ?? true}
-                        onCheckedChange={(val) => actualizarSeguro(index, 'obligatorio', val)}
-                      />
-                      <span>Obligatorio</span>
-                    </label>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      aria-label="Quitar seguro"
-                      onClick={() => quitarSeguro(index)}
-                    >
-                      <Trash2 className="size-4 text-destructive" />
-                    </Button>
-                  </div>
-                </div>
+              {cargos.map((cargo, index) => (
+                <CargoFila key={cargo.key} cargo={cargo} error={intentado || cargo.valor ? erroresCargos[index] : null}
+                  onChange={(cambios) => actualizarCargo(cargo.key, cambios)}
+                  onRemove={() => setCargos((prev) => prev.filter((c) => c.key !== cargo.key))} />
               ))}
             </div>
           )}
-        </div>
+          <p className="mt-3 text-xs text-muted-foreground">
+            Topes prudenciales: {pct(marco.cargos.porcentajeMensualMaximo)} o {formatCurrency(marco.cargos.fijoMensualMaximo)} por cuota;
+            cobro único hasta {pct(marco.cargos.unicoPorcentajeMaximo)} del monto o {formatCurrency(marco.cargos.unicoFijoMaximo)}.
+            Los cobros opcionales (como donaciones) solo se suman si el cliente los elige.
+          </p>
+        </Card>
 
-        {/* ─── Pie de Página (Acciones) ────────────────────────────────────── */}
-        <div className="flex justify-end items-center gap-3 pt-2">
-          <Button type="button" variant="ghost" onClick={onCancel} disabled={saving}>
-            Cancelar
-          </Button>
-          <Button
-            type="submit"
-            disabled={saving || tasaSuperaTope || desgravamenFueraDeRango}
-          >
-            {saving ? 'Guardando producto…' : 'Guardar producto'}
-          </Button>
+        <div className="flex items-center justify-end gap-3">
+          <Button type="button" variant="ghost" onClick={onCancel} disabled={saving}>Cancelar</Button>
+          <Button type="submit" variant="brand" disabled={saving}>{saving ? 'Guardando…' : 'Guardar tipo de crédito'}</Button>
         </div>
       </form>
     </div>
   )
 }
 
+function Card({ title, description, actions, children }: { title: string; description: string; actions?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <section className="space-y-4 rounded-xl border bg-card p-5 sm:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b pb-3">
+        <div>
+          <h2 className="text-base font-medium">{title}</h2>
+          <p className="text-xs text-muted-foreground">{description}</p>
+        </div>
+        {actions}
+      </div>
+      {children}
+    </section>
+  )
+}
+
+function CargoFila({ cargo, error, onChange, onRemove }: {
+  cargo: CargoBorrador
+  error: string | null
+  onChange: (cambios: Partial<CargoBorrador>) => void
+  onRemove: () => void
+}) {
+  const porcentaje = cargo.tipoCargo === 'PORCENTAJE'
+  return (
+    <div className={cn('rounded-lg border bg-muted/20 p-3.5', error && 'border-destructive/50')}>
+      <div className="grid items-end gap-3 sm:grid-cols-2 lg:grid-cols-12">
+        <div className="space-y-1 lg:col-span-2">
+          <Label className="text-xs">Categoría</Label>
+          <Select value={cargo.categoria} onValueChange={(value: CategoriaCargo) => onChange({ categoria: value })}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {(Object.keys(categoriaLabels) as CategoriaCargo[]).map((c) => <SelectItem key={c} value={c}>{categoriaLabels[c]}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1 lg:col-span-3">
+          <Label className="text-xs">Nombre</Label>
+          <Input value={cargo.nombre} maxLength={120} onChange={(e) => onChange({ nombre: e.target.value })}
+            placeholder={cargo.categoria === 'SEGURO' ? 'Ej. Seguro vehicular' : cargo.categoria === 'DONACION' ? 'Ej. Aporte Fundación Niñez' : 'Ej. Gastos notariales'} />
+        </div>
+        <div className="space-y-1 lg:col-span-2">
+          <Label className="text-xs">Se cobra</Label>
+          <Select value={cargo.periodicidad} onValueChange={(value: 'MENSUAL' | 'UNICO') => onChange({ periodicidad: value })}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="MENSUAL">Cada mes</SelectItem>
+              <SelectItem value="UNICO">Una vez (1.ª cuota)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1 lg:col-span-2">
+          <Label className="text-xs">Tipo</Label>
+          <Select value={cargo.tipoCargo} onValueChange={(value: 'FIJO' | 'PORCENTAJE') => onChange({ tipoCargo: value })}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="PORCENTAJE">Porcentaje</SelectItem>
+              <SelectItem value="FIJO">Valor fijo</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1 lg:col-span-2">
+          <Label className="text-xs">{porcentaje ? 'Porcentaje (%)' : 'Valor (USD)'}</Label>
+          <Input type="number" min="0" step={porcentaje ? '0.0001' : '0.01'} value={cargo.valor} onChange={(e) => onChange({ valor: e.target.value })} placeholder="Requerido" />
+        </div>
+        <div className="flex justify-end lg:col-span-1">
+          <Button type="button" variant="ghost" size="icon" aria-label="Quitar cobro" onClick={onRemove}><Trash2 className="size-4 text-destructive" /></Button>
+        </div>
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs">
+        {porcentaje && cargo.periodicidad === 'MENSUAL' && (
+          <label className="flex items-center gap-2">
+            Calcular sobre
+            <Select value={cargo.baseCalculo} onValueChange={(value: 'SALDO_DEUDOR' | 'MONTO_SOLICITADO') => onChange({ baseCalculo: value })}>
+              <SelectTrigger className="h-8 w-44"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="SALDO_DEUDOR">Saldo pendiente</SelectItem>
+                <SelectItem value="MONTO_SOLICITADO">Monto solicitado</SelectItem>
+              </SelectContent>
+            </Select>
+          </label>
+        )}
+        {porcentaje && cargo.periodicidad === 'UNICO' && <span className="text-muted-foreground">Se calcula sobre el monto solicitado.</span>}
+        <label className="flex items-center gap-2">
+          <Switch checked={cargo.obligatorio} disabled={cargo.categoria === 'DONACION'} onCheckedChange={(value) => onChange({ obligatorio: value })} />
+          {cargo.categoria === 'DONACION' ? 'Opcional para el cliente' : cargo.obligatorio ? 'Obligatorio' : 'Opcional para el cliente'}
+        </label>
+        <Input value={cargo.normaAplicable} maxLength={200} onChange={(e) => onChange({ normaAplicable: e.target.value })}
+          placeholder="Póliza o referencia (opcional)" className="h-8 max-w-xs text-xs" />
+      </div>
+      {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
+    </div>
+  )
+}
+
 // ═════════════════════════════════════════════════════════════════════════════
-// 3. ENRUTADOR DE EDICIÓN / CREACIÓN
+// Rutas de creación y edición
 // ═════════════════════════════════════════════════════════════════════════════
 
 export function CreditoProductEditorPage() {
   const navigate = useNavigate()
   const { productId } = useParams()
-  const queryClient = useQueryClient()
+  const [search] = useSearchParams()
+  const client = useQueryClient()
+  const marco = useQuery({ queryKey: MARCO_KEY, queryFn: creditosService.getMarco })
+  const productos = useQuery({ queryKey: PRODUCTOS_KEY, queryFn: creditosService.getConfigurados })
+  const producto = productId ? productos.data?.find((item) => item.id === Number(productId)) : undefined
+  const desde = search.get('desde')
+  const plantilla = !productId && desde ? productos.data?.find((item) => item.id === Number(desde)) : undefined
 
-  const { data: creditos = [], isLoading } = useQuery({
-    queryKey: ['creditosConfigurados'],
-    queryFn: creditosService.getConfigurados,
-  })
-
-  const producto = productId ? creditos.find((item) => item.id === Number(productId)) : undefined
-
-  const saveMutation = useMutation({
-    mutationFn: async ({ data, activoDeseado }: { data: ConfigurarCreditoRequest; activoDeseado: boolean }) => {
-      let resp: ConfigurarCreditoResponse
-      if (producto) {
-        resp = await creditosService.actualizarCredito(producto.id, data)
-        if (producto.activo !== activoDeseado) {
-          resp = await creditosService.cambiarEstado(producto.id, activoDeseado)
-        }
-      } else {
-        resp = await creditosService.configurarCredito(data)
-        if (!activoDeseado) {
-          resp = await creditosService.cambiarEstado(resp.id, false)
-        }
-      }
-      return resp
+  const guardar = useMutation({
+    mutationFn: async ({ request, activo }: { request: ConfigurarCreditoRequest; activo: boolean }) => {
+      let respuesta = producto
+        ? await creditosService.actualizarCredito(producto.id, request)
+        : await creditosService.configurarCredito(request)
+      if (respuesta.activo !== activo) respuesta = await creditosService.cambiarEstado(respuesta.id, activo)
+      return respuesta
     },
-    onSuccess: async (resp) => {
-      queryClient.setQueryData<ConfigurarCreditoResponse[]>(['creditosConfigurados'], (old) => {
-        if (!old) return [resp]
-        const exists = old.some((item) => item.id === resp.id)
-        if (exists) {
-          return old.map((item) => (item.id === resp.id ? resp : item))
-        }
-        return [resp, ...old]
-      })
-      await queryClient.invalidateQueries({ queryKey: ['creditosConfigurados'] })
-      await queryClient.invalidateQueries({ queryKey: ['simulador', 'productos'] })
-      await queryClient.invalidateQueries({ queryKey: ['productos'] })
-      const nombreLabel = OPCIONES_PRODUCTO_BCE.find((o) => o.value === resp.nombre)?.label ?? resp.nombre
-      toast.success(producto ? 'Producto actualizado exitosamente.' : 'Producto creado exitosamente.', {
-        description: `${nombreLabel} (${resp.entidad}) registrado según normativa del BCE.`,
-      })
+    onSuccess: async (respuesta) => {
+      await client.invalidateQueries({ queryKey: PRODUCTOS_KEY })
+      await client.invalidateQueries({ queryKey: ['simulador', 'productos'] })
+      toast.success(producto ? 'Tipo de crédito actualizado.' : 'Tipo de crédito creado.', { description: `${respuesta.nombre} · ${respuesta.entidad}` })
       navigate('/admin/creditos')
     },
-    onError: (err: any) => {
-      const msg = err.response?.data?.message || err.message || 'Error al guardar el producto de crédito.'
-      toast.error('Error al guardar el producto', { description: msg })
-    },
+    onError: (error) => toast.error('No se pudo guardar el tipo de crédito', { description: messageFrom(error, 'Revisa los datos e inténtalo de nuevo.') }),
   })
 
-  if (isLoading) {
-    return <p className="text-sm text-muted-foreground p-6">Cargando producto de crédito…</p>
+  if (marco.isPending || productos.isPending) return <p className="p-6 text-sm text-muted-foreground">Cargando…</p>
+  if (marco.isError || !marco.data) {
+    return <p className="p-6 text-sm text-destructive">{messageFrom(marco.error, 'No se pudo cargar la normativa vigente.')}</p>
   }
-
   if (productId && !producto) {
     return (
-      <div className="space-y-4 p-6">
-        <PageHeader
-          title="Producto no encontrado"
-          description="No pudimos encontrar el producto de crédito solicitado."
-        />
-        <Button onClick={() => navigate('/admin/creditos')}>Volver a productos</Button>
+      <div className="space-y-4">
+        <PageHeader title="Tipo de crédito no encontrado" description="No encontramos el tipo de crédito solicitado." />
+        <Button onClick={() => navigate('/admin/creditos')}>Volver a tipos de crédito</Button>
       </div>
     )
   }
 
   return (
     <CreditoEditor
-      key={producto?.id ?? 'nuevo'}
+      key={producto?.id ?? (plantilla ? `copia-${plantilla.id}` : 'nuevo')}
       producto={producto}
+      plantilla={plantilla}
+      marco={marco.data}
+      saving={guardar.isPending}
       onCancel={() => navigate('/admin/creditos')}
-      saving={saveMutation.isPending}
-      onSave={async (data, activoDeseado) => {
-        await saveMutation.mutateAsync({ data, activoDeseado })
-      }}
+      onSave={(request, activo) => guardar.mutate({ request, activo })}
     />
   )
 }
