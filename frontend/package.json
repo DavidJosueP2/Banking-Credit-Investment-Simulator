@@ -35,6 +35,7 @@
     "cn": "^0.3.0",
     "date-fns": "^4.4.0",
     "embla-carousel-react": "^8.6.0",
+    "exceljs": "^4.4.0",
     "input-otp": "^1.5.0",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
