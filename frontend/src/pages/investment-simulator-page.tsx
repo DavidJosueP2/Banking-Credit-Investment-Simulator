@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { ArrowLeft, Download, FileSpreadsheet, Goal, TrendingUp } from 'lucide-react'
+import { ArrowLeft, Goal, TrendingUp } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
@@ -10,6 +10,7 @@ import investmentPersonImage from '@/assets/imgs/investment-person.png'
 import { PageHeader } from '@/components/shared/page-header'
 import { SimulationActions } from '@/features/applications/simulation-actions'
 import { useExportBranding } from '@/features/export/branding'
+import { DownloadMenu, type ExportFormat } from '@/features/export/download-menu'
 import { exportInvestmentExcel } from '@/features/investments/investment-export'
 import { SimulatorHeroBanner } from '@/components/shared/simulator-hero-banner'
 import { Button } from '@/components/ui/button'
@@ -178,7 +179,7 @@ export function InvestmentSimulatorPage() {
 
           <section aria-live="polite">
             {!result && <div className="flex min-h-80 flex-col items-center justify-center rounded-xl border border-dashed px-8 text-center"><TrendingUp className="size-10 text-brand-gold" /><h2 className="mt-5 text-xl">Completa los parámetros</h2><p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">Aquí aparecerán la tasa aplicable, el rendimiento y el cronograma estimado.</p></div>}
-            {result && <SimulationResults result={result} goal={goal} downloading={pdf.isPending} onDownload={() => pdf.mutate(currentRequest())} exporting={excel.isPending} onExcel={() => excel.mutate(result)} />}
+            {result && <SimulationResults result={result} goal={goal} pending={pdf.isPending ? 'pdf' : excel.isPending ? 'excel' : null} onDownload={(format) => format === 'pdf' ? pdf.mutate(currentRequest()) : excel.mutate(result)} />}
           </section>
         </div>
         <Button asChild variant="ghost" className="mt-10"><Link to="/"><ArrowLeft />Volver al inicio</Link></Button>
@@ -187,7 +188,7 @@ export function InvestmentSimulatorPage() {
   )
 }
 
-function SimulationResults({ result, goal, downloading, onDownload, exporting, onExcel }: { result: SimulationResult; goal?: GoalResult; downloading: boolean; onDownload: () => void; exporting: boolean; onExcel: () => void }) {
+function SimulationResults({ result, goal, pending, onDownload }: { result: SimulationResult; goal?: GoalResult; pending: ExportFormat | null; onDownload: (format: ExportFormat) => void }) {
   return <div className="space-y-7">
     {goal && (
       <div className="flex gap-3 rounded-xl border border-brand-teal/30 bg-brand-teal/5 p-5">
@@ -213,7 +214,7 @@ function SimulationResults({ result, goal, downloading, onDownload, exporting, o
         <ResultItem label="Interés neto" value={formatCurrency(result.netInterest)} />
         <ResultItem label="Valor total estimado" value={formatCurrency(result.maturityValue)} featured />
       </dl>
-      <div className="mt-6 flex flex-wrap items-start gap-2"><Button variant="outline" onClick={onDownload} disabled={downloading}><Download />{downloading ? 'Generando…' : 'Descargar PDF'}</Button><Button variant="outline" onClick={onExcel} disabled={exporting}><FileSpreadsheet />{exporting ? 'Generando…' : 'Descargar Excel'}</Button><SimulationActions scenario={{ productType: 'INVESTMENT', productId: result.productId, productName: result.productName, amount: result.amount, term: result.termValue, termUnit: result.termUnit, payoutFrequency: result.payoutFrequency }} /></div>
+      <div className="mt-6 flex flex-wrap items-start gap-2"><DownloadMenu size="default" onSelect={onDownload} pending={pending} /><SimulationActions scenario={{ productType: 'INVESTMENT', productId: result.productId, productName: result.productName, amount: result.amount, term: result.termValue, termUnit: result.termUnit, payoutFrequency: result.payoutFrequency }} /></div>
       <p className="mt-5 text-xs leading-5 text-muted-foreground">Vencimiento estimado: {formatDate(result.maturityDate)}. Cálculo con base de {result.dayCountBasis} días y tasa correspondiente a “{result.rateLabel}”.</p>
     </div>
     <div><h2 className="text-xl">Cronograma estimado</h2><div className="mt-4 overflow-hidden rounded-xl border"><Table><TableHeader><TableRow><TableHead>Pago</TableHead><TableHead>Fecha</TableHead><TableHead>Días</TableHead><TableHead className="text-right">Interés bruto</TableHead><TableHead className="text-right">Retención</TableHead><TableHead className="text-right">Capital</TableHead><TableHead className="text-right">Total</TableHead></TableRow></TableHeader><TableBody>{result.payments.map((payment) => <TableRow key={payment.number}><TableCell>{payment.number}</TableCell><TableCell>{formatDate(payment.paymentDate)}</TableCell><TableCell>{payment.periodDays}</TableCell><TableCell className="text-right tabular-nums">{formatCurrency(payment.grossInterest)}</TableCell><TableCell className="text-right tabular-nums">{formatCurrency(payment.withholding)}</TableCell><TableCell className="text-right tabular-nums">{formatCurrency(payment.capital)}</TableCell><TableCell className="text-right font-medium tabular-nums">{formatCurrency(payment.totalPayment)}</TableCell></TableRow>)}</TableBody></Table></div></div>

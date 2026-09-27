@@ -10,11 +10,10 @@ import { CreditCompositionChart, CreditCostHighlight, CreditInstallmentsChart } 
 import { CapacidadPagoCard } from '@/features/creditos/capacidad-pago-card'
 import { exportCreditExcel, exportCreditPdf } from '@/features/creditos/credit-export'
 import { useExportBranding } from '@/features/export/branding'
+import { DownloadMenu } from '@/features/export/download-menu'
 import { messageFrom } from '@/features/identity-check/utils'
 import {
   Calculator,
-  Download,
-  FileSpreadsheet,
   Calendar,
   RefreshCw,
   CheckCircle2,
@@ -732,28 +731,11 @@ function SimuladorCredito({ productosDisponibles }: { productosDisponibles: Prod
                       <TableProperties className="size-4" />
                       <span>Ver Pantalla Completa</span>
                     </Button>
-                    <Button
-                      type="button"
-                      onClick={() => void exportar('pdf')}
-                      disabled={exportando !== null}
-                      variant="outline"
-                      size="sm"
-                      className="gap-2 shrink-0 border-brand-teal/30 text-brand-teal hover:bg-brand-teal/10 cursor-pointer"
-                    >
-                      <Download className="size-4" />
-                      <span>{exportando === 'pdf' ? 'Generando…' : 'PDF'}</span>
-                    </Button>
-                    <Button
-                      type="button"
-                      onClick={() => void exportar('excel')}
-                      disabled={exportando !== null}
-                      variant="outline"
-                      size="sm"
-                      className="gap-2 shrink-0 border-brand-teal/30 text-brand-teal hover:bg-brand-teal/10 cursor-pointer"
-                    >
-                      <FileSpreadsheet className="size-4" />
-                      <span>{exportando === 'excel' ? 'Generando…' : 'Excel'}</span>
-                    </Button>
+                    <DownloadMenu
+                      onSelect={(formato) => void exportar(formato)}
+                      pending={exportando}
+                      className="gap-1.5 shrink-0 border-brand-teal/30 text-brand-teal hover:bg-brand-teal/10"
+                    />
                   </div>
                 </div>
 
@@ -1035,28 +1017,7 @@ function SimuladorCredito({ productosDisponibles }: { productosDisponibles: Prod
               >
                 Cerrar
               </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => void exportar('excel')}
-                disabled={exportando !== null}
-                className="gap-2 font-medium"
-              >
-                <FileSpreadsheet className="size-4" />
-                <span>{exportando === 'excel' ? 'Generando…' : 'Descargar Excel'}</span>
-              </Button>
-              <Button
-                type="button"
-                variant="brand"
-                size="sm"
-                onClick={() => void exportar('pdf')}
-                disabled={exportando !== null}
-                className="gap-2 font-medium"
-              >
-                <Download className="size-4" />
-                <span>{exportando === 'pdf' ? 'Generando…' : 'Descargar PDF'}</span>
-              </Button>
+              <DownloadMenu variant="brand" onSelect={(formato) => void exportar(formato)} pending={exportando} className="gap-1.5 font-medium" />
             </div>
           </DialogFooter>
         </DialogContent>

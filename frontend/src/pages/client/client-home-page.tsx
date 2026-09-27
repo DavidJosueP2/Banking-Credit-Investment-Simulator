@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowRight, Bookmark, CalendarClock, ChartNoAxesCombined, Download, Eye, FileSpreadsheet, Landmark, Search, Trash2 } from 'lucide-react'
+import { ArrowRight, Bookmark, CalendarClock, ChartNoAxesCombined, Eye, Landmark, Search, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -31,6 +31,7 @@ import { forgetScenario, NEW_APPLICATION_PATH, pendingScenario, rememberScenario
 import { messageFrom } from '@/features/identity-check/utils'
 import { exportCreditExcel, exportCreditPdf } from '@/features/creditos/credit-export'
 import { downloadBlob, fileSlug, useExportBranding } from '@/features/export/branding'
+import { DownloadMenu } from '@/features/export/download-menu'
 import { exportInvestmentExcel } from '@/features/investments/investment-export'
 import { simuladorService } from '@/features/creditos/simulador/services/simulador.service'
 import { downloadInvestmentPdf, payoutLabels, simulateInvestment, type SimulationRequest } from '@/features/investments/investment-api'
@@ -339,12 +340,7 @@ function SimulationCard({ item }: { item: SavedSimulation }) {
             Solicitar con estos datos <ArrowRight className="size-3.5" />
           </Button>
         )}
-        <Button type="button" variant="ghost" size="sm" disabled={file.isPending} onClick={() => file.mutate('pdf')}>
-          <Download className="size-3.5" />{file.isPending && file.variables === 'pdf' ? 'Generando…' : 'PDF'}
-        </Button>
-        <Button type="button" variant="ghost" size="sm" disabled={file.isPending} onClick={() => file.mutate('excel')}>
-          <FileSpreadsheet className="size-3.5" />{file.isPending && file.variables === 'excel' ? 'Generando…' : 'Excel'}
-        </Button>
+        <DownloadMenu variant="ghost" onSelect={(format) => file.mutate(format)} pending={file.isPending ? file.variables : null} />
       </div>
     </article>
   )
