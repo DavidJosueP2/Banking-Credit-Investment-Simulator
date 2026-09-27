@@ -17,6 +17,11 @@ import { ProfilePage } from '@/pages/profile-page'
 import { RegistrationPage } from '@/pages/registration-page'
 import { RolePermissionsPage } from '@/pages/role-permissions-page'
 import { SimuladorClientePage } from '@/pages/creditos/simulador-cliente-page'
+import { ClientHomePage } from '@/pages/client/client-home-page'
+import { NewApplicationPage } from '@/pages/client/new-application-page'
+import { ApplicationDetailPage } from '@/pages/client/application-detail-page'
+import { ApplicationsQueuePage } from '@/pages/admin/applications/applications-queue-page'
+import { ApplicationReviewPage } from '@/pages/admin/applications/application-review-page'
 import { CreditosAdminPage, CreditoProductEditorPage } from '@/pages/admin/creditos/configurador-credito-page'
 
 const LivenessDevPage = lazy(() => import('@/pages/liveness-dev-page')
@@ -49,6 +54,22 @@ export const router = createBrowserRouter([
             </Suspense>
           </PermissionGate>
         ),
+      },
+      {
+        path: 'cliente',
+        element: <PermissionGate permission="own.requests.read"><ClientHomePage /></PermissionGate>,
+      },
+      {
+        path: 'cliente/solicitudes/nueva',
+        element: (
+          <PermissionGate permission={['credit.request.create', 'investment.request.create']}>
+            <NewApplicationPage />
+          </PermissionGate>
+        ),
+      },
+      {
+        path: 'cliente/solicitudes/:applicationId',
+        element: <PermissionGate permission="own.requests.read"><ApplicationDetailPage /></PermissionGate>,
       },
       { path: 'inversiones/simulador', element: <InvestmentSimulatorPage /> },
       { path: 'creditos/simulador', element: <SimuladorClientePage /> },
@@ -120,6 +141,22 @@ export const router = createBrowserRouter([
         element: (
           <PermissionGate permission="investment.products.manage">
             <InvestmentProductEditorPage />
+          </PermissionGate>
+        ),
+      },
+      {
+        path: 'solicitudes',
+        element: (
+          <PermissionGate permission={['credit.requests.review', 'credit.requests.approve', 'investment.requests.review', 'requests.audit']}>
+            <ApplicationsQueuePage />
+          </PermissionGate>
+        ),
+      },
+      {
+        path: 'solicitudes/:applicationId',
+        element: (
+          <PermissionGate permission={['credit.requests.review', 'credit.requests.approve', 'investment.requests.review', 'requests.audit']}>
+            <ApplicationReviewPage />
           </PermissionGate>
         ),
       },

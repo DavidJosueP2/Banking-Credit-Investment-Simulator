@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import axios from 'axios'
 import { useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,7 +13,15 @@ import { idTypeLabels } from '@/features/registration/registration-api'
 
 export function ProfilePage() {
   const client = useQueryClient()
-  const profile = useQuery({ queryKey: profileKeys.profile, queryFn: getProfile })
+  const navigate = useNavigate()
+  const [search] = useSearchParams()
+  // Solo se vuelve a rutas internas del cliente (evita redirecciones a sitios externos).
+  const returnTo = search.get('volver')?.startsWith('/cliente') ? search.get('volver') : null
+  const profile = useQuery({
+    queryKey: profileKeys.profile,
+    queryFn: getProfile,
+    retry: (count, error) => !(axios.isAxiosError(error) && error.response?.status === 404) && count < 1,
+  })
   const [draft, setDraft] = useState<{ phone: string; address: string } | null>(null)
   const [updatingDocument, setUpdatingDocument] = useState(false)
   const [error, setError] = useState('')
@@ -40,11 +49,32 @@ export function ProfilePage() {
     setUpdatingDocument(false)
     await client.invalidateQueries({ queryKey: profileKeys.profile })
     await client.invalidateQueries({ queryKey: ['auth', 'me'] })
-    setNotice('Documento actualizado.')
+    await client.invalidateQueries({ queryKey: ['client', 'readiness'] })
+    if (returnTo) {
+      navigate(returnTo, { replace: true })
+      return
+    }
+    setNotice('Identidad verificada y documento actualizado.')
   }
 
   if (profile.isPending) {
     return <main id="contenido" className="mx-auto max-w-7xl px-5 py-16 text-sm text-muted-foreground sm:px-8">Cargando tu perfil…</main>
+  }
+  const withoutProfile = axios.isAxiosError(profile.error) && profile.error.response?.status === 404
+  if (withoutProfile) {
+    return (
+      <main id="contenido" className="mx-auto max-w-3xl px-5 py-16 sm:px-8">
+        <h1 className="text-3xl text-brand-teal sm:text-4xl">Verifica tu identidad</h1>
+        <p className="mt-4 max-w-[65ch] leading-7 text-muted-foreground">
+          Tu cuenta todavía no tiene un documento ni un rostro registrado. Es el mismo control que se hace al crear una
+          cuenta: sube tu documento vigente y confirma tu rostro con la cámara. Con eso podrás enviar solicitudes.
+        </p>
+        <div className="mt-8">
+          <IdentityFlow endpoint="/profile/identity" requireConsent onVerified={() => void documentUpdated()} />
+        </div>
+        {error && <p role="alert" className="mt-5 text-sm text-destructive">{error}</p>}
+      </main>
+    )
   }
   if (profile.isError || !profile.data) {
     return (

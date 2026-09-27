@@ -6,7 +6,8 @@ import { useAuth } from '@/app/providers/auth-provider'
 import { Button } from '@/components/ui/button'
 
 interface PermissionGateProps {
-  permission: Permission
+  /** Con varios permisos basta con tener uno. */
+  permission: Permission | Permission[]
   children: ReactNode
 }
 
@@ -16,7 +17,7 @@ export function PermissionGate({ permission, children }: PermissionGateProps) {
   if (isPending) return <main className="mx-auto max-w-xl px-6 py-24 text-sm text-muted-foreground">Comprobando acceso…</main>
   if (isError) return <main className="mx-auto max-w-xl px-6 py-24"><h1 className="text-3xl">No se pudo comprobar tu acceso</h1><p className="mt-4 text-muted-foreground">Revisa la conexión con el servidor e intenta de nuevo.</p></main>
   if (!account) return <Navigate to={`/login?next=${encodeURIComponent(location.pathname)}`} replace />
-  if (hasPermission(permission)) return children
+  if ((Array.isArray(permission) ? permission : [permission]).some(hasPermission)) return children
 
   return (
     <main className="mx-auto flex min-h-[50svh] max-w-xl flex-col justify-center px-6 py-16">
