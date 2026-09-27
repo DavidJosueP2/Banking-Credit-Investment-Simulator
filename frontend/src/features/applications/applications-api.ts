@@ -13,7 +13,7 @@ export interface Scenario {
   productName?: string
   amount: number
   term: number
-  /** Solo para mostrar; el servidor toma la unidad del producto. */
+  /** Inversiones: unidad del plazo (días si falta). Créditos: solo para mostrar; el servidor usa la del producto. */
   termUnit?: TermUnit
   amortizationSystem?: 'FRANCES' | 'ALEMAN'
   payoutFrequency?: string

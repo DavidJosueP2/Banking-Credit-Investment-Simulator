@@ -89,20 +89,20 @@ class CapacidadYMetaTests {
     private void inversionAl5Porciento() {
         var product = new InvestmentService.Product(2L, "Plan", "", "USD", new BigDecimal("500"), new BigDecimal("100000"),
                 31, 720, "DAYS", "LIST", 31, 720, 1, "SIMPLE", "NOMINAL_ANNUAL", null, "FIXED_DAYS", 360,
-                BigDecimal.ZERO, true, null, null, List.of(360), List.of("AT_MATURITY"), List.of(), List.of());
+                BigDecimal.ZERO, true, null, null, List.of(360), List.of("AT_MATURITY"), List.of(), List.of(), List.of());
         when(investments.publicProducts()).thenReturn(List.of(product));
         when(investments.simulate(any())).thenAnswer(inv -> {
             InvestmentService.SimulationRequest req = inv.getArgument(0);
             BigDecimal maturity = req.amount().multiply(new BigDecimal("1.05")).setScale(2, RoundingMode.HALF_UP);
             return new InvestmentService.SimulationResult("INV", LocalDate.now(), 2L, "Plan", "USD", req.amount(), 360,
-                    "360 días", 360, "DAYS", new BigDecimal("0.05"), "SIMPLE", "NOMINAL_ANNUAL", "AT_MATURITY", null, 360,
+                    360, "360 días", 360, "DAYS", new BigDecimal("0.05"), "SIMPLE", "NOMINAL_ANNUAL", "AT_MATURITY", null, 360,
                     BigDecimal.ZERO, maturity.subtract(req.amount()), BigDecimal.ZERO, maturity.subtract(req.amount()),
-                    maturity, LocalDate.now().plusDays(360), List.of());
+                    maturity, LocalDate.now().plusDays(360), List.of(), null, List.of());
         });
     }
 
     private InvestmentGoalService.GoalRequest meta(String objetivo) {
-        return new InvestmentGoalService.GoalRequest(2L, new BigDecimal(objetivo), 360, "AT_MATURITY");
+        return new InvestmentGoalService.GoalRequest(2L, new BigDecimal(objetivo), 360, "DAYS", "AT_MATURITY");
     }
 
     @Test

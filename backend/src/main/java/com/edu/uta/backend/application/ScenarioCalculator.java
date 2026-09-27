@@ -23,10 +23,17 @@ public class ScenarioCalculator {
 
     public record Scenario(String productType, Long productId, BigDecimal amount, Integer term,
                            String amortizationSystem, String payoutFrequency, BigDecimal assetCost,
-                           List<Long> optionalCharges) {
+                           List<Long> optionalCharges, String termUnit) {
         public Scenario(String productType, Long productId, BigDecimal amount, Integer term,
                         String amortizationSystem, String payoutFrequency, BigDecimal assetCost) {
-            this(productType, productId, amount, term, amortizationSystem, payoutFrequency, assetCost, null);
+            this(productType, productId, amount, term, amortizationSystem, payoutFrequency, assetCost, null, null);
+        }
+
+        public Scenario(String productType, Long productId, BigDecimal amount, Integer term,
+                        String amortizationSystem, String payoutFrequency, BigDecimal assetCost,
+                        List<Long> optionalCharges) {
+            this(productType, productId, amount, term, amortizationSystem, payoutFrequency, assetCost,
+                    optionalCharges, null);
         }
     }
 
@@ -128,13 +135,22 @@ public class ScenarioCalculator {
                 zero(result.totalCargosIndirectos()), BigDecimal.ZERO, result.totalPagar(), base, schedule, optional);
     }
 
+    /** Unidad del plazo de inversión; sin unidad, el plazo se interpreta en días. */
+    private static String investmentTermUnit(String termUnit) {
+        String unit = termUnit == null || termUnit.isBlank() ? "DAYS" : termUnit.trim().toUpperCase(Locale.ROOT);
+        if (!List.of("DAYS", "MONTHS", "YEARS").contains(unit)) {
+            throw new IllegalArgumentException("Selecciona una unidad de plazo válida.");
+        }
+        return unit;
+    }
+
     private Quote investment(Scenario scenario) {
         String frequency = normalizeType(scenario.payoutFrequency());
         if (frequency.isEmpty()) {
             throw new IllegalArgumentException("Selecciona cómo quieres recibir los intereses.");
         }
         InvestmentService.SimulationResult result = investments.simulate(new InvestmentService.SimulationRequest(
-                scenario.productId(), scenario.amount(), scenario.term(), frequency));
+                scenario.productId(), scenario.amount(), scenario.term(), investmentTermUnit(scenario.termUnit()), frequency));
 
         List<Installment> schedule = result.payments().stream()
                 .map(this::installment)

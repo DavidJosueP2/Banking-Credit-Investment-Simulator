@@ -80,10 +80,10 @@ class ScenarioCalculatorTests {
         var payment = new InvestmentCalculator.Payment(1, today.plusDays(90), 90, new BigDecimal("46.88"),
                 BigDecimal.ZERO, new BigDecimal("46.88"), new BigDecimal("5000.00"), new BigDecimal("5046.88"));
         when(investments.simulate(any())).thenReturn(new InvestmentService.SimulationResult("INV-1", today, 2L,
-                "Plan Crece", "USD", new BigDecimal("5000"), 90, "90 días", 90, "DAYS", new BigDecimal("0.0375"),
+                "Plan Crece", "USD", new BigDecimal("5000"), 90, 90, "90 días", 90, "DAYS", new BigDecimal("0.0375"),
                 "SIMPLE", "NOMINAL_ANNUAL", "AT_MATURITY", null, 360, BigDecimal.ZERO, new BigDecimal("46.88"),
                 BigDecimal.ZERO, new BigDecimal("46.88"), new BigDecimal("5046.88"), today.plusDays(90),
-                List.of(payment)));
+                List.of(), null, List.of(payment)));
 
         var quote = calculator.quote(new ScenarioCalculator.Scenario("INVESTMENT", 2L, new BigDecimal("5000"), 90,
                 null, "at_maturity", null));

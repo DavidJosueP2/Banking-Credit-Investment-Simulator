@@ -22,7 +22,8 @@ public class InvestmentGoalService {
         this.investments = investments;
     }
 
-    public record GoalRequest(long productId, BigDecimal targetAmount, int termDays, String payoutFrequency) {}
+    public record GoalRequest(long productId, BigDecimal targetAmount, Integer termValue, String termUnit,
+                              String payoutFrequency) {}
 
     /** {@code coveredByMinimum}: el monto mínimo del producto ya alcanza o supera la meta. */
     public record GoalResult(BigDecimal requiredAmount, BigDecimal targetAmount, boolean coveredByMinimum,
@@ -71,6 +72,6 @@ public class InvestmentGoalService {
 
     private InvestmentService.SimulationResult simulate(GoalRequest request, BigDecimal amount) {
         return investments.simulate(new InvestmentService.SimulationRequest(request.productId(), amount,
-                request.termDays(), request.payoutFrequency()));
+                request.termValue(), request.termUnit(), request.payoutFrequency()));
     }
 }

@@ -86,7 +86,8 @@ public class ApplicationService {
 
     public record NewApplication(String productType, Long productId, BigDecimal amount, Integer term,
                                  String amortizationSystem, String payoutFrequency, BigDecimal assetCost,
-                                 BigDecimal monthlyIncome, String purpose, List<Long> optionalCharges) {}
+                                 BigDecimal monthlyIncome, String purpose, List<Long> optionalCharges,
+                                 String termUnit) {}
 
     public record Readiness(String fullName, boolean hasProfile, boolean emailVerified, boolean identityVerified,
                             Instant identityVerifiedAt, boolean ready) {}
@@ -203,7 +204,7 @@ public class ApplicationService {
 
         ScenarioCalculator.Quote quote = calculator.quote(new ScenarioCalculator.Scenario(type, input.productId(),
                 input.amount(), input.term(), input.amortizationSystem(), input.payoutFrequency(),
-                input.assetCost(), input.optionalCharges()));
+                input.assetCost(), input.optionalCharges(), input.termUnit()));
 
         String existing = jdbc.query("""
                 SELECT code FROM applications WHERE user_id = ? AND product_type = ? AND product_id = ?

@@ -27,7 +27,7 @@ public class SavedSimulationService {
 
     public record SaveInput(String productType, Long productId, BigDecimal amount, Integer term,
                             String amortizationSystem, String payoutFrequency, BigDecimal assetCost, String label,
-                            List<Long> optionalCharges) {}
+                            List<Long> optionalCharges, String termUnit) {}
 
     public record SavedSimulation(long id, String productType, long productId, String productName, String label,
                                   BigDecimal amount, int term, String termUnit, String amortizationSystem,
@@ -65,7 +65,7 @@ public class SavedSimulationService {
         }
         ScenarioCalculator.Quote quote = calculator.quote(new ScenarioCalculator.Scenario(input.productType(),
                 input.productId(), input.amount(), input.term(), input.amortizationSystem(),
-                input.payoutFrequency(), input.assetCost(), input.optionalCharges()));
+                input.payoutFrequency(), input.assetCost(), input.optionalCharges(), input.termUnit()));
         String label = input.label() == null || input.label().isBlank() ? null : input.label().trim();
         if (label != null && label.length() > 80) {
             throw new IllegalArgumentException("El nombre de la simulación admite hasta 80 caracteres.");

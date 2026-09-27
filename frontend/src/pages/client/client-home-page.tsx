@@ -260,7 +260,8 @@ function SimulationCard({ item }: { item: SavedSimulation }) {
       const request: SimulationRequest = {
         productId: item.productId,
         amount: item.amount,
-        termDays: item.term,
+        termValue: item.term,
+        termUnit: item.termUnit,
         payoutFrequency: item.payoutFrequency as SimulationRequest['payoutFrequency'],
       }
       if (format === 'pdf') {
@@ -355,6 +356,7 @@ function simulatorPath(item: SavedSimulation) {
     if (item.optionalCharges.length) params.set('opcionales', item.optionalCharges.join(','))
     return `/creditos/simulador?${params}`
   }
+  params.set('unidad', item.termUnit)
   if (item.payoutFrequency) params.set('pago', item.payoutFrequency)
   return `/inversiones/simulador?${params}`
 }

@@ -24,11 +24,13 @@ import {
   investmentKeys,
   payoutLabels,
   reachInvestmentGoal,
-  type GoalResult,
   termUnitLabels,
   simulateInvestment,
+  type GoalResult,
+  type InvestmentProduct,
   type SimulationRequest,
   type SimulationResult,
+  type TermUnit,
 } from '@/features/investments/investment-api'
 import { formatCurrency, formatDate, formatPercentage } from '@/lib/formatters'
 
@@ -39,6 +41,17 @@ function requestError(error: unknown) {
   return 'No se pudo realizar la simulación.'
 }
 
+const termUnitDays: Record<TermUnit, number> = { DAYS: 1, MONTHS: 30, YEARS: 360 }
+const minimumFrequencyDays: Record<string, number> = { AT_MATURITY: 0, MONTHLY: 30, BIMONTHLY: 60, QUARTERLY: 90, SEMIANNUAL: 180, ANNUAL: 360 }
+
+/** Formas de pago del plan cuyo período divide exactamente el plazo (normalizado a días). */
+function compatibleFrequencies(product: InvestmentProduct | undefined, normalizedTermDays: number) {
+  return product?.payoutFrequencies.filter((frequency) => {
+    const frequencyDays = minimumFrequencyDays[frequency]
+    return frequencyDays === 0 || (normalizedTermDays >= frequencyDays && normalizedTermDays % frequencyDays === 0)
+  }) ?? []
+}
+
 export function InvestmentSimulatorPage() {
   const { settings, assets } = useInstitutionSettings()
   const products = useQuery({ queryKey: investmentKeys.publicProducts, queryFn: getPublicInvestmentProducts })
@@ -47,11 +60,15 @@ export function InvestmentSimulatorPage() {
     const productId = searchParams.get('producto') ?? ''
     const amount = searchParams.get('monto') ?? ''
     const term = searchParams.get('plazo') ?? ''
-    return productId && Number(amount) > 0 && Number(term) > 0 ? { productId, amount, term, payout: searchParams.get('pago') ?? '' } : null
+    const unit = searchParams.get('unidad') ?? 'DAYS'
+    return productId && Number(amount) > 0 && Number(term) > 0
+      ? { productId, amount, term, unit: (unit in termUnitDays ? unit : 'DAYS') as TermUnit, payout: searchParams.get('pago') ?? '' }
+      : null
   })
   const [productId, setProductId] = useState(initial?.productId ?? '')
   const [amount, setAmount] = useState(initial?.amount ?? '')
-  const [termDays, setTermDays] = useState(initial?.term ?? '')
+  const [termValue, setTermValue] = useState(initial?.term ?? '')
+  const [termUnit, setTermUnit] = useState<TermUnit | ''>(initial?.unit ?? '')
   const [payoutFrequency, setPayoutFrequency] = useState(initial?.payout ?? '')
   const [result, setResult] = useState<SimulationResult>()
   const [mode, setMode] = useState<'amount' | 'goal'>('amount')
@@ -61,8 +78,28 @@ export function InvestmentSimulatorPage() {
   const effectiveProductId = productId || String(products.data?.[0]?.id ?? '')
   const selected = useMemo(() => products.data?.find((product) => String(product.id) === effectiveProductId), [products.data, effectiveProductId])
   const effectiveAmount = amount || String(selected?.minimumAmount ?? '')
-  const effectiveTermDays = termDays || String(selected?.terms[0] ?? '')
-  const effectivePayoutFrequency = payoutFrequency || selected?.payoutFrequencies[0] || ''
+  const minimumTermDays = selected?.rates.length ? Math.min(...selected.rates.map((rate) => rate.minimumTermDays)) : 0
+  const maximumTermDays = selected?.rates.length ? Math.max(...selected.rates.map((rate) => rate.maximumTermDays)) : 0
+  const termUnits = ([
+    { unit: 'DAYS' as const, minimumValue: minimumTermDays, maximumValue: maximumTermDays },
+    { unit: 'MONTHS' as const, minimumValue: Math.ceil(minimumTermDays / 30), maximumValue: Math.floor(maximumTermDays / 30) },
+    { unit: 'YEARS' as const, minimumValue: Math.ceil(minimumTermDays / 360), maximumValue: Math.floor(maximumTermDays / 360) },
+  ]).filter((item) => item.minimumValue > 0 && item.minimumValue <= item.maximumValue)
+  const effectiveTermUnit = (termUnit || termUnits[0]?.unit || '') as TermUnit
+  const selectedTermUnit = termUnits.find((item) => item.unit === effectiveTermUnit)
+  const effectiveTermValue = termValue || String(selectedTermUnit?.minimumValue ?? '')
+  const normalizedTermDays = Number(effectiveTermValue) * (termUnitDays[effectiveTermUnit] ?? 1)
+  const availableFrequencies = compatibleFrequencies(selected, normalizedTermDays)
+  const effectivePayoutFrequency = availableFrequencies.some((frequency) => frequency === payoutFrequency) ? payoutFrequency : availableFrequencies[0] || ''
+  const amountNumber = Number(effectiveAmount)
+  const termNumber = Number(effectiveTermValue)
+  const amountError = selected && (!Number.isFinite(amountNumber) || amountNumber < selected.minimumAmount || amountNumber > selected.maximumAmount)
+    ? `Ingresa un monto entre ${formatCurrency(selected.minimumAmount)} y ${formatCurrency(selected.maximumAmount)}.` : ''
+  const termError = selectedTermUnit && (!Number.isInteger(termNumber) || termNumber < selectedTermUnit.minimumValue || termNumber > selectedTermUnit.maximumValue)
+    ? `Ingresa un plazo entero entre ${selectedTermUnit.minimumValue} y ${selectedTermUnit.maximumValue} ${termUnitLabels[effectiveTermUnit].toLowerCase()}.` : ''
+  const targetNumber = Number(target)
+  const canSimulate = Boolean(selected && !termError && effectivePayoutFrequency
+    && (mode === 'goal' ? Number.isFinite(targetNumber) && targetNumber > 0 : !amountError))
 
   const simulation = useMutation({
     mutationFn: simulateInvestment,
@@ -84,8 +121,8 @@ export function InvestmentSimulatorPage() {
     onError: () => toast.error('No se pudo generar el Excel.'),
   })
 
-  // Abrir una simulación guardada: /inversiones/simulador?producto=&monto=&plazo=&pago= la rellena (estado
-  // inicial) y la calcula en cuanto cargan los planes.
+  // Abrir una simulación guardada: /inversiones/simulador?producto=&monto=&plazo=&unidad=&pago= la rellena
+  // (estado inicial) y la calcula en cuanto cargan los planes.
   const restored = useRef(false)
   const { mutate: simulate } = simulation
   useEffect(() => {
@@ -93,11 +130,11 @@ export function InvestmentSimulatorPage() {
     restored.current = true
     const product = products.data.find((item) => String(item.id) === initial.productId)
     if (!product) return
-    const frequency = product.payoutFrequencies.includes(initial.payout as SimulationRequest['payoutFrequency'])
-      ? initial.payout as SimulationRequest['payoutFrequency'] : product.payoutFrequencies[0]
-    simulate({ productId: product.id, amount: Number(initial.amount), termDays: Number(initial.term), payoutFrequency: frequency })
+    const frequencies = compatibleFrequencies(product, Number(initial.term) * termUnitDays[initial.unit])
+    const frequency = frequencies.find((item) => item === initial.payout) ?? frequencies[0]
+    if (!frequency) return
+    simulate({ productId: product.id, amount: Number(initial.amount), termValue: Number(initial.term), termUnit: initial.unit, payoutFrequency: frequency })
   }, [products.data, initial, simulate])
-
   const pdf = useMutation({
     mutationFn: downloadInvestmentPdf,
     onSuccess: (blob) => {
@@ -113,19 +150,21 @@ export function InvestmentSimulatorPage() {
 
   const currentRequest = (): SimulationRequest => ({
     productId: Number(effectiveProductId), amount: Number(effectiveAmount),
-    termDays: Number(effectiveTermDays), payoutFrequency: effectivePayoutFrequency as SimulationRequest['payoutFrequency'],
+    termValue: Number(effectiveTermValue), termUnit: effectiveTermUnit,
+    payoutFrequency: effectivePayoutFrequency as SimulationRequest['payoutFrequency'],
   })
 
   function submit(event: FormEvent) {
     event.preventDefault()
     setResult(undefined)
     setGoal(undefined)
+    const request = currentRequest()
     if (mode === 'goal') {
-      goalSearch.mutate({ productId: Number(effectiveProductId), targetAmount: Number(target), termDays: Number(effectiveTermDays),
-        payoutFrequency: effectivePayoutFrequency as SimulationRequest['payoutFrequency'] })
+      goalSearch.mutate({ productId: request.productId, targetAmount: targetNumber, termValue: request.termValue,
+        termUnit: request.termUnit, payoutFrequency: request.payoutFrequency })
       return
     }
-    simulation.mutate(currentRequest())
+    simulation.mutate(request)
   }
 
   if (settings.investment.moduleEnabled !== 'true' || settings.investment.simulatorEnabled !== 'true') {
@@ -148,7 +187,7 @@ export function InvestmentSimulatorPage() {
       <div className="mx-auto max-w-7xl px-5 py-8 sm:px-8 lg:py-12">
         <div className="grid gap-8 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:items-start">
           <form onSubmit={submit} className="space-y-6 rounded-xl border bg-card p-6 lg:sticky lg:top-24">
-            {products.data && products.data.length > 1 && <div className="space-y-2"><Label>Plan de inversión</Label><Select value={effectiveProductId} onValueChange={(value) => { setProductId(value); setAmount(''); setTermDays(''); setPayoutFrequency(''); setResult(undefined) }} disabled={products.isPending}><SelectTrigger><SelectValue placeholder="Selecciona un plan" /></SelectTrigger><SelectContent>{products.data.map((product) => <SelectItem key={product.id} value={String(product.id)}>{product.name}</SelectItem>)}</SelectContent></Select></div>}
+            {products.data && products.data.length > 1 && <div className="space-y-2"><Label>Plan de inversión</Label><Select value={effectiveProductId} onValueChange={(value) => { setProductId(value); setAmount(''); setTermValue(''); setTermUnit(''); setPayoutFrequency(''); setResult(undefined) }} disabled={products.isPending}><SelectTrigger><SelectValue placeholder="Selecciona un plan" /></SelectTrigger><SelectContent>{products.data.map((product) => <SelectItem key={product.id} value={String(product.id)}>{product.name}</SelectItem>)}</SelectContent></Select></div>}
             {selected && <div className="rounded-lg bg-muted/40 p-4"><p className="font-medium text-foreground">{selected.name}</p><p className="mt-1 text-sm leading-6 text-muted-foreground">{selected.description}</p></div>}
             <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted/50 p-1" role="radiogroup" aria-label="Qué quieres calcular">
               {([['amount', 'Sé cuánto invertir'], ['goal', 'Tengo una meta']] as const).map(([value, label]) => (
@@ -160,7 +199,7 @@ export function InvestmentSimulatorPage() {
               ))}
             </div>
             {mode === 'amount' ? (
-            <div className="space-y-2"><div className="flex flex-wrap items-baseline justify-between gap-2"><Label htmlFor="simulation-amount">Monto a invertir</Label>{selected && <span id="amount-conditions" className="text-xs text-muted-foreground">Permitido: {formatCurrency(selected.minimumAmount)} a {formatCurrency(selected.maximumAmount)}</span>}</div><Input id="simulation-amount" aria-describedby="amount-conditions" type="number" step="0.01" min={selected?.minimumAmount} max={selected?.maximumAmount} value={effectiveAmount} onChange={(event) => { setAmount(event.target.value); setResult(undefined) }} onBlur={() => { if (selected && Number(effectiveAmount) < selected.minimumAmount) toast.error(`El monto mínimo es ${formatCurrency(selected.minimumAmount)}.`); if (selected && Number(effectiveAmount) > selected.maximumAmount) toast.error(`El monto máximo es ${formatCurrency(selected.maximumAmount)}.`) }} required /></div>
+            <div className="space-y-2"><div className="flex flex-wrap items-baseline justify-between gap-2"><Label htmlFor="simulation-amount">Monto a invertir</Label>{selected && <span id="amount-conditions" className="text-xs text-muted-foreground">Permitido: {formatCurrency(selected.minimumAmount)} a {formatCurrency(selected.maximumAmount)}</span>}</div><Input id="simulation-amount" aria-describedby="amount-conditions amount-error" aria-invalid={Boolean(amountError)} className={amountError ? 'border-destructive focus-visible:ring-destructive' : undefined} type="number" step="0.01" min={selected?.minimumAmount} max={selected?.maximumAmount} value={effectiveAmount} onChange={(event) => { setAmount(event.target.value); setResult(undefined) }} required />{amountError && <p id="amount-error" className="text-xs text-destructive">{amountError}</p>}</div>
             ) : (
               <div className="space-y-2">
                 <Label htmlFor="simulation-target">¿Cuánto quieres reunir?</Label>
@@ -169,11 +208,12 @@ export function InvestmentSimulatorPage() {
                 <p id="target-hint" className="text-xs text-muted-foreground">Te diremos cuánto invertir hoy para llegar a ese valor al vencimiento, con el plazo y la forma de pago que elijas.</p>
               </div>
             )}
-            <div className="space-y-2"><div className="flex flex-wrap items-baseline justify-between gap-2"><Label htmlFor="simulation-term">Plazo</Label>{selected && <span id="term-conditions" className="text-xs text-muted-foreground">{selected.termSelection === 'RANGE' ? `Entre ${selected.minimumTermValue} y ${selected.maximumTermValue} ${termUnitLabels[selected.termUnit].toLowerCase()}` : `${selected.terms.length} ${selected.terms.length === 1 ? 'opción disponible' : 'opciones disponibles'}`}</span>}</div>{selected?.termSelection === 'RANGE' ? <Input id="simulation-term" aria-describedby="term-conditions" type="number" min={selected.minimumTermValue} max={selected.maximumTermValue} step={selected.termIncrement} value={effectiveTermDays} onChange={(event) => { setTermDays(event.target.value); setResult(undefined) }} required /> : <Select value={effectiveTermDays} onValueChange={(value) => { setTermDays(value); setResult(undefined) }}><SelectTrigger id="simulation-term" aria-describedby="term-conditions"><SelectValue /></SelectTrigger><SelectContent>{selected?.terms.map((term) => <SelectItem key={term} value={String(term)}>{term} {termUnitLabels[selected.termUnit]}</SelectItem>)}</SelectContent></Select>}</div>
-            <div className="space-y-2"><div className="flex flex-wrap items-baseline justify-between gap-2"><Label>Pago de intereses</Label>{selected && <span className="text-xs text-muted-foreground">Elige cómo recibir el rendimiento</span>}</div><Select value={effectivePayoutFrequency} onValueChange={(value) => { setPayoutFrequency(value); setResult(undefined) }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{selected?.payoutFrequencies.map((frequency) => <SelectItem key={frequency} value={frequency}>{payoutLabels[frequency]}</SelectItem>)}</SelectContent></Select></div>
+            <div className="space-y-3"><div className="flex flex-wrap items-baseline justify-between gap-2"><Label htmlFor="simulation-term">Plazo</Label>{selectedTermUnit && <span id="term-conditions" className="text-xs text-muted-foreground">Entre {selectedTermUnit.minimumValue} y {selectedTermUnit.maximumValue} {termUnitLabels[effectiveTermUnit].toLowerCase()}</span>}</div>{termUnits.length > 1 && <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${termUnits.length}, minmax(0, 1fr))` }}>{termUnits.map((item) => <Button key={item.unit} type="button" variant={effectiveTermUnit === item.unit ? 'default' : 'outline'} onClick={() => { setTermUnit(item.unit); setTermValue(''); setPayoutFrequency(''); setResult(undefined) }}>{termUnitLabels[item.unit]}</Button>)}</div>}<Input id="simulation-term" aria-describedby="term-conditions term-error" aria-invalid={Boolean(termError)} className={termError ? 'border-destructive focus-visible:ring-destructive' : undefined} type="number" min={selectedTermUnit?.minimumValue} max={selectedTermUnit?.maximumValue} step="1" value={effectiveTermValue} onChange={(event) => { setTermValue(event.target.value); setResult(undefined) }} required />{termError && <p id="term-error" className="text-xs text-destructive">{termError}</p>}</div>
+            <div className="space-y-2"><div className="flex flex-wrap items-baseline justify-between gap-2"><Label>Pago de intereses</Label>{selected && <span className="text-xs text-muted-foreground">Opciones compatibles con el plazo</span>}</div><Select value={effectivePayoutFrequency} onValueChange={(value) => { setPayoutFrequency(value); setResult(undefined) }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{availableFrequencies.map((frequency) => <SelectItem key={frequency} value={frequency}>{payoutLabels[frequency]}</SelectItem>)}</SelectContent></Select></div>
             {products.isError && <p className="text-sm text-destructive">No se pudieron cargar los planes de inversión.</p>}
             {!products.isPending && products.data?.length === 0 && <p className="text-sm text-muted-foreground">No hay planes de inversión disponibles por ahora.</p>}
-            <Button type="submit" className="w-full" size="lg" disabled={!selected || simulation.isPending || goalSearch.isPending}>{simulation.isPending || goalSearch.isPending ? 'Calculando…' : mode === 'goal' ? 'Calcular cuánto invertir' : 'Simular inversión'}</Button>
+            {!effectivePayoutFrequency && selected && <p className="text-xs text-destructive">No existe una frecuencia de pago compatible con este plazo.</p>}
+            <Button type="submit" className="w-full" size="lg" disabled={!canSimulate || simulation.isPending || goalSearch.isPending}>{simulation.isPending || goalSearch.isPending ? 'Calculando…' : mode === 'goal' ? 'Calcular cuánto invertir' : 'Simular inversión'}</Button>
             <p className="text-xs leading-5 text-muted-foreground">La simulación es referencial y no constituye una oferta ni una contratación.</p>
           </form>
 
@@ -210,14 +250,19 @@ function SimulationResults({ result, goal, pending, onDownload }: { result: Simu
         <ResultItem label="Capital invertido" value={formatCurrency(result.amount)} />
         <ResultItem label="Tasa anual aplicable" value={formatPercentage(result.annualRate)} />
         <ResultItem label="Interés bruto" value={formatCurrency(result.grossInterest)} />
-        <ResultItem label="Retención" value={formatCurrency(result.withholding)} />
+        <ResultItem label="Retención estimada" value={formatCurrency(result.withholding)} />
         <ResultItem label="Interés neto" value={formatCurrency(result.netInterest)} />
-        <ResultItem label="Valor total estimado" value={formatCurrency(result.maturityValue)} featured />
+        <ResultItem label="Total estimado a recibir" value={formatCurrency(result.maturityValue)} featured />
       </dl>
+      <div className="mt-4 rounded-lg border bg-muted/30 p-4">
+        <p className="text-sm font-medium">Tratamiento tributario estimado</p>
+        <p className="mt-1 text-sm leading-6 text-muted-foreground">{result.withholdingNote}</p>
+        {result.withholdingDetails.map((detail) => <p key={detail.name} className="mt-2 text-sm"><span className="font-medium">{detail.name}</span><span className="text-muted-foreground"> · {detail.percentage}% del interés bruto · {formatCurrency(detail.amount)}</span></p>)}
+      </div>
       <div className="mt-6 flex flex-wrap items-start gap-2"><DownloadMenu size="default" onSelect={onDownload} pending={pending} /><SimulationActions scenario={{ productType: 'INVESTMENT', productId: result.productId, productName: result.productName, amount: result.amount, term: result.termValue, termUnit: result.termUnit, payoutFrequency: result.payoutFrequency }} /></div>
-      <p className="mt-5 text-xs leading-5 text-muted-foreground">Vencimiento estimado: {formatDate(result.maturityDate)}. Cálculo con base de {result.dayCountBasis} días y tasa correspondiente a “{result.rateLabel}”.</p>
+      <p className="mt-5 text-xs leading-5 text-muted-foreground">Plazo seleccionado: {result.termValue} {termUnitLabels[result.termUnit].toLowerCase()} ({result.termDays} días reales). Vencimiento estimado: {formatDate(result.maturityDate)}. Cálculo con base de {result.dayCountBasis} días y tasa correspondiente a “{result.rateLabel}”.</p>
     </div>
-    <div><h2 className="text-xl">Cronograma estimado</h2><div className="mt-4 overflow-hidden rounded-xl border"><Table><TableHeader><TableRow><TableHead>Pago</TableHead><TableHead>Fecha</TableHead><TableHead>Días</TableHead><TableHead className="text-right">Interés bruto</TableHead><TableHead className="text-right">Retención</TableHead><TableHead className="text-right">Capital</TableHead><TableHead className="text-right">Total</TableHead></TableRow></TableHeader><TableBody>{result.payments.map((payment) => <TableRow key={payment.number}><TableCell>{payment.number}</TableCell><TableCell>{formatDate(payment.paymentDate)}</TableCell><TableCell>{payment.periodDays}</TableCell><TableCell className="text-right tabular-nums">{formatCurrency(payment.grossInterest)}</TableCell><TableCell className="text-right tabular-nums">{formatCurrency(payment.withholding)}</TableCell><TableCell className="text-right tabular-nums">{formatCurrency(payment.capital)}</TableCell><TableCell className="text-right font-medium tabular-nums">{formatCurrency(payment.totalPayment)}</TableCell></TableRow>)}</TableBody></Table></div></div>
+    <div><h2 className="text-xl">Cronograma estimado</h2><div className="mt-4 overflow-hidden rounded-xl border"><Table><TableHeader><TableRow><TableHead>Pago</TableHead><TableHead>Fecha</TableHead><TableHead>Días</TableHead><TableHead className="text-right">Interés bruto</TableHead><TableHead className="text-right">Retención IR</TableHead><TableHead className="text-right">Capital</TableHead><TableHead className="text-right">Total recibido</TableHead></TableRow></TableHeader><TableBody>{result.payments.map((payment) => <TableRow key={payment.number}><TableCell>{payment.number}</TableCell><TableCell>{formatDate(payment.paymentDate)}</TableCell><TableCell>{payment.periodDays}</TableCell><TableCell className="text-right tabular-nums">{formatCurrency(payment.grossInterest)}</TableCell><TableCell className="text-right tabular-nums">{formatCurrency(payment.withholding)}</TableCell><TableCell className="text-right tabular-nums">{formatCurrency(payment.capital)}</TableCell><TableCell className="text-right font-medium tabular-nums">{formatCurrency(payment.totalPayment)}</TableCell></TableRow>)}</TableBody></Table></div></div>
   </div>
 }
 

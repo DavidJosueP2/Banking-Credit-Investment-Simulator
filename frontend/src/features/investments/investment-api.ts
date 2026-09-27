@@ -9,6 +9,15 @@ export type TaxRuleType = 'PERCENTAGE' | 'FIXED'
 export type TaxBase = 'GROSS_INTEREST' | 'CAPITAL' | 'TOTAL'
 export type CalendarMode = 'FIXED_DAYS' | 'CALENDAR'
 
+export interface InvestmentTermConfiguration {
+  unit: TermUnit
+  selection: TermSelection
+  minimumValue: number
+  maximumValue: number
+  increment: number
+  options: number[]
+}
+
 export interface InvestmentRate {
   id?: number
   label: string
@@ -29,7 +38,14 @@ export interface InvestmentTaxRule {
   value: number
   base: TaxBase
   active: boolean
+  exemptFromTermDays: number | null
   position?: number
+}
+
+export interface InvestmentWithholdingDetail {
+  name: string
+  percentage: number
+  amount: number
 }
 
 export interface InvestmentProduct {
@@ -59,6 +75,7 @@ export interface InvestmentProduct {
   payoutFrequencies: PayoutFrequency[]
   rates: InvestmentRate[]
   taxRules: InvestmentTaxRule[]
+  termConfigurations: InvestmentTermConfiguration[]
 }
 
 export interface InvestmentProductInput {
@@ -84,12 +101,14 @@ export interface InvestmentProductInput {
   payoutFrequencies: PayoutFrequency[]
   rates: InvestmentRate[]
   taxRules: InvestmentTaxRule[]
+  termConfigurations: InvestmentTermConfiguration[]
 }
 
 export interface SimulationRequest {
   productId: number
   amount: number
-  termDays: number
+  termValue: number
+  termUnit: TermUnit
   payoutFrequency: PayoutFrequency
 }
 
@@ -112,6 +131,7 @@ export interface SimulationResult {
   currency: string
   amount: number
   termDays: number
+  normalizedTermDays: number
   termValue: number
   termUnit: TermUnit
   rateLabel: string
@@ -127,6 +147,8 @@ export interface SimulationResult {
   netInterest: number
   maturityValue: number
   maturityDate: string
+  withholdingDetails: InvestmentWithholdingDetail[]
+  withholdingNote: string
   payments: InvestmentPayment[]
 }
 
@@ -162,7 +184,8 @@ export async function simulateInvestment(input: SimulationRequest) {
 export interface GoalRequest {
   productId: number
   targetAmount: number
-  termDays: number
+  termValue: number
+  termUnit: TermUnit
   payoutFrequency: SimulationRequest['payoutFrequency']
 }
 
