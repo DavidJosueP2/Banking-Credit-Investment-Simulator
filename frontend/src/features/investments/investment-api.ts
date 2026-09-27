@@ -159,6 +159,26 @@ export async function simulateInvestment(input: SimulationRequest) {
   return (await api.post<SimulationResult>('/public/investments/simulations', input)).data
 }
 
+export interface GoalRequest {
+  productId: number
+  targetAmount: number
+  termDays: number
+  payoutFrequency: SimulationRequest['payoutFrequency']
+}
+
+export interface GoalResult {
+  requiredAmount: number
+  targetAmount: number
+  /** El monto mínimo del producto ya alcanza la meta. */
+  coveredByMinimum: boolean
+  simulation: SimulationResult
+}
+
+/** Meta de ahorro: capital necesario para reunir un monto en el plazo elegido. */
+export async function reachInvestmentGoal(input: GoalRequest) {
+  return (await api.post<GoalResult>('/public/investments/goals', input)).data
+}
+
 export async function downloadInvestmentPdf(input: SimulationRequest) {
   return (await api.post<Blob>('/public/investments/simulations/pdf', input, { responseType: 'blob' })).data
 }
