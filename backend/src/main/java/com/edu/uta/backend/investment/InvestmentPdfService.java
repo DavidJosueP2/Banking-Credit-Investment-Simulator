@@ -32,7 +32,7 @@ public class InvestmentPdfService {
     private static final float LEFT = 42;
     private static final float RIGHT = PAGE_WIDTH - 42;
     private static final float CONTENT_WIDTH = RIGHT - LEFT;
-    private static final int ROWS_PER_PAGE = 16;
+    private static final int ROWS_PER_PAGE = 15;
 
     private final InstitutionSettingsService settings;
 
@@ -62,7 +62,8 @@ public class InvestmentPdfService {
                     drawSummary(canvas, fonts, theme, result);
                     int start = pageNumber * ROWS_PER_PAGE;
                     int end = Math.min(payments.size(), start + ROWS_PER_PAGE);
-                    drawSchedule(canvas, fonts, theme, payments.subList(start, end), result.currency());
+                    drawSchedule(canvas, fonts, theme, payments.subList(start, end), result.currency(),
+                            hasCharges(result));
                     drawFooter(canvas, fonts, theme, institutionName, legalNotice, pageNumber + 1, pageCount);
                 }
             }
@@ -110,11 +111,20 @@ public class InvestmentPdfService {
         float boxY = y - 107;
         fillRect(canvas, LEFT, boxY, CONTENT_WIDTH, 52, theme.surface());
         strokeRect(canvas, LEFT, boxY, CONTENT_WIDTH, 52, theme.border(), 0.8f);
-        metric(canvas, fonts, theme, LEFT + 15, boxY + 31, "CAPITAL INVERTIDO",
+        boolean withCharges = hasCharges(result);
+        float[] metricX = withCharges
+                ? new float[] {LEFT + 15, LEFT + 135, LEFT + 255, LEFT + 375}
+                : new float[] {LEFT + 15, LEFT + 180, LEFT + 350};
+        int metricIndex = 0;
+        metric(canvas, fonts, theme, metricX[metricIndex++], boxY + 31, "CAPITAL INVERTIDO",
                 money(result.amount(), result.currency()), theme.foreground());
-        metric(canvas, fonts, theme, LEFT + 180, boxY + 31, "INTERÉS NETO",
+        metric(canvas, fonts, theme, metricX[metricIndex++], boxY + 31, "INTERÉS NETO",
                 money(result.netInterest(), result.currency()), theme.primary());
-        metric(canvas, fonts, theme, LEFT + 350, boxY + 31, "TOTAL ESTIMADO A RECIBIR",
+        if (withCharges) {
+            metric(canvas, fonts, theme, metricX[metricIndex++], boxY + 31, "COSTOS ADICIONALES",
+                    "- " + money(result.charges(), result.currency()), theme.foreground());
+        }
+        metric(canvas, fonts, theme, metricX[metricIndex], boxY + 31, "TOTAL ESTIMADO A RECIBIR",
                 money(result.maturityValue(), result.currency()), theme.secondary());
 
         float detailsY = boxY - 21;
@@ -124,21 +134,38 @@ public class InvestmentPdfService {
         text(canvas, fonts.body(), 8, 300, detailsY, "Pago: " + frequency(result.payoutFrequency()), theme.mutedText());
         text(canvas, fonts.body(), 8, 430, detailsY,
                 "Retención IR: " + money(result.withholding(), result.currency()), theme.mutedText());
-        wrappedText(canvas, fonts.body(), 7.2f, LEFT, detailsY - 15, CONTENT_WIDTH,
+        String charges = result.chargeDetails().stream()
+                .map(charge -> charge.name() + " " + money(charge.amount(), result.currency()))
+                .reduce((left, right) -> left + " · " + right)
+                .map(value -> "Costos: " + value)
+                .orElse("Sin costos adicionales");
+        text(canvas, fonts.body(), 8, LEFT, detailsY - 13, shorten(charges, 95), theme.mutedText());
+        textRight(canvas, fonts.bodyBold(), 8, RIGHT, detailsY - 13,
+                "Rendimiento neto anual: " + percent(result.netAnnualYield().setScale(4, java.math.RoundingMode.HALF_UP)),
+                theme.primary());
+        wrappedText(canvas, fonts.body(), 7.2f, LEFT, detailsY - 27, CONTENT_WIDTH,
                 10, result.withholdingNote(), theme.mutedText(), 2);
     }
 
+    private static boolean hasCharges(InvestmentService.SimulationResult result) {
+        return result.charges() != null && result.charges().signum() > 0;
+    }
+
     private void drawSchedule(PDPageContentStream canvas, FontSet fonts, PdfTheme theme,
-            List<InvestmentCalculator.Payment> payments, String currency) throws IOException {
-        float titleY = PAGE_HEIGHT - 353;
+            List<InvestmentCalculator.Payment> payments, String currency, boolean withCharges) throws IOException {
+        float titleY = PAGE_HEIGHT - 363;
         text(canvas, fonts.headingBold(), 10, LEFT, titleY, "CRONOGRAMA DE FLUJOS", theme.secondary());
         text(canvas, fonts.body(), 7.5f, LEFT, titleY - 16,
                 "Los intereses corresponden a cada período y el capital se devuelve al vencimiento.", theme.mutedText());
 
         float tableTop = titleY - 33;
         float rowHeight = 23;
-        float[] columns = {LEFT, LEFT + 33, LEFT + 102, LEFT + 136, LEFT + 224, LEFT + 305, LEFT + 389, LEFT + 456, RIGHT};
-        String[] headers = {"Pago", "Fecha", "Días", "Interés bruto", "Retención IR", "Interés neto", "Capital", "Total"};
+        float[] columns = withCharges
+                ? new float[] {LEFT, LEFT + 28, LEFT + 88, LEFT + 114, LEFT + 186, LEFT + 253, LEFT + 325, LEFT + 387, LEFT + 449, RIGHT}
+                : new float[] {LEFT, LEFT + 33, LEFT + 102, LEFT + 136, LEFT + 224, LEFT + 305, LEFT + 389, LEFT + 456, RIGHT};
+        String[] headers = withCharges
+                ? new String[] {"Pago", "Fecha", "Días", "Interés bruto", "Retención IR", "Interés neto", "Costos", "Capital", "Total"}
+                : new String[] {"Pago", "Fecha", "Días", "Interés bruto", "Retención IR", "Interés neto", "Capital", "Total"};
         fillRect(canvas, LEFT, tableTop - rowHeight, CONTENT_WIDTH, rowHeight, theme.primary());
         Color headerText = contrast(theme.primary());
         for (int index = 0; index < headers.length; index++) {
@@ -152,17 +179,19 @@ public class InvestmentPdfService {
             fillRect(canvas, LEFT, y, CONTENT_WIDTH, rowHeight,
                     index % 2 == 0 ? theme.surface() : theme.muted());
             line(canvas, LEFT, y, RIGHT, y, theme.border(), 0.4f);
-            String[] values = {
+            List<String> values = new java.util.ArrayList<>(List.of(
                     String.valueOf(payment.number()), payment.paymentDate().format(DATE), String.valueOf(payment.periodDays()),
                     money(payment.grossInterest(), currency), money(payment.withholding(), currency),
-                    money(payment.netInterest(), currency), money(payment.capital(), currency), money(payment.totalPayment(), currency)
-            };
-            for (int column = 0; column < values.length; column++) {
-                PDFont font = column == values.length - 1 ? fonts.bodyBold() : fonts.body();
+                    money(payment.netInterest(), currency)));
+            if (withCharges) values.add(money(payment.charges(), currency));
+            values.add(money(payment.capital(), currency));
+            values.add(money(payment.totalPayment(), currency));
+            for (int column = 0; column < values.size(); column++) {
+                PDFont font = column == values.size() - 1 ? fonts.bodyBold() : fonts.body();
                 if (column >= 3) {
-                    textRight(canvas, font, 6.5f, columns[column + 1] - 5, y + 8, values[column], theme.foreground());
+                    textRight(canvas, font, 6.5f, columns[column + 1] - 5, y + 8, values.get(column), theme.foreground());
                 } else {
-                    text(canvas, font, 6.5f, columns[column] + 5, y + 8, values[column], theme.foreground());
+                    text(canvas, font, 6.5f, columns[column] + 5, y + 8, values.get(column), theme.foreground());
                 }
             }
         }

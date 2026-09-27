@@ -2,6 +2,7 @@ package com.edu.uta.backend.investment;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.List;
 import java.util.Locale;
 import java.util.NoSuchElementException;
 
@@ -23,7 +24,7 @@ public class InvestmentGoalService {
     }
 
     public record GoalRequest(long productId, BigDecimal targetAmount, Integer termValue, String termUnit,
-                              String payoutFrequency) {}
+                              String payoutFrequency, List<Long> optionalCharges) {}
 
     /** {@code coveredByMinimum}: el monto mínimo del producto ya alcanza o supera la meta. */
     public record GoalResult(BigDecimal requiredAmount, BigDecimal targetAmount, boolean coveredByMinimum,
@@ -41,8 +42,8 @@ public class InvestmentGoalService {
 
         BigDecimal minimum = product.minimumAmount();
         BigDecimal maximum = product.maximumAmount();
-        InvestmentService.SimulationResult atMinimum = simulate(request, minimum);
-        if (atMinimum.maturityValue().compareTo(target) >= 0) {
+        InvestmentService.SimulationResult atMinimum = attempt(request, minimum);
+        if (atMinimum != null && atMinimum.maturityValue().compareTo(target) >= 0) {
             return new GoalResult(minimum, target, true, atMinimum);
         }
         InvestmentService.SimulationResult atMaximum = simulate(request, maximum);
@@ -59,8 +60,8 @@ public class InvestmentGoalService {
         while (high.subtract(low).compareTo(CENT) > 0) {
             BigDecimal middle = low.add(high).divide(BigDecimal.TWO, 2, RoundingMode.HALF_UP);
             if (middle.compareTo(low) <= 0 || middle.compareTo(high) >= 0) break;
-            InvestmentService.SimulationResult attempt = simulate(request, middle);
-            if (attempt.maturityValue().compareTo(target) >= 0) {
+            InvestmentService.SimulationResult attempt = attempt(request, middle);
+            if (attempt != null && attempt.maturityValue().compareTo(target) >= 0) {
                 high = middle;
                 best = attempt;
             } else {
@@ -72,6 +73,16 @@ public class InvestmentGoalService {
 
     private InvestmentService.SimulationResult simulate(GoalRequest request, BigDecimal amount) {
         return investments.simulate(new InvestmentService.SimulationRequest(request.productId(), amount,
-                request.termValue(), request.termUnit(), request.payoutFrequency()));
+                request.termValue(), request.termUnit(), request.payoutFrequency(),
+                request.optionalCharges() == null ? List.of() : request.optionalCharges()));
+    }
+
+    /** Con costos fijos, un capital pequeño puede no cubrirlos: ese monto simplemente no alcanza la meta. */
+    private InvestmentService.SimulationResult attempt(GoalRequest request, BigDecimal amount) {
+        try {
+            return simulate(request, amount);
+        } catch (IllegalArgumentException exception) {
+            return null;
+        }
     }
 }

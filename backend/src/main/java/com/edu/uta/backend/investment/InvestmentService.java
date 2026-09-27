@@ -22,6 +22,8 @@ public class InvestmentService {
     private static final Set<String> CALCULATION_METHODS = Set.of("SIMPLE", "COMPOUND");
     private static final Set<String> CAPITALIZATION_FREQUENCIES = Set.of(
             "MONTHLY", "BIMONTHLY", "QUARTERLY", "SEMIANNUAL", "ANNUAL");
+    private static final int MAXIMUM_CHARGES = 10;
+    private static final BigDecimal HUNDRED = BigDecimal.valueOf(100);
 
     private final JdbcTemplate jdbc;
     private final InvestmentCalculator calculator;
@@ -39,6 +41,15 @@ public class InvestmentService {
     public record TaxRuleInput(String name, String ruleType, BigDecimal value, String base, boolean active,
             Integer exemptFromTermDays) {}
     public record WithholdingDetail(String name, BigDecimal percentage, BigDecimal amount) {}
+    /** Costo adicional de la institución; independiente de la retención de Impuesto a la Renta. */
+    /** {@code description}: qué cubre o a qué se destina; obligatoria en los opcionales para que el cliente decida. */
+    /** {@code percentage}: porcentaje del interés generado que se descuenta en cada pago de intereses. */
+    public record ProductCharge(Long id, String name, BigDecimal percentage, boolean mandatory, boolean active,
+            int position, String description) {}
+    public record ChargeInput(String name, BigDecimal percentage, boolean mandatory, boolean active,
+            String description) {}
+    public record ChargeDetail(long id, String name, BigDecimal percentage, boolean mandatory, BigDecimal amount,
+            String description) {}
     public record TermConfiguration(String unit, String selection, int minimumValue, int maximumValue,
             int increment, List<Integer> options) {}
 
@@ -48,7 +59,7 @@ public class InvestmentService {
             String calculationMethod, String rateType, String capitalizationFrequency, String calendarMode, int dayCountBasis,
             BigDecimal withholdingRate, boolean active, OffsetDateTime createdAt, OffsetDateTime updatedAt,
             List<Integer> terms, List<String> payoutFrequencies, List<RateTier> rates, List<TaxRule> taxRules,
-            List<TermConfiguration> termConfigurations) {}
+            List<TermConfiguration> termConfigurations, List<ProductCharge> charges) {}
 
     public record RateInput(String label, BigDecimal minimumAmount, BigDecimal maximumAmount,
             int minimumTermDays, int maximumTermDays, int minimumTermValue, int maximumTermValue,
@@ -59,11 +70,22 @@ public class InvestmentService {
             String rateType, String capitalizationFrequency, String calendarMode, int dayCountBasis, BigDecimal withholdingRate,
             boolean active, List<Integer> terms, List<String> payoutFrequencies, List<RateInput> rates,
             String termUnit, String termSelection, Integer minimumTermValue, Integer maximumTermValue,
-            Integer termIncrement, List<TaxRuleInput> taxRules, List<TermConfiguration> termConfigurations) {}
+            Integer termIncrement, List<TaxRuleInput> taxRules, List<TermConfiguration> termConfigurations,
+            List<ChargeInput> charges) {}
 
+    /** {@code optionalCharges}: costos opcionales del plan que el cliente decidió agregar. */
     public record SimulationRequest(long productId, BigDecimal amount, Integer termValue, String termUnit,
-            String payoutFrequency) {}
+            String payoutFrequency, List<Long> optionalCharges) {
+        public SimulationRequest(long productId, BigDecimal amount, Integer termValue, String termUnit,
+                String payoutFrequency) {
+            this(productId, amount, termValue, termUnit, payoutFrequency, List.of());
+        }
+    }
 
+    /**
+     * {@code netAnnualYield}: rendimiento anual que realmente recibe el cliente después de retención y costos,
+     * expresado igual que la tasa ofrecida (nominal para interés simple, efectiva para compuesto).
+     */
     public record SimulationResult(String reference, LocalDate simulationDate, long productId,
             String productName, String currency, BigDecimal amount, int termDays, int normalizedTermDays, String rateLabel,
             int termValue, String termUnit,
@@ -71,7 +93,8 @@ public class InvestmentService {
             String capitalizationFrequency, int dayCountBasis, BigDecimal withholdingRate,
             BigDecimal grossInterest, BigDecimal withholding, BigDecimal netInterest,
             BigDecimal maturityValue, LocalDate maturityDate, List<WithholdingDetail> withholdingDetails,
-            String withholdingNote, List<InvestmentCalculator.Payment> payments) {}
+            String withholdingNote, List<InvestmentCalculator.Payment> payments, BigDecimal charges,
+            List<ChargeDetail> chargeDetails, BigDecimal netAnnualYield) {}
 
     public List<Product> publicProducts() { return loadProducts(true); }
     public List<Product> adminProducts() { return loadProducts(false); }
@@ -98,7 +121,17 @@ public class InvestmentService {
                 rs.getString("capitalization_frequency"), rs.getString("calendar_mode"), rs.getInt("day_count_basis"),
                 rs.getBigDecimal("withholding_rate"), rs.getBoolean("active"),
                 rs.getObject("created_at", OffsetDateTime.class), rs.getObject("updated_at", OffsetDateTime.class),
-                termsFor(id), payoutFrequenciesFor(id), ratesFor(id), taxRulesFor(id), termConfigurationsFor(id));
+                termsFor(id), payoutFrequenciesFor(id), ratesFor(id), taxRulesFor(id), termConfigurationsFor(id),
+                chargesFor(id));
+    }
+
+    private List<ProductCharge> chargesFor(long productId) {
+        return jdbc.query("""
+                SELECT id, name, value, mandatory, active, position, description
+                FROM investment_product_charges WHERE product_id = ? ORDER BY position, id
+                """, (rs, row) -> new ProductCharge(rs.getLong("id"), rs.getString("name"),
+                rs.getBigDecimal("value"), rs.getBoolean("mandatory"), rs.getBoolean("active"),
+                rs.getInt("position"), rs.getString("description")), productId);
     }
 
     private List<Integer> termsFor(long productId) {
@@ -208,15 +241,19 @@ public class InvestmentService {
             throw new IllegalArgumentException("Selecciona una unidad y un plazo válidos.");
         }
         int normalizedTermDays = normalizedTermDays(request.termValue(), request.termUnit());
-        if (normalizedTermDays < MINIMUM_FIXED_TERM_DAYS) {
-            throw new IllegalArgumentException("El plazo mínimo para un depósito a plazo fijo es de 31 días.");
-        }
-        if (normalizedTermDays < product.minimumTermDays() || normalizedTermDays > product.maximumTermDays()) {
-            throw new IllegalArgumentException("El plazo está fuera del rango permitido para este plan.");
-        }
+        // Un mismo plazo usa los días reales del calendario para todo (tramo de tasa, límites, interés y exención):
+        // 2 meses desde el 27 de septiembre son 61 días y caen en el tramo de 61–90 días.
         LocalDate today = LocalDate.now();
         LocalDate maturityDate = maturityDate(today, request.termValue(), request.termUnit());
         int actualTermDays = Math.toIntExact(ChronoUnit.DAYS.between(today, maturityDate));
+        if (actualTermDays < MINIMUM_FIXED_TERM_DAYS) {
+            throw new IllegalArgumentException("El plazo mínimo para un depósito a plazo fijo es de 31 días.");
+        }
+        if (actualTermDays < product.minimumTermDays() || actualTermDays > product.maximumTermDays()) {
+            throw new IllegalArgumentException("El plazo equivale a " + actualTermDays
+                    + " días y este plan admite entre " + product.minimumTermDays() + " y "
+                    + product.maximumTermDays() + " días.");
+        }
         if (!product.payoutFrequencies().contains(request.payoutFrequency())
                 || !isFrequencyCompatible(request.payoutFrequency(), normalizedTermDays)) {
             throw new IllegalArgumentException("Selecciona una forma de pago permitida para este plan.");
@@ -224,8 +261,8 @@ public class InvestmentService {
         RateTier rate = product.rates().stream()
                 .filter(item -> request.amount().compareTo(item.minimumAmount()) >= 0
                         && request.amount().compareTo(item.maximumAmount()) <= 0
-                        && normalizedTermDays >= item.minimumTermDays()
-                        && normalizedTermDays <= item.maximumTermDays())
+                        && actualTermDays >= item.minimumTermDays()
+                        && actualTermDays <= item.maximumTermDays())
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("No existe una tasa configurada para la combinación de monto y plazo."));
         List<TaxRule> applicableWithholdings = product.taxRules().stream()
@@ -235,10 +272,19 @@ public class InvestmentService {
         List<InvestmentCalculator.TaxRule> taxRules = applicableWithholdings.stream()
                 .map(rule -> new InvestmentCalculator.TaxRule(rule.ruleType(), rule.value(), rule.base(), rule.active()))
                 .toList();
+        List<Long> requestedOptional = request.optionalCharges() == null ? List.of() : request.optionalCharges();
+        List<ProductCharge> appliedCharges = product.charges().stream()
+                .filter(ProductCharge::active)
+                .filter(charge -> charge.mandatory() || requestedOptional.contains(charge.id()))
+                .toList();
+        List<InvestmentCalculator.Charge> calculatorCharges = appliedCharges.stream()
+                .map(charge -> new InvestmentCalculator.Charge(charge.id(), charge.name(), charge.percentage()))
+                .toList();
         InvestmentCalculator.Projection projection = calculator.calculate(request.amount(), rate.annualRate(),
                 actualTermDays, product.dayCountBasis(), product.withholdingRate(), request.payoutFrequency(),
                 product.calculationMethod(), product.rateType(), product.capitalizationFrequency(), today, taxRules,
-                "DAYS".equals(request.termUnit()) ? "FIXED_DAYS" : "CALENDAR");
+                "DAYS".equals(request.termUnit()) ? "FIXED_DAYS" : "CALENDAR", calculatorCharges);
+        validateCharges(projection);
         String unitReference = switch (request.termUnit()) {
             case "MONTHS" -> "M";
             case "YEARS" -> "Y";
@@ -250,12 +296,51 @@ public class InvestmentService {
                 .map(rule -> new WithholdingDetail(rule.name(), rule.value(), projection.withholding()))
                 .toList();
         String withholdingNote = withholdingNote(product.taxRules(), applicableWithholdings, actualTermDays);
+        List<ChargeDetail> chargeDetails = new ArrayList<>();
+        for (int index = 0; index < appliedCharges.size(); index++) {
+            ProductCharge charge = appliedCharges.get(index);
+            chargeDetails.add(new ChargeDetail(charge.id(), charge.name(), charge.percentage(), charge.mandatory(),
+                    projection.chargeDetails().get(index).amount(), charge.description()));
+        }
+        BigDecimal netAnnualYield = netAnnualYield(request.amount(), projection.maturityValue(), actualTermDays,
+                product.dayCountBasis(), product.calculationMethod());
         return new SimulationResult(reference, today, product.id(), product.name(), product.currency(), request.amount(),
                 actualTermDays, normalizedTermDays, rate.label(), request.termValue(), request.termUnit(), rate.annualRate(), product.calculationMethod(), product.rateType(),
                 request.payoutFrequency(), product.capitalizationFrequency(), product.dayCountBasis(),
                 product.withholdingRate(), projection.grossInterest(), projection.withholding(),
                 projection.netInterest(), projection.maturityValue(), projection.maturityDate(), withholdingDetails,
-                withholdingNote, projection.payments());
+                withholdingNote, projection.payments(), projection.charges(), List.copyOf(chargeDetails), netAnnualYield);
+    }
+
+    /**
+     * Los costos no pueden comerse el capital: en cada pago intermedio deben caber en el interés neto del período
+     * y en total no pueden superar el interés neto del plazo.
+     */
+    private void validateCharges(InvestmentCalculator.Projection projection) {
+        if (projection.charges().signum() == 0) return;
+        boolean negativePayment = projection.payments().stream()
+                .anyMatch(payment -> payment.totalPayment().signum() < 0);
+        if (negativePayment || projection.charges().compareTo(projection.netInterest()) > 0) {
+            throw new IllegalArgumentException(String.format(java.util.Locale.ROOT,
+                    "Los costos adicionales ($%.2f) superan el rendimiento neto ($%.2f) para este monto y plazo. "
+                            + "Aumenta el monto o el plazo, o quita los costos opcionales.",
+                    projection.charges(), projection.netInterest()));
+        }
+    }
+
+    /**
+     * Rendimiento anual neto: lo que gana el cliente sobre su capital, llevado a un año. Para interés simple se
+     * anualiza proporcionalmente (comparable con la tasa nominal); para compuesto, de forma exponencial
+     * (comparable con la tasa efectiva).
+     */
+    private BigDecimal netAnnualYield(BigDecimal principal, BigDecimal maturityValue, int termDays, int basis,
+            String calculationMethod) {
+        double growth = maturityValue.doubleValue() / principal.doubleValue();
+        double years = termDays / (double) basis;
+        double yield = "COMPOUND".equals(calculationMethod)
+                ? Math.pow(growth, 1 / years) - 1
+                : (growth - 1) / years;
+        return BigDecimal.valueOf(yield).setScale(6, java.math.RoundingMode.HALF_UP);
     }
 
     private String withholdingNote(List<TaxRule> configured, List<TaxRule> applicable, int termDays) {
@@ -388,6 +473,18 @@ public class InvestmentService {
                         rule.base(), rule.active(), rule.exemptFromTermDays(), index);
             }
         }
+        jdbc.update("DELETE FROM investment_product_charges WHERE product_id = ?", productId);
+        List<ChargeInput> charges = input.charges() == null ? List.of() : input.charges();
+        for (int index = 0; index < charges.size(); index++) {
+            ChargeInput charge = charges.get(index);
+            jdbc.update("""
+                    INSERT INTO investment_product_charges
+                    (product_id, name, charge_type, value, base, frequency, mandatory, active, position, description)
+                    VALUES (?, ?, 'PERCENTAGE', ?, 'GROSS_INTEREST', 'PER_PAYMENT', ?, ?, ?, ?)
+                    """, productId, charge.name().trim(), charge.percentage(),
+                    charge.mandatory(), charge.active(), index,
+                    charge.description() == null || charge.description().isBlank() ? null : charge.description().trim());
+        }
     }
 
     private void validate(ProductInput input) {
@@ -471,6 +568,35 @@ public class InvestmentService {
                     throw new IllegalArgumentException("El umbral de exención no puede ser menor a 180 días.");
             }
         }
+        validateCharges(input);
+    }
+
+    private void validateCharges(ProductInput input) {
+        List<ChargeInput> charges = input.charges() == null ? List.of() : input.charges();
+        if (charges.size() > MAXIMUM_CHARGES)
+            throw new IllegalArgumentException("Configura como máximo " + MAXIMUM_CHARGES + " costos adicionales.");
+        for (ChargeInput charge : charges) {
+            if (charge == null || charge.name() == null || charge.name().isBlank() || charge.name().trim().length() > 120)
+                throw new IllegalArgumentException("Cada costo adicional necesita un nombre de hasta 120 caracteres.");
+            String description = charge.description() == null ? "" : charge.description().trim();
+            if (!charge.mandatory() && description.isEmpty())
+                throw new IllegalArgumentException("Explica al cliente qué incluye el costo opcional \"" + charge.name().trim() + "\".");
+            if (description.length() > 300)
+                throw new IllegalArgumentException("La descripción de \"" + charge.name().trim() + "\" no puede superar 300 caracteres.");
+            if (charge.percentage() == null || charge.percentage().signum() <= 0)
+                throw new IllegalArgumentException("El porcentaje de \"" + charge.name().trim() + "\" debe ser mayor que cero.");
+        }
+        // Con todos los costos activos (también los opcionales, por si el cliente los elige) y la retención, al
+        // cliente le debe quedar parte del interés: así la simulación nunca falla por costos.
+        BigDecimal chargesPercentage = charges.stream().filter(ChargeInput::active).map(ChargeInput::percentage)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal withholdingPercentage = input.taxRules() == null ? BigDecimal.ZERO : input.taxRules().stream()
+                .filter(rule -> rule != null && rule.active() && rule.value() != null).map(TaxRuleInput::value)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (chargesPercentage.add(withholdingPercentage).compareTo(HUNDRED) >= 0)
+            throw new IllegalArgumentException("Los costos (" + chargesPercentage.stripTrailingZeros().toPlainString()
+                    + " %) y la retención (" + withholdingPercentage.stripTrailingZeros().toPlainString()
+                    + " %) se llevarían todo el interés del cliente. Deben sumar menos del 100 %.");
     }
 
     private void validateRateCoverage(ProductInput input, List<TermConfiguration> configurations) {
