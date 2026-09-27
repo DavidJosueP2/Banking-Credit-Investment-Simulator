@@ -114,7 +114,7 @@ public class InvestmentPdfService {
                 money(result.amount(), result.currency()), theme.foreground());
         metric(canvas, fonts, theme, LEFT + 180, boxY + 31, "INTERÉS NETO",
                 money(result.netInterest(), result.currency()), theme.primary());
-        metric(canvas, fonts, theme, LEFT + 350, boxY + 31, "VALOR ESTIMADO",
+        metric(canvas, fonts, theme, LEFT + 350, boxY + 31, "TOTAL ESTIMADO A RECIBIR",
                 money(result.maturityValue(), result.currency()), theme.secondary());
 
         float detailsY = boxY - 21;
@@ -123,12 +123,14 @@ public class InvestmentPdfService {
         text(canvas, fonts.body(), 8, 170, detailsY, "Tasa anual: " + percent(result.annualRate()), theme.mutedText());
         text(canvas, fonts.body(), 8, 300, detailsY, "Pago: " + frequency(result.payoutFrequency()), theme.mutedText());
         text(canvas, fonts.body(), 8, 430, detailsY,
-                "Retención: " + money(result.withholding(), result.currency()), theme.mutedText());
+                "Retención IR: " + money(result.withholding(), result.currency()), theme.mutedText());
+        wrappedText(canvas, fonts.body(), 7.2f, LEFT, detailsY - 15, CONTENT_WIDTH,
+                10, result.withholdingNote(), theme.mutedText(), 2);
     }
 
     private void drawSchedule(PDPageContentStream canvas, FontSet fonts, PdfTheme theme,
             List<InvestmentCalculator.Payment> payments, String currency) throws IOException {
-        float titleY = PAGE_HEIGHT - 330;
+        float titleY = PAGE_HEIGHT - 353;
         text(canvas, fonts.headingBold(), 10, LEFT, titleY, "CRONOGRAMA DE FLUJOS", theme.secondary());
         text(canvas, fonts.body(), 7.5f, LEFT, titleY - 16,
                 "Los intereses corresponden a cada período y el capital se devuelve al vencimiento.", theme.mutedText());
@@ -136,7 +138,7 @@ public class InvestmentPdfService {
         float tableTop = titleY - 33;
         float rowHeight = 23;
         float[] columns = {LEFT, LEFT + 33, LEFT + 102, LEFT + 136, LEFT + 224, LEFT + 305, LEFT + 389, LEFT + 456, RIGHT};
-        String[] headers = {"Pago", "Fecha", "Días", "Interés bruto", "Retención", "Interés neto", "Capital", "Total"};
+        String[] headers = {"Pago", "Fecha", "Días", "Interés bruto", "Retención IR", "Interés neto", "Capital", "Total"};
         fillRect(canvas, LEFT, tableTop - rowHeight, CONTENT_WIDTH, rowHeight, theme.primary());
         Color headerText = contrast(theme.primary());
         for (int index = 0; index < headers.length; index++) {
@@ -246,6 +248,30 @@ public class InvestmentPdfService {
             String value, Color color) throws IOException {
         float width = font.getStringWidth(value) / 1000f * size;
         text(canvas, font, size, right - width, y, value, color);
+    }
+
+    private void wrappedText(PDPageContentStream canvas, PDFont font, float size, float x, float y,
+            float maxWidth, float lineHeight, String value, Color color, int maxLines) throws IOException {
+        if (value == null || value.isBlank()) return;
+        String[] words = value.trim().split("\\s+");
+        StringBuilder line = new StringBuilder();
+        int lineNumber = 0;
+        for (int index = 0; index < words.length && lineNumber < maxLines; index++) {
+            String candidate = line.isEmpty() ? words[index] : line + " " + words[index];
+            float candidateWidth = font.getStringWidth(candidate) / 1000f * size;
+            if (candidateWidth <= maxWidth) {
+                line.setLength(0);
+                line.append(candidate);
+                continue;
+            }
+            text(canvas, font, size, x, y - lineNumber * lineHeight, line.toString(), color);
+            lineNumber++;
+            line.setLength(0);
+            line.append(words[index]);
+        }
+        if (!line.isEmpty() && lineNumber < maxLines) {
+            text(canvas, font, size, x, y - lineNumber * lineHeight, line.toString(), color);
+        }
     }
 
     private void fillRect(PDPageContentStream canvas, float x, float y, float width, float height, Color color)

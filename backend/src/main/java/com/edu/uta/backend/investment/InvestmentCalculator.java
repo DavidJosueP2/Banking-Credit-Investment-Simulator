@@ -77,7 +77,8 @@ public class InvestmentCalculator {
 
         while (elapsed < termDays) {
             LocalDate previousDate = startDate.plusDays(elapsed);
-            LocalDate nextDate = nextPaymentDate(previousDate, payoutFrequency, termDays - elapsed, calendarMode);
+            LocalDate nextDate = nextPaymentDate(startDate, previousDate, payoutFrequency,
+                    termDays - elapsed, number, calendarMode);
             int periodDays = Math.toIntExact(ChronoUnit.DAYS.between(previousDate, nextDate));
             periodDays = Math.min(periodDays, termDays - elapsed);
             elapsed += periodDays;
@@ -86,9 +87,9 @@ public class InvestmentCalculator {
             boolean finalPayment = elapsed == termDays;
             BigDecimal legacyTax = "COMPOUND".equals(calculationMethod) && !finalPayment
                     ? BigDecimal.ZERO : gross.multiply(withholdingRate);
-            BigDecimal tax = legacyTax.add(taxes(taxRules, gross, balance, gross,
-                    !"COMPOUND".equals(calculationMethod) || finalPayment))
-                    .setScale(2, RoundingMode.HALF_UP);
+            BigDecimal maximumDeduction = gross.add(finalPayment ? balance : BigDecimal.ZERO);
+            BigDecimal tax = legacyTax.add(taxes(taxRules, gross, balance, gross, finalPayment))
+                    .min(maximumDeduction).setScale(2, RoundingMode.HALF_UP);
             BigDecimal net = gross.subtract(tax).setScale(2, RoundingMode.HALF_UP);
             BigDecimal capital = finalPayment ? principal.setScale(2, RoundingMode.HALF_UP)
                     : BigDecimal.ZERO.setScale(2);
@@ -115,19 +116,22 @@ public class InvestmentCalculator {
 
     private BigDecimal taxes(List<TaxRule> rules, BigDecimal gross, BigDecimal capital, BigDecimal total,
             boolean finalPayment) {
-        return rules.stream().filter(TaxRule::active).filter(rule -> finalPayment).map(rule -> {
+        return rules.stream().filter(TaxRule::active)
+                .filter(rule -> finalPayment || "GROSS_INTEREST".equals(rule.base())).map(rule -> {
             BigDecimal base = switch (rule.base()) {
                 case "CAPITAL" -> capital;
                 case "TOTAL" -> total.add(capital);
                 default -> gross;
             };
-            return "PERCENTAGE".equals(rule.ruleType())
+            BigDecimal calculated = "PERCENTAGE".equals(rule.ruleType())
                     ? base.multiply(rule.value()).divide(BigDecimal.valueOf(100), 8, RoundingMode.HALF_UP)
                     : rule.value();
+            return calculated.min(base.max(BigDecimal.ZERO));
         }).reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
-    private LocalDate nextPaymentDate(LocalDate previousDate, String frequency, int remainingDays, String calendarMode) {
+    private LocalDate nextPaymentDate(LocalDate startDate, LocalDate previousDate, String frequency,
+            int remainingDays, int paymentNumber, String calendarMode) {
         if ("AT_MATURITY".equals(frequency)) return previousDate.plusDays(remainingDays);
         if ("CALENDAR".equals(calendarMode)) {
             int months = switch (frequency) {
@@ -138,14 +142,16 @@ public class InvestmentCalculator {
                 case "ANNUAL" -> 12;
                 default -> throw new IllegalArgumentException("La frecuencia de pago no es válida.");
             };
-            return previousDate.plusMonths(months);
+            LocalDate maturity = previousDate.plusDays(remainingDays);
+            LocalDate scheduled = startDate.plusMonths((long) months * paymentNumber);
+            return scheduled.isAfter(maturity) ? maturity : scheduled;
         }
         int days = switch (frequency) {
             case "MONTHLY" -> 30;
             case "BIMONTHLY" -> 60;
             case "QUARTERLY" -> 90;
             case "SEMIANNUAL" -> 180;
-            case "ANNUAL" -> 365;
+            case "ANNUAL" -> 360;
             default -> throw new IllegalArgumentException("La frecuencia de pago no es válida.");
         };
         return previousDate.plusDays(Math.min(days, remainingDays));
@@ -162,7 +168,7 @@ public class InvestmentCalculator {
             case "BIMONTHLY" -> 60;
             case "QUARTERLY" -> 90;
             case "SEMIANNUAL" -> 180;
-            case "ANNUAL" -> 365;
+            case "ANNUAL" -> basis;
             default -> throw new IllegalArgumentException("La frecuencia de capitalización no es válida.");
         };
         double periods = (double) periodDays / capitalizationDays;

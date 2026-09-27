@@ -52,7 +52,6 @@ import {
   type ProductoSimulador,
 } from '@/types'
 import { useAuth } from '@/app/providers/auth-provider'
-import { useInstitutionSettings } from '@/app/providers/settings-provider'
 
 // ─── Formateador de moneda USD ───────────────────────────────────────────────
 const fmtCurrency = new Intl.NumberFormat('es-EC', {
@@ -262,7 +261,6 @@ function exportarSimulacionPdf(data: SimulacionClienteResponse, clienteNombre?: 
 // ─── Componente Principal del Simulador ─────────────────────────────────────
 export function SimuladorClientePage() {
   const { account, hasPermission } = useAuth()
-  const { assets } = useInstitutionSettings()
   const isAsesor = hasPermission('credit.products.manage') || (account?.roles?.includes('credit_advisor') ?? false)
   const usuario = account ? { nombre: account.fullName || account.username } : null
 

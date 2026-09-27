@@ -81,8 +81,19 @@ class InvestmentCalculatorTests {
                 LocalDate.of(2026, 1, 31), List.of(), "CALENDAR");
 
         assertEquals(LocalDate.of(2026, 2, 28), result.payments().get(0).paymentDate());
-        assertEquals(LocalDate.of(2026, 3, 28), result.payments().get(1).paymentDate());
+        assertEquals(LocalDate.of(2026, 3, 31), result.payments().get(1).paymentDate());
         assertEquals(LocalDate.of(2026, 4, 1), result.payments().get(2).paymentDate());
+    }
+
+    @Test
+    void keepsTheOriginalCalendarAnchorForAWholeNumberOfMonths() {
+        var result = calculator.calculate(new BigDecimal("1000.00"), new BigDecimal("0.12"),
+                59, 360, BigDecimal.ZERO, "MONTHLY", "SIMPLE", "NOMINAL_ANNUAL", null,
+                LocalDate.of(2026, 1, 31), List.of(), "CALENDAR");
+
+        assertEquals(2, result.payments().size());
+        assertEquals(LocalDate.of(2026, 2, 28), result.payments().get(0).paymentDate());
+        assertEquals(LocalDate.of(2026, 3, 31), result.payments().get(1).paymentDate());
     }
 
     @Test
@@ -96,5 +107,46 @@ class InvestmentCalculatorTests {
 
         assertEquals(new BigDecimal("2.01"), result.withholding());
         assertEquals(new BigDecimal("2.01"), result.payments().getFirst().withholding());
+    }
+
+    @Test
+    void appliesCapitalChargeOnlyWhenCapitalIsReturned() {
+        var rules = List.of(new InvestmentCalculator.TaxRule(
+                "FIXED", new BigDecimal("100.00"), "CAPITAL", true));
+
+        var result = calculator.calculate(new BigDecimal("500.00"), new BigDecimal("0.06"),
+                60, 360, BigDecimal.ZERO, "MONTHLY", "SIMPLE", "NOMINAL_ANNUAL", null,
+                LocalDate.of(2026, 1, 1), rules);
+
+        assertEquals(new BigDecimal("0.00"), result.payments().getFirst().withholding());
+        assertEquals(new BigDecimal("100.00"), result.payments().getLast().withholding());
+        assertEquals(new BigDecimal("405.00"), result.maturityValue());
+    }
+
+    @Test
+    void capsAChargeAtTheAvailableInterestAndNeverProducesANegativePayment() {
+        var rules = List.of(new InvestmentCalculator.TaxRule(
+                "FIXED", new BigDecimal("100.00"), "GROSS_INTEREST", true));
+
+        var result = calculator.calculate(new BigDecimal("500.00"), new BigDecimal("0.06"),
+                60, 360, BigDecimal.ZERO, "MONTHLY", "SIMPLE", "NOMINAL_ANNUAL", null,
+                LocalDate.of(2026, 1, 1), rules);
+
+        assertEquals(new BigDecimal("2.50"), result.payments().getFirst().withholding());
+        assertEquals(new BigDecimal("0.00"), result.payments().getFirst().totalPayment());
+        assertEquals(new BigDecimal("500.00"), result.maturityValue());
+    }
+
+    @Test
+    void usesCommercialYearsForFixedDayAnnualPayments() {
+        var result = calculator.calculate(new BigDecimal("1000.00"), new BigDecimal("0.06"),
+                720, 360, BigDecimal.ZERO, "ANNUAL", "SIMPLE", "NOMINAL_ANNUAL", null,
+                LocalDate.of(2026, 1, 1), List.of(), "FIXED_DAYS");
+
+        assertEquals(2, result.payments().size());
+        assertEquals(360, result.payments().getFirst().periodDays());
+        assertEquals(360, result.payments().getLast().periodDays());
+        assertEquals(new BigDecimal("120.00"), result.grossInterest());
+        assertEquals(new BigDecimal("1120.00"), result.maturityValue());
     }
 }
