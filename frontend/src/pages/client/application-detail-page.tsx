@@ -37,7 +37,7 @@ import { CreditVisuals } from '@/features/applications/credit-visuals'
 import { CreditProgress, InvestmentProgress, InvestmentVisuals } from '@/features/applications/progress-panels'
 import { formatDateTime } from '@/lib/formatters'
 
-const BiometricSignature = lazy(() => import('@/features/applications/biometric-signature'))
+import BiometricSignature from '@/features/applications/biometric-signature'
 
 export function ApplicationDetailPage() {
   const { settings } = useInstitutionSettings()
@@ -98,12 +98,10 @@ export function ApplicationDetailPage() {
             Antes de enviar, adjunta los documentos que respalden tu solicitud (opcional) y confirma que eres tú con una prueba de vida.
           </p>
           <div className="mt-5">
-            <Suspense fallback={<p className="text-sm text-muted-foreground">Cargando verificación facial…</p>}>
-              <BiometricSignature application={application} onSubmitted={(updated) => {
-                replace(updated)
-                toast.success('Solicitud enviada', { description: 'Un asesor la revisará y verás aquí cada avance.' })
-              }} />
-            </Suspense>
+            <BiometricSignature application={application} onSubmitted={(updated) => {
+              replace(updated)
+              toast.success('Solicitud enviada', { description: 'Un asesor la revisará y verás aquí cada avance.' })
+            }} />
           </div>
         </section>
       )}
