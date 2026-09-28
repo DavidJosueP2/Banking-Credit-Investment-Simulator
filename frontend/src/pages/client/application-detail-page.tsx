@@ -1,12 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, CircleAlert, Info, Paperclip, ShieldAlert } from 'lucide-react'
-import { lazy, Suspense, useRef, useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import { useInstitutionSettings } from '@/app/providers/settings-provider'
 import { ConfirmDialog } from '@/components/shared/confirm-dialog'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Textarea } from '@/components/ui/textarea'
 import {
   ApplicationFigures,
@@ -43,6 +44,8 @@ export function ApplicationDetailPage() {
   const { settings } = useInstitutionSettings()
   const id = Number(useParams().applicationId)
   const client = useQueryClient()
+  const [documentsReviewed, setDocumentsReviewed] = useState(false)
+  const [documentsBusy, setDocumentsBusy] = useState(false)
   const query = useQuery({ queryKey: applicationKeys.mineDetail(id), queryFn: () => getMyApplication(id), enabled: Number.isFinite(id) })
 
   function replace(application: ApplicationDetail) {
@@ -65,9 +68,13 @@ export function ApplicationDetailPage() {
   const credit = application.productType === 'CREDIT'
   const approved = application.status === 'APPROVED'
   const uploadsEnabled = credit || settings.investment.documentUploadEnabled === 'true'
-  const editableDocuments = uploadsEnabled && ((application.status === 'DRAFT' && application.productAvailable) || application.status === 'OBSERVED')
+  const canUploadDocuments = uploadsEnabled && ((application.status === 'DRAFT' && application.productAvailable)
+    || ['SUBMITTED', 'IN_REVIEW', 'OBSERVED'].includes(application.status))
+  const canRemoveDocuments = uploadsEnabled && ((application.status === 'DRAFT' && application.productAvailable)
+    || application.status === 'OBSERVED')
   const canSign = application.status === 'DRAFT' && application.productAvailable
   const cancellable = ['DRAFT', 'SUBMITTED', 'OBSERVED'].includes(application.status)
+  const showDocumentsFirst = canUploadDocuments && ['DRAFT', 'SUBMITTED', 'IN_REVIEW', 'OBSERVED'].includes(application.status)
 
   return (
     <main id="contenido" className="mx-auto min-h-[65svh] max-w-6xl px-5 py-12 sm:px-8 lg:py-16">
@@ -91,17 +98,35 @@ export function ApplicationDetailPage() {
 
       <DiscontinuedNotice application={application} audience="customer" className="mt-8" />
 
+      {showDocumentsFirst && (
+        <div className="mt-8 rounded-xl border p-5 sm:p-6">
+          {canSign && <p className="mb-3 text-sm font-medium text-brand-teal">Paso 1 de 2 · Antes de enviar</p>}
+          <DocumentsPanel application={application} canUpload={canUploadDocuments} canRemove={canRemoveDocuments}
+            uploadsEnabled={uploadsEnabled} onChanged={() => void query.refetch()} onBusyChange={setDocumentsBusy} />
+        </div>
+      )}
+
       {canSign && (
-        <section className="mt-8 rounded-xl border border-brand-teal/30 bg-brand-teal/5 p-6" aria-labelledby="sign-title">
-          <h2 id="sign-title" className="text-lg">Confirma tu identidad para enviar</h2>
+        <section className="mt-6 rounded-xl border border-brand-teal/30 bg-brand-teal/5 p-5 sm:p-6" aria-labelledby="sign-title">
+          <p className="text-sm font-medium text-brand-teal">{showDocumentsFirst ? 'Paso 2 de 2 · Envío' : 'Envío'}</p>
+          <h2 id="sign-title" className="mt-2 text-lg">Firma y envía tu solicitud</h2>
           <p className="mt-1 max-w-[70ch] text-sm leading-6 text-muted-foreground">
-            Antes de enviar, adjunta los documentos que respalden tu solicitud (opcional) y confirma que eres tú con una prueba de vida.
+            {showDocumentsFirst
+              ? 'Todavía es un borrador. Revisa los documentos de arriba; la prueba de vida confirma tu identidad y envía la solicitud.'
+              : 'Todavía es un borrador. La prueba de vida confirma tu identidad y envía la solicitud.'}
           </p>
+          <label className="mt-4 flex items-start gap-3 text-sm leading-6">
+            <Checkbox checked={documentsReviewed} onCheckedChange={(value) => setDocumentsReviewed(value === true)} className="mt-1" />
+            <span>{showDocumentsFirst
+              ? 'Ya adjunté los documentos que tengo o decido enviar la solicitud sin adjuntos.'
+              : 'Entiendo que la prueba de vida enviará esta solicitud sin adjuntos.'}</span>
+          </label>
           <div className="mt-5">
             <BiometricSignature application={application} onSubmitted={(updated) => {
               replace(updated)
               toast.success('Solicitud enviada', { description: 'Un asesor la revisará y verás aquí cada avance.' })
-            }} />
+            }} disabled={!documentsReviewed || documentsBusy} />
+            {documentsBusy && <p className="mt-2 text-xs text-muted-foreground">Espera a que termine la carga de documentos antes de enviar.</p>}
           </div>
         </section>
       )}
@@ -134,7 +159,8 @@ export function ApplicationDetailPage() {
         </div>
 
         <aside className="space-y-10">
-          <DocumentsPanel application={application} editable={editableDocuments} uploadsEnabled={uploadsEnabled} onChanged={() => void query.refetch()} />
+          {!showDocumentsFirst && <DocumentsPanel application={application} canUpload={canUploadDocuments}
+            canRemove={canRemoveDocuments} uploadsEnabled={uploadsEnabled} onChanged={() => void query.refetch()} />}
           <section aria-labelledby="history-title">
             <h2 id="history-title" className="mb-4 text-xl">Seguimiento</h2>
             <Timeline events={application.events} />
@@ -209,12 +235,21 @@ function ObservationResponse({ application, onDone }: { application: Application
   )
 }
 
-function DocumentsPanel({ application, editable, uploadsEnabled, onChanged }: { application: ApplicationDetail; editable: boolean; uploadsEnabled: boolean; onChanged: () => void }) {
+function DocumentsPanel({ application, canUpload, canRemove, uploadsEnabled, onChanged, onBusyChange }: {
+  application: ApplicationDetail
+  canUpload: boolean
+  canRemove: boolean
+  uploadsEnabled: boolean
+  onChanged: () => void
+  onBusyChange?: (busy: boolean) => void
+}) {
   const input = useRef<HTMLInputElement>(null)
   const upload = useMutation({
     mutationFn: (file: File) => uploadApplicationDocument(application.id, file),
+    onMutate: () => onBusyChange?.(true),
     onSuccess: () => { onChanged(); toast.success('Documento adjuntado.') },
     onError: (error) => toast.error(messageFrom(error, 'No pudimos adjuntar el documento.')),
+    onSettled: () => onBusyChange?.(false),
   })
   const remove = useMutation({
     mutationFn: (documentId: number) => deleteApplicationDocument(application.id, documentId),
@@ -226,7 +261,7 @@ function DocumentsPanel({ application, editable, uploadsEnabled, onChanged }: { 
     <section aria-labelledby="documents-title">
       <div className="mb-4 flex items-center justify-between gap-3">
         <h2 id="documents-title" className="text-xl">Documentos</h2>
-        {editable && (
+        {canUpload && (
           <>
             <input ref={input} type="file" accept={DOCUMENT_RULES.accept} className="sr-only" tabIndex={-1}
               onChange={(event) => {
@@ -238,19 +273,20 @@ function DocumentsPanel({ application, editable, uploadsEnabled, onChanged }: { 
                 if (application.documents.length >= DOCUMENT_RULES.maxFiles) return void toast.error(`Puedes adjuntar hasta ${DOCUMENT_RULES.maxFiles} documentos.`)
                 upload.mutate(file)
               }} />
-            <Button type="button" variant="outline" size="sm" disabled={upload.isPending} onClick={() => input.current?.click()}>
+            <Button type="button" variant="outline" size="sm" disabled={upload.isPending || remove.isPending} onClick={() => input.current?.click()}>
               <Paperclip className="size-4" />{upload.isPending ? 'Subiendo…' : 'Adjuntar'}
             </Button>
           </>
         )}
       </div>
-      {editable && (
+      {canUpload && (
         <div className="mb-3 space-y-1 text-xs leading-5 text-muted-foreground">
           <p>
             {application.productType === 'CREDIT'
               ? 'Opcional. Ayudan al asesor: rol de pagos, certificado de ingresos, estado de cuenta o proforma del bien.'
               : 'Opcional. Por ejemplo: estado de cuenta o respaldo del origen de los fondos.'}
           </p>
+          {application.status !== 'DRAFT' && <p>Mientras esté pendiente puedes añadir más archivos; los enviados no se pueden quitar.</p>}
           <p className="flex gap-1.5">
             <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
             <span>
@@ -266,7 +302,7 @@ function DocumentsPanel({ application, editable, uploadsEnabled, onChanged }: { 
       <DocumentList
         documents={application.documents}
         onOpen={(document) => void openClientDocument(application.id, document.id).catch(() => toast.error('No se pudo abrir el documento.'))}
-        onDelete={editable ? (document) => remove.mutate(document.id) : undefined}
+        onDelete={canRemove ? (document) => remove.mutate(document.id) : undefined}
       />
       {application.biometricResult === 'MANUAL_REVIEW' && (
         <p className="mt-4 flex gap-2 text-xs leading-5 text-muted-foreground">
