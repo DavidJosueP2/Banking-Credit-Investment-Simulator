@@ -106,12 +106,13 @@ export function ApplicationFigures({ application }: { application: ApplicationDe
   )
 }
 
-export function ScheduleTable({ productType, schedule, highlightNext = false, paidThrough }: {
+export function ScheduleTable({ productType, schedule, highlightNext = false, paidThrough, payments = [] }: {
   productType: 'CREDIT' | 'INVESTMENT'
   schedule: Installment[]
   highlightNext?: boolean
   /** Cuotas ya cobradas de verdad; si se da, manda sobre `highlightNext` (que solo mira la fecha). */
   paidThrough?: number
+  payments?: PaymentRecord[]
 }) {
   const credit = productType === 'CREDIT'
   const today = new Date().toISOString().slice(0, 10)
@@ -119,14 +120,47 @@ export function ScheduleTable({ productType, schedule, highlightNext = false, pa
     ? schedule.find((row) => row.number > paidThrough)?.number
     : highlightNext ? schedule.find((row) => row.dueDate > today)?.number : undefined
   const hasCharges = schedule.some((row) => row.charges > 0)
+  const paymentsByNumber = new Map(payments.map((payment) => [payment.installmentNumber, payment]))
 
   return (
-    <div className="max-h-[28rem] overflow-auto rounded-xl border">
-      <Table>
+    <div className="@container min-w-0">
+      <ol className="max-h-[28rem] divide-y overflow-y-auto rounded-xl border @min-[64rem]:hidden" aria-label="Cronograma de cuotas">
+        {schedule.map((row) => {
+          const payment = paymentsByNumber.get(row.number)
+          return (
+            <li key={row.number} className={cn('space-y-3 p-4', row.number === nextNumber && 'bg-brand-teal/5')}>
+              <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
+                <div>
+                  <p className="font-medium">{credit ? 'Cuota' : 'Pago'} N.º {row.number}
+                  {paidThrough !== undefined && row.number <= paidThrough && (
+                    <CheckCircle2 className="ml-1.5 inline size-4 text-brand-teal" aria-label="Pagada" />
+                  )}
+                    {row.number === nextNumber && <span className="ml-2 text-xs text-brand-teal">Próxima</span>}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Vence {formatDate(row.dueDate)}</p>
+                </div>
+                <p className="font-medium tabular-nums">{formatCurrency(row.payment)}</p>
+              </div>
+              <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs sm:grid-cols-3">
+                {credit && <ScheduleValue label="Saldo inicial" value={formatCurrency(row.openingBalance)} />}
+                <ScheduleValue label={credit ? 'Capital' : 'Capital devuelto'} value={formatCurrency(row.principal)} />
+                <ScheduleValue label={credit ? 'Interés' : 'Interés bruto'} value={formatCurrency(row.interest)} />
+                {credit && <ScheduleValue label="Desgravamen" value={formatCurrency(row.insurance)} />}
+                {hasCharges && credit && <ScheduleValue label="Cargos" value={formatCurrency(row.charges)} />}
+                {!credit && <ScheduleValue label="Retención" value={formatCurrency(row.withholding)} />}
+                {credit && <ScheduleValue label="Saldo final" value={formatCurrency(row.closingBalance)} />}
+              </dl>
+              {payment && <PaymentSummary payment={payment} />}
+            </li>
+          )
+        })}
+      </ol>
+      <div className="hidden max-h-[28rem] overflow-auto rounded-xl border @min-[64rem]:block">
+      <Table className="min-w-[64rem]">
         <TableHeader className="sticky top-0 bg-card">
           <TableRow>
             <TableHead>N.º</TableHead>
-            <TableHead>Fecha</TableHead>
+            <TableHead>Vencimiento / pago real</TableHead>
             {credit && <TableHead className="text-right">Saldo inicial</TableHead>}
             <TableHead className="text-right">{credit ? 'Capital' : 'Capital devuelto'}</TableHead>
             <TableHead className="text-right">{credit ? 'Interés' : 'Interés bruto'}</TableHead>
@@ -138,7 +172,9 @@ export function ScheduleTable({ productType, schedule, highlightNext = false, pa
           </TableRow>
         </TableHeader>
         <TableBody>
-          {schedule.map((row) => (
+          {schedule.map((row) => {
+            const payment = paymentsByNumber.get(row.number)
+            return (
             <TableRow key={row.number} className={cn(row.number === nextNumber && 'bg-brand-teal/5')}>
               <TableCell>
                 {row.number}
@@ -147,7 +183,10 @@ export function ScheduleTable({ productType, schedule, highlightNext = false, pa
                 )}
                 {row.number === nextNumber && <span className="ml-2 text-xs text-brand-teal">Próxima</span>}
               </TableCell>
-              <TableCell>{formatDate(row.dueDate)}</TableCell>
+              <TableCell className="max-w-56 whitespace-normal">
+                <span>{formatDate(row.dueDate)}</span>
+                {payment && <PaymentSummary payment={payment} />}
+              </TableCell>
               {credit && <TableCell className="text-right tabular-nums">{formatCurrency(row.openingBalance)}</TableCell>}
               <TableCell className="text-right tabular-nums">{formatCurrency(row.principal)}</TableCell>
               <TableCell className="text-right tabular-nums">{formatCurrency(row.interest)}</TableCell>
@@ -157,9 +196,24 @@ export function ScheduleTable({ productType, schedule, highlightNext = false, pa
               <TableCell className="text-right font-medium tabular-nums">{formatCurrency(row.payment)}</TableCell>
               {credit && <TableCell className="text-right tabular-nums">{formatCurrency(row.closingBalance)}</TableCell>}
             </TableRow>
-          ))}
+            )
+          })}
         </TableBody>
       </Table>
+      </div>
+    </div>
+  )
+}
+
+function ScheduleValue({ label, value }: { label: string; value: string }) {
+  return <div className="min-w-0"><dt className="text-muted-foreground">{label}</dt><dd className="break-words font-medium tabular-nums">{value}</dd></div>
+}
+
+function PaymentSummary({ payment }: { payment: PaymentRecord }) {
+  return (
+    <div className="min-w-0 rounded-md bg-brand-teal/5 px-2 py-1.5 text-xs leading-5">
+      <p>Pagado el {formatDate(payment.paidAt)} · Monto registrado: {formatCurrency(payment.amount)}</p>
+      {payment.note && <p className="break-words text-muted-foreground">Nota: {payment.note}</p>}
     </div>
   )
 }
@@ -279,13 +333,13 @@ export function PaymentsList({ payments, productType = 'CREDIT', empty = 'Aún n
     <div>
       <ul className="divide-y rounded-lg border">
         {visible.map((payment) => (
-          <li key={payment.id} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
+          <li key={payment.id} className="flex flex-wrap items-start justify-between gap-2 px-4 py-3 text-sm">
             <div className="min-w-0">
               <p className="font-medium">{productType === 'CREDIT' ? 'Cuota' : 'Pago'} N.º {payment.installmentNumber}</p>
-              <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                {formatDate(payment.paidAt)} · registrado por {payment.recordedByName}
-                {payment.note && ` · ${payment.note}`}
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Pagado el {formatDate(payment.paidAt)} · registrado por {payment.recordedByName}
               </p>
+              {payment.note && <p className="mt-1 break-words text-xs text-muted-foreground">Nota: {payment.note}</p>}
             </div>
             <span className="shrink-0 font-medium tabular-nums">{formatCurrency(payment.amount)}</span>
           </li>

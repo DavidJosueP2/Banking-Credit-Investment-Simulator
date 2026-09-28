@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { format } from 'date-fns'
 import { ArrowLeft, BadgeCheck, CircleAlert, IdCard, Info, ShieldAlert, ThumbsDown, ThumbsUp } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
@@ -142,8 +143,10 @@ export function ApplicationReviewPage() {
 
           <section aria-labelledby="schedule-title">
             <h2 id="schedule-title" className="mb-4 text-lg">Cronograma {application.status === 'APPROVED' ? '' : 'proyectado'}</h2>
+            <p className="mb-3 text-sm text-muted-foreground">El vencimiento y el monto de la cuota son los pactados; la fecha, el monto y la nota del pago real aparecen al registrarlo. Un monto distinto no recalcula el cronograma.</p>
             <ScheduleTable productType={application.productType} schedule={application.schedule}
-              paidThrough={application.status === 'APPROVED' ? application.paidThroughInstallment : undefined} />
+              paidThrough={application.status === 'APPROVED' ? application.paidThroughInstallment : undefined}
+              payments={application.status === 'APPROVED' ? application.payments : undefined} />
           </section>
 
           {application.status === 'APPROVED' && (
@@ -181,7 +184,7 @@ function PaymentsSection({ application, actions, onDone }: {
   const nextNumber = application.paidThroughInstallment + 1
   const nextRow = application.schedule.find((row) => row.number === nextNumber)
   const [amount, setAmount] = useState('')
-  const [paidAt, setPaidAt] = useState(() => new Date().toISOString().slice(0, 10))
+  const [paidAt, setPaidAt] = useState(() => format(new Date(), 'yyyy-MM-dd'))
   const [note, setNote] = useState('')
 
   const register = useMutation({
@@ -225,7 +228,7 @@ function PaymentsSection({ application, actions, onDone }: {
             </div>
             <div className="space-y-1">
               <Label htmlFor="payment-date" className="text-xs">Fecha de pago</Label>
-              <Input id="payment-date" type="date" max={new Date().toISOString().slice(0, 10)}
+              <Input id="payment-date" type="date" max={format(new Date(), 'yyyy-MM-dd')}
                 value={paidAt} onChange={(event) => setPaidAt(event.target.value)} />
             </div>
             <div className="space-y-1">

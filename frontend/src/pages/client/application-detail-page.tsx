@@ -155,11 +155,12 @@ export function ApplicationDetailPage() {
         <h2 id="schedule-title" className="text-xl">{approved ? 'Cronograma' : 'Cronograma proyectado'}</h2>
         <p className="mb-4 mt-1 text-sm text-muted-foreground">
           {approved
-            ? 'Fechas calculadas desde el día de aprobación.'
+            ? 'Las fechas son vencimientos pactados. Los pagos registrados muestran aparte la fecha y el monto reales y la nota, si la hay; no recalculan el cronograma.'
             : 'Las fechas se ajustarán al día en que se apruebe la solicitud.'}
         </p>
         <ScheduleTable productType={application.productType} schedule={application.schedule} highlightNext={approved}
-          paidThrough={approved ? application.paidThroughInstallment : undefined} />
+          paidThrough={approved ? application.paidThroughInstallment : undefined}
+          payments={approved ? application.payments : undefined} />
       </section>
 
       {approved && (
