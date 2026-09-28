@@ -223,6 +223,8 @@ export interface SimulacionClienteResponse {
   totalIntereses: number
   totalDesgravamen: number
   totalCargosIndirectos?: number
+  /** Contribución SOLCA (0,5 % única sobre el monto, solo crédito, incluida en la primera cuota). */
+  totalSolca?: number
   totalPagar: number
   unidadPlazo?: string
   tablaCuotas: CuotaCliente[]

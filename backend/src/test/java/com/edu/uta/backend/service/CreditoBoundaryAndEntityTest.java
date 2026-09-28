@@ -253,10 +253,13 @@ class CreditoBoundaryAndEntityTest {
 
         SimulacionClienteResponseDto resp = simulador.simularCliente(solicitud(2L, "5000.00", 12, SistemaAmortizacion.FRANCES, null));
 
+        BigDecimal solca = new BigDecimal("25.00");
+        assertEquals(0, solca.compareTo(resp.totalSolca()));
         for (var cuota : resp.tablaCuotas()) {
             BigDecimal esperado = cuota.saldoInicial().multiply(new BigDecimal("0.001"))
                     .add(new BigDecimal("3.00"))
                     .add(cuota.numeroCuota() == 1 ? new BigDecimal("40.00") : BigDecimal.ZERO)
+                    .add(cuota.numeroCuota() == 1 ? solca : BigDecimal.ZERO)
                     .setScale(2, RoundingMode.HALF_UP);
             assertEquals(0, esperado.compareTo(cuota.cargosIndirectos()), "cuota " + cuota.numeroCuota());
             BigDecimal suma = cuota.capital().add(cuota.interes()).add(cuota.desgravamen()).add(cuota.cargosIndirectos());
@@ -281,8 +284,9 @@ class CreditoBoundaryAndEntityTest {
         var sinDonacion = simulador.simularCliente(solicitud(3L, "2000", 10, SistemaAmortizacion.ALEMAN, null));
         var conDonacion = simulador.simularCliente(solicitud(3L, "2000", 10, SistemaAmortizacion.ALEMAN, List.of(21L)));
 
-        assertEquals(0, BigDecimal.ZERO.compareTo(sinDonacion.totalCargosIndirectos()));
-        assertEquals(0, new BigDecimal("10.00").compareTo(conDonacion.totalCargosIndirectos()));
+        assertEquals(0, new BigDecimal("10.00").compareTo(sinDonacion.totalSolca()));
+        assertEquals(0, new BigDecimal("10.00").compareTo(sinDonacion.totalCargosIndirectos()));
+        assertEquals(0, new BigDecimal("20.00").compareTo(conDonacion.totalCargosIndirectos()));
     }
 
     @Test
@@ -312,7 +316,8 @@ class CreditoBoundaryAndEntityTest {
         var resp = simulador.simularCliente(solicitud(4L, "60000", 10, SistemaAmortizacion.FRANCES, null));
 
         assertEquals("ANUAL", resp.frecuencia());
-        assertEquals(0, new BigDecimal("120.00").compareTo(resp.tablaCuotas().getFirst().cargosIndirectos()));
+        assertEquals(0, new BigDecimal("300.00").compareTo(resp.totalSolca()));
+        assertEquals(0, new BigDecimal("420.00").compareTo(resp.tablaCuotas().getFirst().cargosIndirectos()));
     }
 
     @Test
@@ -325,6 +330,29 @@ class CreditoBoundaryAndEntityTest {
                 .tablaCuotas().getFirst();
 
         assertEquals(0, new BigDecimal("5.00").compareTo(cuota1.desgravamen()));
+    }
+
+    @Test
+    @DisplayName("SOLCA: 0,5 % del monto, por una sola vez en la primera cuota, sin tocar el interés")
+    void solcaUnicaEnPrimeraCuota() {
+        ProductoCreditoEntity prod = productoSimulable(10L, "CONSUMO_PRIORITARIO", "14.00", "0.0500", "MESES");
+        when(productoRepository.findById(10L)).thenReturn(Optional.of(prod));
+
+        var frances = simulador.simularCliente(solicitud(10L, "10000.00", 12, SistemaAmortizacion.FRANCES, null));
+        var aleman = simulador.simularCliente(solicitud(10L, "10000.00", 12, SistemaAmortizacion.ALEMAN, null));
+
+        for (var resp : List.of(frances, aleman)) {
+            assertEquals(0, new BigDecimal("50.00").compareTo(resp.totalSolca()));
+            assertEquals(0, new BigDecimal("50.00").compareTo(
+                    resp.tablaCuotas().getFirst().cargosIndirectos()));
+            assertEquals(0, BigDecimal.ZERO.compareTo(resp.tablaCuotas().get(1).cargosIndirectos()));
+            BigDecimal cargos = resp.tablaCuotas().stream()
+                    .map(SimulacionClienteResponseDto.CuotaClienteDto::cargosIndirectos)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            assertEquals(0, cargos.compareTo(resp.totalCargosIndirectos()));
+            assertEquals(0, resp.totalCapital().add(resp.totalIntereses()).add(resp.totalDesgravamen())
+                    .add(resp.totalCargosIndirectos()).compareTo(resp.totalPagar()));
+        }
     }
 
     @Test

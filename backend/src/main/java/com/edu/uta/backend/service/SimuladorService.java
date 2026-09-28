@@ -46,6 +46,19 @@ public class SimuladorService {
     private static final int SCALE = 2;
     private static final DateTimeFormatter ISO = DateTimeFormatter.ISO_LOCAL_DATE;
 
+    /**
+     * Contribución SOLCA para la atención integral del cáncer: 0,5 % del monto de la operación
+     * de crédito, por una sola vez (COMYF, Disposición General Décima Cuarta; Resolución JPRMF
+     * 003-2014-F; SRI, Formulario 118). No es interés ni seguro: se cobra una sola vez en la
+     * primera cuota y se informa por separado. No aplica a inversiones.
+     */
+    public static final BigDecimal SOLCA_RATE = new BigDecimal("0.005");
+
+    public static BigDecimal calcularSolca(BigDecimal monto) {
+        if (monto == null || monto.signum() <= 0) return BigDecimal.ZERO.setScale(SCALE);
+        return monto.multiply(SOLCA_RATE, MC).setScale(SCALE, RoundingMode.HALF_UP);
+    }
+
     private final ProductoCreditoRepository productoRepository;
     private final NormativaRegulatoriaService normativaService;
     private final InstitutionSettingsService settings;
@@ -376,6 +389,7 @@ public class SimuladorService {
         BigDecimal denominador = potencia.subtract(BigDecimal.ONE, MC);
         BigDecimal cuotaBase = monto.multiply(numerador.divide(denominador, MC), MC)
                 .setScale(SCALE, RoundingMode.HALF_UP);
+        BigDecimal solca = calcularSolca(monto);
 
         List<CuotaClienteDto> tabla = new ArrayList<>();
         BigDecimal saldo = monto;
@@ -403,6 +417,8 @@ public class SimuladorService {
             // Cargos Indirectos regulados del período
             BigDecimal cargosIndirectos = calcularCargosPeriodo(producto, saldoInicial, monto, k, cargosElegidos,
                     "ANUAL".equals(frecuencia) ? 12 : 1);
+            // SOLCA: contribución única del 0,5 % sobre el monto, cobrada en la primera cuota.
+            if (k == 1) cargosIndirectos = cargosIndirectos.add(solca);
 
             // Cuota Total = Capital + Interés + Desgravamen + Cargos Indirectos
             BigDecimal cuotaTotal = capital.add(interes).add(desgravamen).add(cargosIndirectos).setScale(SCALE, RoundingMode.HALF_UP);
@@ -447,7 +463,8 @@ public class SimuladorService {
                 usuario,
                 costoTotal,
                 unidadPlazo,
-                totalCargosIndirectos
+                totalCargosIndirectos,
+                solca
         );
     }
 
@@ -462,6 +479,7 @@ public class SimuladorService {
         // Amortización constante = P / n
         BigDecimal amortizacion = monto.divide(BigDecimal.valueOf(n), MC)
                 .setScale(SCALE, RoundingMode.HALF_UP);
+        BigDecimal solca = calcularSolca(monto);
 
         List<CuotaClienteDto> tabla = new ArrayList<>();
         BigDecimal saldo = monto;
@@ -483,6 +501,8 @@ public class SimuladorService {
             // Cargos Indirectos regulados del período
             BigDecimal cargosIndirectos = calcularCargosPeriodo(producto, saldoInicial, monto, k, cargosElegidos,
                     "ANUAL".equals(frecuencia) ? 12 : 1);
+            // SOLCA: contribución única del 0,5 % sobre el monto, cobrada en la primera cuota.
+            if (k == 1) cargosIndirectos = cargosIndirectos.add(solca);
 
             // Cuota Total = Capital + Interés + Desgravamen + Cargos Indirectos
             BigDecimal cuotaTotal = capital.add(interes).add(desgravamen).add(cargosIndirectos).setScale(SCALE, RoundingMode.HALF_UP);
@@ -527,7 +547,8 @@ public class SimuladorService {
                 usuario,
                 costoTotal,
                 unidadPlazo,
-                totalCargosIndirectos
+                totalCargosIndirectos,
+                solca
         );
     }
 

@@ -120,7 +120,7 @@ public class ApplicationService {
                          BigDecimal amount, int term, String termUnit, String amortizationSystem,
                          String payoutFrequency, BigDecimal assetCost, BigDecimal annualRate,
                          BigDecimal periodicPayment, BigDecimal totalInterest, BigDecimal totalInsurance,
-                         BigDecimal totalCharges, BigDecimal totalWithholding, BigDecimal totalAmount,
+                         BigDecimal totalCharges, BigDecimal totalSolca, BigDecimal totalWithholding, BigDecimal totalAmount,
                          BigDecimal monthlyIncome, String purpose, String status, String biometricResult,
                          int biometricAttemptsLeft, String reviewerName, String decisionComment,
                          LocalDate scheduleBaseDate, OffsetDateTime submittedAt, OffsetDateTime decidedAt,
@@ -275,14 +275,14 @@ public class ApplicationService {
         Long id = jdbc.queryForObject("""
                 INSERT INTO applications (user_id, product_type, product_id, product_name, amount, term, term_unit,
                     amortization_system, payout_frequency, asset_cost, annual_rate, periodic_payment, total_interest,
-                    total_insurance, total_charges, total_withholding, total_amount, monthly_income, purpose,
+                    total_insurance, total_charges, total_solca, total_withholding, total_amount, monthly_income, purpose,
                     schedule_base_date, optional_charges, purpose_category, employment_type, monthly_expenses,
                     funds_source, funds_lawful_declared)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
                 """, Long.class, account.id(), quote.productType(), quote.productId(), quote.productName(),
                 quote.amount(), quote.term(), quote.termUnit(), quote.amortizationSystem(), quote.payoutFrequency(),
                 quote.assetCost(), quote.annualRate(), quote.periodicPayment(), quote.totalInterest(),
-                quote.totalInsurance(), quote.totalCharges(), quote.totalWithholding(), quote.totalAmount(), income,
+                quote.totalInsurance(), quote.totalCharges(), quote.totalSolca(), quote.totalWithholding(), quote.totalAmount(), income,
                 purpose.isEmpty() ? null : purpose, quote.baseDate(), quote.optionalChargesCsv(),
                 credit ? category : null, employment, expenses, credit ? null : category, !credit);
         String code = ("CREDIT".equals(quote.productType()) ? "CR-" : "IN-") + Year.now().getValue() + "-"
@@ -801,7 +801,8 @@ public class ApplicationService {
                 rs.getString("term_unit"), rs.getString("amortization_system"), rs.getString("payout_frequency"),
                 rs.getBigDecimal("asset_cost"), rs.getBigDecimal("annual_rate"), rs.getBigDecimal("periodic_payment"),
                 rs.getBigDecimal("total_interest"), rs.getBigDecimal("total_insurance"),
-                rs.getBigDecimal("total_charges"), rs.getBigDecimal("total_withholding"),
+                rs.getBigDecimal("total_charges"), rs.getBigDecimal("total_solca"),
+                rs.getBigDecimal("total_withholding"),
                 rs.getBigDecimal("total_amount"), rs.getBigDecimal("monthly_income"), rs.getString("purpose"),
                 rs.getString("status"), rs.getString("biometric_result"),
                 Math.max(0, MAX_BIOMETRIC_ATTEMPTS - rs.getInt("biometric_attempts")),

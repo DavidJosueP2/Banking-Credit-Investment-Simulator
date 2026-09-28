@@ -28,6 +28,7 @@ const SEGMENTOS: Record<string, string> = {
 function creditReport(data: SimulacionClienteResponse, cliente?: string | null) {
   const anual = data.frecuencia === 'ANUAL'
   const cargos = data.totalCargosIndirectos ?? 0
+  const solca = data.totalSolca ?? 0
   const conditions: Array<[string, string]> = [
     ['Tipo de crédito', data.nombreProducto],
     ['Entidad', data.entidad || '—'],
@@ -39,6 +40,7 @@ function creditReport(data: SimulacionClienteResponse, cliente?: string | null) 
     ['Plazo', `${data.totalCuotas} ${anual ? (data.totalCuotas === 1 ? 'año' : 'años') : (data.totalCuotas === 1 ? 'mes' : 'meses')} · cuota ${anual ? 'anual' : 'mensual'}`],
     ['Tasa efectiva anual (TEA)', `${data.tasaInteresAnual.toLocaleString('es-EC', { minimumFractionDigits: 2 })} %`],
     ['Desgravamen mensual', `${data.tasaDesgravamenMensual.toLocaleString('es-EC', { minimumFractionDigits: 4 })} % sobre saldo`],
+    ['Contribución SOLCA (0,5 % única)', fmt(solca)],
   ]
   if (data.costoTotal) {
     terms.push(['Valor del bien', fmt(data.costoTotal)])
@@ -176,7 +178,7 @@ export function exportCreditPdf(data: SimulacionClienteResponse, branding: Expor
       doc.setFontSize(6.8)
       doc.setFont('helvetica', 'italic')
       doc.setTextColor(...muted)
-      const notice = `${branding.institutionName} · Simulación referencial con la tasa vigente, dentro del tope del Banco Central del Ecuador. ${branding.legalNotice ?? ''}`
+      const notice = `${branding.institutionName} · Simulación referencial con la tasa vigente, dentro del tope del Banco Central del Ecuador. Incluye la contribución SOLCA (0,5 % única) en la primera cuota. ${branding.legalNotice ?? ''}`
       doc.text(doc.splitTextToSize(notice, 230), 14, 203)
       doc.setFont('helvetica', 'normal')
       doc.text(`Página ${page.pageNumber} de {total}`, pageWidth - 14, 203, { align: 'right' })
@@ -215,7 +217,7 @@ export async function exportCreditExcel(data: SimulacionClienteResponse, brandin
       { label: 'Costo total', formula: (t) => t[6], emphasis: true },
       { label: 'Carga financiera', formula: (t, amount) => `${t[6]}-${amount}`, emphasis: true },
     ],
-    footnote: 'Simulación referencial con la tasa vigente, dentro del tope del Banco Central del Ecuador.',
+    footnote: 'Simulación referencial con la tasa vigente, dentro del tope del Banco Central del Ecuador. Incluye la contribución SOLCA (0,5 % única) en la primera cuota.',
   }
   const blob = await excelWorkbook(layout, branding)
   downloadBlob(blob, `${report.fileBase}.xlsx`)

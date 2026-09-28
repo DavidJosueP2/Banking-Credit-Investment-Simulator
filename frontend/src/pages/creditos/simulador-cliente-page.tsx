@@ -762,6 +762,12 @@ function SimuladorCredito({ productosDisponibles }: { productosDisponibles: Prod
                 }} />
 
                 {/* 4 Métricas Clave (Nueva UI de develop) */}
+                {(resultado.totalSolca ?? 0) > 0 && (
+                  <p className="rounded-xl border border-brand-gold/30 bg-brand-gold/5 px-4 py-3 text-xs text-muted-foreground">
+                    Incluye la contribución SOLCA de {fmt(resultado.totalSolca ?? 0)} (0,5 % del monto, por una sola vez),
+                    cobrada en la primera cuota. No es interés ni seguro.
+                  </p>
+                )}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div className="rounded-xl border bg-card p-4 space-y-1 shadow-2xs">
                     <span className="text-[11px] font-medium uppercase tracking-wider text-brand-teal">
@@ -860,7 +866,8 @@ function SimuladorCredito({ productosDisponibles }: { productosDisponibles: Prod
                         Tabla Oficial de Amortización
                       </h3>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        Cronograma detallado con desglose de capital, interés, seguro de desgravamen y cuota
+                        Cronograma detallado con desglose de capital, interés, seguro de desgravamen y cuota.
+                        La primera cuota incluye la contribución SOLCA (0,5 % única).
                       </p>
                     </div>
                     <Badge variant="secondary" className="text-xs">
