@@ -12,6 +12,7 @@ import {
   employmentLabels,
   formatRate,
   fundsSourceLabels,
+  hasPaymentMismatch,
   settledLabels,
   formatTerm,
   statusLabels,
@@ -121,9 +122,15 @@ export function ScheduleTable({ productType, schedule, highlightNext = false, pa
     : highlightNext ? schedule.find((row) => row.dueDate > today)?.number : undefined
   const hasCharges = schedule.some((row) => row.charges > 0)
   const paymentsByNumber = new Map(payments.map((payment) => [payment.installmentNumber, payment]))
+  const mismatched = hasPaymentMismatch({ schedule, payments })
 
   return (
     <div className="@container min-w-0">
+      {mismatched && (
+        <p role="alert" className="mb-3 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+          Hay montos registrados que no coinciden con su cuota. Esas cuotas siguen pendientes y requieren conciliación; no se pueden registrar otras hasta resolverlo.
+        </p>
+      )}
       <ol className="max-h-[28rem] divide-y overflow-y-auto rounded-xl border @min-[64rem]:hidden" aria-label="Cronograma de cuotas">
         {schedule.map((row) => {
           const payment = paymentsByNumber.get(row.number)
@@ -132,25 +139,25 @@ export function ScheduleTable({ productType, schedule, highlightNext = false, pa
               <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
                 <div>
                   <p className="font-medium">{credit ? 'Cuota' : 'Pago'} N.º {row.number}
-                  {paidThrough !== undefined && row.number <= paidThrough && (
-                    <CheckCircle2 className="ml-1.5 inline size-4 text-brand-teal" aria-label="Pagada" />
-                  )}
+                    {paidThrough !== undefined && row.number <= paidThrough && (
+                      <CheckCircle2 className="ml-1.5 inline size-4 text-brand-teal" aria-label="Pagada" />
+                    )}
                     {row.number === nextNumber && <span className="ml-2 text-xs text-brand-teal">Próxima</span>}
                   </p>
                   <p className="text-xs text-muted-foreground">Vence {formatDate(row.dueDate)}</p>
                 </div>
-                <p className="font-medium tabular-nums">{formatCurrency(row.payment)}</p>
+                <p className="text-right font-medium tabular-nums"><span className="block text-xs font-normal text-muted-foreground">{credit ? 'Cuota pactada' : 'Pago pactado'}</span>{formatCurrency(row.payment)}</p>
               </div>
               <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs sm:grid-cols-3">
-                {credit && <ScheduleValue label="Saldo inicial" value={formatCurrency(row.openingBalance)} />}
+                {credit && <ScheduleValue label="Saldo inicial previsto" value={formatCurrency(row.openingBalance)} />}
                 <ScheduleValue label={credit ? 'Capital' : 'Capital devuelto'} value={formatCurrency(row.principal)} />
                 <ScheduleValue label={credit ? 'Interés' : 'Interés bruto'} value={formatCurrency(row.interest)} />
                 {credit && <ScheduleValue label="Desgravamen" value={formatCurrency(row.insurance)} />}
                 {hasCharges && credit && <ScheduleValue label="Cargos" value={formatCurrency(row.charges)} />}
                 {!credit && <ScheduleValue label="Retención" value={formatCurrency(row.withholding)} />}
-                {credit && <ScheduleValue label="Saldo final" value={formatCurrency(row.closingBalance)} />}
+                {credit && <ScheduleValue label="Saldo final previsto" value={formatCurrency(row.closingBalance)} />}
               </dl>
-              {payment && <PaymentSummary payment={payment} />}
+              {payment && <PaymentSummary payment={payment} expected={row.payment} counted={row.number <= (paidThrough ?? 0)} />}
             </li>
           )
         })}
@@ -161,14 +168,14 @@ export function ScheduleTable({ productType, schedule, highlightNext = false, pa
           <TableRow>
             <TableHead>N.º</TableHead>
             <TableHead>Vencimiento / pago real</TableHead>
-            {credit && <TableHead className="text-right">Saldo inicial</TableHead>}
+            {credit && <TableHead className="text-right">Saldo inicial (plan)</TableHead>}
             <TableHead className="text-right">{credit ? 'Capital' : 'Capital devuelto'}</TableHead>
             <TableHead className="text-right">{credit ? 'Interés' : 'Interés bruto'}</TableHead>
             {credit && <TableHead className="text-right">Desgravamen</TableHead>}
             {credit && hasCharges && <TableHead className="text-right">Cargos</TableHead>}
             {!credit && <TableHead className="text-right">Retención</TableHead>}
-            <TableHead className="text-right">{credit ? 'Cuota' : 'Recibes'}</TableHead>
-            {credit && <TableHead className="text-right">Saldo final</TableHead>}
+            <TableHead className="text-right">{credit ? 'Cuota pactada' : 'Pago pactado'}</TableHead>
+            {credit && <TableHead className="text-right">Saldo final (plan)</TableHead>}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -185,7 +192,7 @@ export function ScheduleTable({ productType, schedule, highlightNext = false, pa
               </TableCell>
               <TableCell className="max-w-56 whitespace-normal">
                 <span>{formatDate(row.dueDate)}</span>
-                {payment && <PaymentSummary payment={payment} />}
+                {payment && <PaymentSummary payment={payment} expected={row.payment} counted={row.number <= (paidThrough ?? 0)} />}
               </TableCell>
               {credit && <TableCell className="text-right tabular-nums">{formatCurrency(row.openingBalance)}</TableCell>}
               <TableCell className="text-right tabular-nums">{formatCurrency(row.principal)}</TableCell>
@@ -209,10 +216,12 @@ function ScheduleValue({ label, value }: { label: string; value: string }) {
   return <div className="min-w-0"><dt className="text-muted-foreground">{label}</dt><dd className="break-words font-medium tabular-nums">{value}</dd></div>
 }
 
-function PaymentSummary({ payment }: { payment: PaymentRecord }) {
+function PaymentSummary({ payment, expected, counted }: { payment: PaymentRecord; expected: number; counted: boolean }) {
+  const mismatched = Math.round(payment.amount * 100) !== Math.round(expected * 100)
   return (
-    <div className="min-w-0 rounded-md bg-brand-teal/5 px-2 py-1.5 text-xs leading-5">
-      <p>Pagado el {formatDate(payment.paidAt)} · Monto registrado: {formatCurrency(payment.amount)}</p>
+    <div className={cn('min-w-0 rounded-md px-2 py-1.5 text-xs leading-5', counted ? 'bg-brand-teal/5' : 'bg-destructive/10')}>
+      <p>{counted ? 'Pagado' : 'Registrado'} el {formatDate(payment.paidAt)} · Monto registrado: {formatCurrency(payment.amount)}</p>
+      {!counted && <p className="font-medium text-destructive">{mismatched ? `No coincide con la cuota de ${formatCurrency(expected)}: requiere conciliación.` : 'Pendiente de corregir un pago anterior.'}</p>}
       {payment.note && <p className="break-words text-muted-foreground">Nota: {payment.note}</p>}
     </div>
   )
@@ -319,8 +328,10 @@ export function ReadinessChecklist({ readiness, returnTo }: { readiness: Readine
 const RECENT_PAYMENTS = 5
 
 /** Pagos registrados, los más recientes primero; el resto queda a un clic para no alargar la página. */
-export function PaymentsList({ payments, productType = 'CREDIT', empty = 'Aún no se registran pagos.' }: {
+export function PaymentsList({ payments, schedule = [], paidThrough, productType = 'CREDIT', empty = 'Aún no se registran pagos.' }: {
   payments: PaymentRecord[]
+  schedule?: Installment[]
+  paidThrough?: number
   productType?: ProductType
   empty?: string
 }) {
@@ -332,21 +343,29 @@ export function PaymentsList({ payments, productType = 'CREDIT', empty = 'Aún n
   return (
     <div>
       <ul className="divide-y rounded-lg border">
-        {visible.map((payment) => (
+        {visible.map((payment) => {
+          const row = schedule.find((item) => item.number === payment.installmentNumber)
+          const mismatch = row && Math.round(payment.amount * 100) !== Math.round(row.payment * 100)
+          const pending = paidThrough !== undefined && payment.installmentNumber > paidThrough
+          return (
           <li key={payment.id} className="flex flex-wrap items-start justify-between gap-2 px-4 py-3 text-sm">
             <div className="min-w-0">
               <p className="font-medium">{productType === 'CREDIT' ? 'Cuota' : 'Pago'} N.º {payment.installmentNumber}</p>
+              {pending && (
+                <p className="text-xs font-medium text-destructive">{mismatch ? 'Monto distinto a la cuota; no cuenta como pagada.' : 'Pendiente de corregir un pago anterior.'}</p>
+              )}
               <p className="mt-0.5 text-xs text-muted-foreground">
-                Pagado el {formatDate(payment.paidAt)} · registrado por {payment.recordedByName}
+                {pending ? 'Registrado' : 'Pagado'} el {formatDate(payment.paidAt)} · registrado por {payment.recordedByName}
               </p>
               {payment.note && <p className="mt-1 break-words text-xs text-muted-foreground">Nota: {payment.note}</p>}
             </div>
             <span className="shrink-0 font-medium tabular-nums">{formatCurrency(payment.amount)}</span>
           </li>
-        ))}
+          )
+        })}
       </ul>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-        <span>{payments.length} {payments.length === 1 ? 'pago' : 'pagos'} · total {formatCurrency(total)}</span>
+        <span>{payments.length} {payments.length === 1 ? 'registro' : 'registros'} · total registrado {formatCurrency(total)}</span>
         {payments.length > RECENT_PAYMENTS && (
           <button type="button" onClick={() => setExpanded((value) => !value)} className="font-medium text-brand-teal hover:underline">
             {expanded ? 'Ver solo los recientes' : `Ver los ${payments.length} pagos`}

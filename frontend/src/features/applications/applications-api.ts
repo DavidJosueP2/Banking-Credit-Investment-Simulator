@@ -121,6 +121,14 @@ export interface PaymentRecord {
   recordedAt: string
 }
 
+/** Los saldos pactados solo se liberan con cuotas completas, nunca con abonos parciales. */
+export function hasPaymentMismatch(item: { schedule: Installment[]; payments: PaymentRecord[] }) {
+  return item.payments.some((payment) => {
+    const row = item.schedule.find((installment) => installment.number === payment.installmentNumber)
+    return !row || Math.round(payment.amount * 100) !== Math.round(row.payment * 100)
+  })
+}
+
 export interface ApplicationDetail {
   id: number
   code: string
@@ -338,8 +346,8 @@ export async function openIdentityDocument(id: number, side: 'front' | 'back') {
   return openBlob(`/admin/applications/${id}/identity/${side}`)
 }
 
-/** Registra la cuota siguiente del cronograma (el servidor calcula cuál es; no se elige el número). */
-export async function registerPayment(id: number, input: { amount: number; paidAt: string; note?: string }) {
+/** Confirma la cuota completa del cronograma; el servidor calcula número y monto. */
+export async function registerPayment(id: number, input: { paidAt: string; note?: string }) {
   return (await api.post<ReviewDetail>(`/admin/applications/${id}/payments`, input)).data
 }
 

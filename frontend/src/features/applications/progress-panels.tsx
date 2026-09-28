@@ -72,7 +72,8 @@ export function CreditProgress({ application, audience = 'customer' }: { applica
   const pendingRows = schedule.slice(paid)
   const capitalPaid = sum(paidRows, (row) => row.principal)
   const balance = paid > 0 ? schedule[paid - 1].closingBalance ?? 0 : application.amount
-  const paidAmount = application.payments.reduce((total, payment) => total + payment.amount, 0)
+  const paidAmount = application.payments.filter((payment) => payment.installmentNumber <= paid)
+    .reduce((total, payment) => total + payment.amount, 0)
   const pendingAmount = sum(pendingRows, (row) => row.payment)
   const next = pendingRows[0]
   const settled = isSettled(application)

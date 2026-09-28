@@ -11,7 +11,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
-  applicationKeys, getReviewDetail, registerPayment, type ApplicationSummary,
+  applicationKeys, getReviewDetail, hasPaymentMismatch, registerPayment, type ApplicationSummary,
 } from '@/features/applications/applications-api'
 import { messageFrom } from '@/features/identity-check/utils'
 import { formatCurrency, formatDate } from '@/lib/formatters'
@@ -28,11 +28,12 @@ export function QuickPaymentDialog({ row, onClose }: { row: ApplicationSummary; 
   })
   const application = detail.data?.application
   const next = application?.schedule.find((item) => item.number === application.paidThroughInstallment + 1)
-  const canRegister = detail.data?.actions.canRegisterPayment && next && application?.status === 'APPROVED'
+  const mismatched = application && hasPaymentMismatch(application)
+  const canRegister = detail.data?.actions.canRegisterPayment && next && application?.status === 'APPROVED' && !mismatched
   const today = format(new Date(), 'yyyy-MM-dd')
 
   const payment = useMutation({
-    mutationFn: () => registerPayment(row.id, { amount: next!.payment, paidAt, note: note.trim() || undefined }),
+    mutationFn: () => registerPayment(row.id, { paidAt, note: note.trim() || undefined }),
     onSuccess: (updated) => {
       client.setQueryData(applicationKeys.review(row.id), updated)
       void client.invalidateQueries({ queryKey: applicationKeys.queue })
@@ -55,12 +56,14 @@ export function QuickPaymentDialog({ row, onClose }: { row: ApplicationSummary; 
         </DialogHeader>
         {detail.isFetching ? <p className="text-sm text-muted-foreground">Verificando la próxima cuota…</p>
           : detail.isError ? <p role="alert" className="text-sm text-destructive">{messageFrom(detail.error, 'No se pudo consultar el expediente.')}</p>
-            : !canRegister ? <p className="text-sm text-muted-foreground">Ya no se puede registrar este pago. La cartera pudo cambiar; revisa el expediente.</p>
+            : !canRegister ? <p className="text-sm text-muted-foreground">{mismatched
+              ? 'Hay pagos anteriores por montos distintos a las cuotas. Corrígelos en el expediente antes de registrar otro.'
+              : 'Ya no se puede registrar este pago. La cartera pudo cambiar; revisa el expediente.'}</p>
               : (
                 <form onSubmit={submit} className="space-y-4">
                   <div className="rounded-lg border bg-muted/30 p-4 text-sm">
                     <p className="font-medium">{application.productType === 'CREDIT' ? 'Cuota' : 'Pago'} N.º {next.number} · {formatCurrency(next.payment)}</p>
-                    <p className="mt-1 text-muted-foreground">Vence {formatDate(next.dueDate)} · monto pactado (no editable aquí)</p>
+                    <p className="mt-1 text-muted-foreground">Vence {formatDate(next.dueDate)} · se registra solo la cuota completa</p>
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor={`quick-paid-at-${row.id}`}>Fecha real del pago</Label>
@@ -72,10 +75,7 @@ export function QuickPaymentDialog({ row, onClose }: { row: ApplicationSummary; 
                     <Input id={`quick-note-${row.id}`} maxLength={200} value={note} disabled={payment.isPending}
                       placeholder="Transferencia, efectivo…" onChange={(event) => setNote(event.target.value)} />
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                      ¿Recibiste otro monto? <Link to={`/admin/solicitudes/${row.id}#payments-title`} className="text-brand-teal underline" onClick={onClose}>Abre el expediente</Link>.
-                    Un monto distinto no recalcula el cronograma.
-                  </p>
+                  <p className="text-xs text-muted-foreground">Si el pago fue parcial, no lo marques como cuota completa: este sistema aún no administra abonos parciales.</p>
                   {payment.isError && <p role="alert" className="text-sm text-destructive">{messageFrom(payment.error, 'No se pudo registrar el pago. Verifica el expediente antes de reintentar.')}</p>}
                   <DialogFooter>
                     <Button type="button" variant="outline" disabled={payment.isPending} onClick={onClose}>Cancelar</Button>

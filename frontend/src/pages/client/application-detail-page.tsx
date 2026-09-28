@@ -167,7 +167,8 @@ export function ApplicationDetailPage() {
         <section aria-labelledby="payments-title" className="mt-12">
           <h2 id="payments-title" className="mb-1 text-xl">Pagos registrados</h2>
           <p className="mb-4 text-sm text-muted-foreground">Lo confirma tu asesor al recibir cada cuota; puede tardar en reflejarse aquí.</p>
-          <PaymentsList payments={application.payments} productType={application.productType} />
+          <PaymentsList payments={application.payments} schedule={application.schedule}
+            paidThrough={application.paidThroughInstallment} productType={application.productType} />
         </section>
       )}
     </main>

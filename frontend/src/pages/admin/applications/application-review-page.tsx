@@ -26,6 +26,7 @@ import {
   deletePayment,
   formatTerm,
   getReviewDetail,
+  hasPaymentMismatch,
   isSettled,
   openIdentityDocument,
   openReviewDocument,
@@ -186,19 +187,16 @@ function PaymentsSection({ application, actions, onDone }: {
 }) {
   const nextNumber = application.paidThroughInstallment + 1
   const nextRow = application.schedule.find((row) => row.number === nextNumber)
-  const [amount, setAmount] = useState('')
   const [paidAt, setPaidAt] = useState(() => format(new Date(), 'yyyy-MM-dd'))
   const [note, setNote] = useState('')
 
   const register = useMutation({
     mutationFn: () => registerPayment(application.id, {
-      amount: Number(amount || nextRow?.payment || 0),
       paidAt,
       note: note.trim() || undefined,
     }),
     onSuccess: (detail) => {
       onDone(detail)
-      setAmount('')
       setNote('')
       toast.success(`Pago de la cuota N.º ${nextNumber} registrado.`)
     },
@@ -206,6 +204,7 @@ function PaymentsSection({ application, actions, onDone }: {
   })
 
   const lastPayment = application.payments.at(-1)
+  const mismatched = hasPaymentMismatch(application)
   const removeLast = useMutation({
     mutationFn: () => deletePayment(application.id, lastPayment!.id),
     onSuccess: (detail) => { onDone(detail); toast.success('Se quitó el último pago.') },
@@ -215,23 +214,27 @@ function PaymentsSection({ application, actions, onDone }: {
   return (
     <section className="rounded-xl border p-6" aria-labelledby="payments-title">
       <h2 id="payments-title" className="mb-4 text-lg">Pagos</h2>
-      <PaymentsList payments={application.payments} productType={application.productType} />
+      <PaymentsList payments={application.payments} schedule={application.schedule}
+        paidThrough={application.paidThroughInstallment} productType={application.productType} />
 
-      {actions.canRegisterPayment && nextRow && (
+      {mismatched && (
+        <p role="alert" className="mt-4 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+          Hay pagos registrados por un monto distinto al de la cuota. No cuentan como cuotas completas ni puedes registrar nuevas.
+          Si fueron errores de captura, anúlalos desde el más reciente hasta el primero incorrecto y regístralos con el monto pactado.
+          Si el dinero se recibió de verdad, consúltalo con contabilidad antes de anular: este flujo no administra abonos parciales.
+        </p>
+      )}
+
+      {actions.canRegisterPayment && nextRow && !mismatched && (
         <div className="mt-5 space-y-3 border-t pt-4">
           <p className="text-sm">
             Próxima cuota a registrar: <strong>N.º {nextNumber}</strong> · vence {formatDate(nextRow.dueDate)}
             {' '}· cuota {formatCurrency(nextRow.payment)}
           </p>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div className="space-y-1">
-              <Label htmlFor="payment-amount" className="text-xs">Monto pagado</Label>
-              <Input id="payment-amount" type="number" min="0.01" step="0.01" placeholder={String(nextRow.payment)}
-                value={amount} onChange={(event) => setAmount(event.target.value)} />
-            </div>
+          <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1">
               <Label htmlFor="payment-date" className="text-xs">Fecha de pago</Label>
-              <Input id="payment-date" type="date" max={format(new Date(), 'yyyy-MM-dd')}
+              <Input id="payment-date" type="date" required max={format(new Date(), 'yyyy-MM-dd')}
                 value={paidAt} onChange={(event) => setPaidAt(event.target.value)} />
             </div>
             <div className="space-y-1">
@@ -240,8 +243,8 @@ function PaymentsSection({ application, actions, onDone }: {
                 value={note} onChange={(event) => setNote(event.target.value)} />
             </div>
           </div>
-          <Button type="button" size="sm" variant="brand" disabled={register.isPending} onClick={() => register.mutate()}>
-            {register.isPending ? 'Registrando…' : 'Registrar pago'}
+          <Button type="button" size="sm" variant="brand" disabled={register.isPending || !paidAt} onClick={() => register.mutate()}>
+            {register.isPending ? 'Registrando…' : `Registrar cuota completa · ${formatCurrency(nextRow.payment)}`}
           </Button>
         </div>
       )}
