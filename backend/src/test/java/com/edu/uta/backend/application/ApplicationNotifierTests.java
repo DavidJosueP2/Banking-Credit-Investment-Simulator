@@ -6,6 +6,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.edu.uta.backend.mail.BrandedMailer;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -22,7 +23,7 @@ class ApplicationNotifierTests {
 
     private ApplicationNotifier notifier() {
         when(unavailable.getIfAvailable()).thenReturn(null);
-        return new ApplicationNotifier(unavailable, "no-reply@brunexa.com", "Brunexa", "http://localhost:5173");
+        return new ApplicationNotifier(new BrandedMailer(unavailable, "no-reply@brunexa.com", "Brunexa", ""), "http://localhost:5173");
     }
 
     @Test
@@ -33,6 +34,7 @@ class ApplicationNotifierTests {
             notifier.notifyObserved("cliente@brunexa.com", "Cliente Brunexa", "CR-2026-00001", "Crédito de Consumo",
                     "Falta el rol de pagos", 1L);
             notifier.notifyApproved("cliente@brunexa.com", "Cliente Brunexa", "CR-2026-00001", "Crédito de Consumo", 1L);
+            notifier.notifyCancelled("cliente@brunexa.com", "Cliente Brunexa", "CR-2026-00001", "Crédito de Consumo");
             notifier.notifyRejected("cliente@brunexa.com", "Cliente Brunexa", "CR-2026-00001", "Crédito de Consumo",
                     "Ingresos insuficientes");
         });

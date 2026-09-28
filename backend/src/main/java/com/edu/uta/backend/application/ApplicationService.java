@@ -47,6 +47,16 @@ public class ApplicationService {
     public static final String PAYMENTS_REGISTER = "payments.register";
 
     private static final int MAX_BIOMETRIC_ATTEMPTS = 5;
+    /** Cada inversión es un contrato aparte: se permiten varias en trámite, con un tope razonable. */
+    private static final int MAX_OPEN_INVESTMENTS = 5;
+    /** Destino del crédito (formulario bancario habitual). */
+    public static final Set<String> CREDIT_PURPOSES = Set.of("CONSUMO_BIENES", "VEHICULO", "EDUCACION", "SALUD",
+            "VIVIENDA", "CONSOLIDACION_DEUDAS", "NEGOCIO", "VIAJE", "OTRO");
+    public static final Set<String> EMPLOYMENT_TYPES = Set.of("DEPENDIENTE", "INDEPENDIENTE", "NEGOCIO_PROPIO",
+            "JUBILADO", "OTRO");
+    /** Origen de fondos (debida diligencia y prevención de lavado de activos). */
+    public static final Set<String> FUNDS_SOURCES = Set.of("SUELDO_AHORROS", "NEGOCIO", "VENTA_BIEN",
+            "HERENCIA_DONACION", "JUBILACION_LIQUIDACION", "INVERSIONES", "OTRO");
     private static final int MAX_DOCUMENTS = 6;
     private static final int MAX_DOCUMENT_BYTES = 5 * 1024 * 1024;
     private static final Set<String> DOCUMENT_TYPES = Set.of("application/pdf", "image/jpeg", "image/png");
@@ -87,7 +97,12 @@ public class ApplicationService {
     public record NewApplication(String productType, Long productId, BigDecimal amount, Integer term,
                                  String amortizationSystem, String payoutFrequency, BigDecimal assetCost,
                                  BigDecimal monthlyIncome, String purpose, List<Long> optionalCharges,
-                                 String termUnit) {}
+                                 String termUnit, String purposeCategory, String employmentType,
+                                 BigDecimal monthlyExpenses, String fundsSource, Boolean fundsLawfulDeclared) {}
+
+    /** Lo que el cliente declaró al solicitar (además de ingreso y detalle libre). */
+    public record Declaration(String purposeCategory, String employmentType, BigDecimal monthlyExpenses,
+                              String fundsSource, boolean fundsLawfulDeclared) {}
 
     public record Readiness(String fullName, boolean hasProfile, boolean emailVerified, boolean identityVerified,
                             Instant identityVerifiedAt, boolean ready) {}
@@ -113,7 +128,8 @@ public class ApplicationService {
                          String recommendation, String recommendationComment, String recommendedByName,
                          OffsetDateTime recommendedAt, String decidedByName,
                          List<ScenarioCalculator.Installment> schedule, List<Event> events,
-                         List<DocumentInfo> documents, int paidThroughInstallment, List<PaymentRecord> payments) {}
+                         List<DocumentInfo> documents, int paidThroughInstallment, List<PaymentRecord> payments,
+                         Declaration declaration, boolean productAvailable) {}
 
     public record PaymentRecord(long id, int installmentNumber, BigDecimal amount, LocalDate paidAt, String note,
                                 String recordedByName, OffsetDateTime recordedAt) {}
@@ -191,42 +207,83 @@ public class ApplicationService {
         }
 
         String type = ScenarioCalculator.normalizeType(input.productType());
-        String purpose = input.purpose() == null ? "" : input.purpose().trim();
-        if (purpose.length() < 5 || purpose.length() > 300) {
-            throw new IllegalArgumentException("CREDIT".equals(type)
-                    ? "Cuéntanos en qué usarás el crédito (entre 5 y 300 caracteres)."
-                    : "Indica el origen de los fondos que invertirás (entre 5 y 300 caracteres).");
+        boolean credit = "CREDIT".equals(type);
+        if (!credit && !settings.enabled("investment", "onlineApplicationEnabled")) {
+            throw new IllegalStateException("Por ahora las inversiones se abren en agencia. Tu simulación sigue disponible.");
         }
-        BigDecimal income = "CREDIT".equals(type) ? input.monthlyIncome() : null;
-        if ("CREDIT".equals(type) && (income == null || income.signum() <= 0)) {
-            throw new IllegalArgumentException("Ingresa tu ingreso mensual para evaluar el crédito.");
+        String category = code(credit ? input.purposeCategory() : input.fundsSource());
+        if (!(credit ? CREDIT_PURPOSES : FUNDS_SOURCES).contains(category)) {
+            throw new IllegalArgumentException(credit ? "Selecciona el destino del crédito."
+                    : "Selecciona de dónde provienen los fondos.");
+        }
+        String purpose = input.purpose() == null ? "" : input.purpose().trim();
+        // El detalle es obligatorio solo con "Otro"; en el resto ayuda al asesor, pero no bloquea.
+        if (purpose.length() > 300 || ("OTRO".equals(category) && purpose.length() < 5)) {
+            throw new IllegalArgumentException("OTRO".equals(category)
+                    ? "Describe brevemente " + (credit ? "el destino del crédito" : "el origen de los fondos")
+                            + " (entre 5 y 300 caracteres)."
+                    : "El detalle admite hasta 300 caracteres.");
+        }
+        BigDecimal income = credit ? input.monthlyIncome() : null;
+        String employment = credit ? code(input.employmentType()) : null;
+        BigDecimal expenses = credit ? input.monthlyExpenses() : null;
+        if (credit) {
+            if (income == null || income.signum() <= 0) {
+                throw new IllegalArgumentException("Ingresa tu ingreso mensual para evaluar el crédito.");
+            }
+            if (!EMPLOYMENT_TYPES.contains(employment)) {
+                throw new IllegalArgumentException("Selecciona tu situación laboral.");
+            }
+            if (expenses == null || expenses.signum() < 0) {
+                throw new IllegalArgumentException("Ingresa tus gastos mensuales (puede ser 0).");
+            }
+            if (expenses.compareTo(income) >= 0) {
+                throw new IllegalArgumentException("Tus gastos mensuales no pueden igualar o superar tu ingreso.");
+            }
+        } else if (!Boolean.TRUE.equals(input.fundsLawfulDeclared())) {
+            throw new IllegalArgumentException("Debes declarar el origen lícito de los fondos para invertir.");
         }
 
         ScenarioCalculator.Quote quote = calculator.quote(new ScenarioCalculator.Scenario(type, input.productId(),
                 input.amount(), input.term(), input.amortizationSystem(), input.payoutFrequency(),
                 input.assetCost(), input.optionalCharges(), input.termUnit()));
 
-        String existing = jdbc.query("""
-                SELECT code FROM applications WHERE user_id = ? AND product_type = ? AND product_id = ?
-                    AND status IN ('DRAFT', 'SUBMITTED', 'IN_REVIEW', 'OBSERVED', 'PENDING_APPROVAL')
-                """, rs -> rs.next() ? rs.getString("code") : null, account.id(), quote.productType(),
-                quote.productId());
-        if (existing != null) {
-            throw new IllegalStateException("Ya tienes una solicitud abierta para este crédito o inversión (" + existing
-                    + "). Continúala o cancélala antes de crear otra.");
+        // Crédito: una solicitud en trámite por tipo de crédito, porque cada una se evalúa contra tu
+        // capacidad de pago y duplicarlas la distorsiona. Inversión: cada depósito es un contrato aparte,
+        // así que se permiten varias en trámite, hasta un tope.
+        if (credit) {
+            String existing = jdbc.query("""
+                    SELECT code FROM applications WHERE user_id = ? AND product_type = 'CREDIT' AND product_id = ?
+                        AND status IN ('DRAFT', 'SUBMITTED', 'IN_REVIEW', 'OBSERVED', 'PENDING_APPROVAL')
+                    """, rs -> rs.next() ? rs.getString("code") : null, account.id(), quote.productId());
+            if (existing != null) {
+                throw new IllegalStateException("Ya tienes una solicitud en trámite de este tipo de crédito ("
+                        + existing + "). Continúala o cancélala antes de crear otra.");
+            }
+        } else {
+            Integer open = jdbc.queryForObject("""
+                    SELECT count(*) FROM applications WHERE user_id = ? AND product_type = 'INVESTMENT'
+                        AND status IN ('DRAFT', 'SUBMITTED', 'IN_REVIEW', 'OBSERVED', 'PENDING_APPROVAL')
+                    """, Integer.class, account.id());
+            if (open != null && open >= MAX_OPEN_INVESTMENTS) {
+                throw new IllegalStateException("Tienes " + open + " solicitudes de inversión en trámite, el máximo "
+                        + "permitido. Espera a que se resuelvan o cancela alguna para abrir otra.");
+            }
         }
 
         Long id = jdbc.queryForObject("""
                 INSERT INTO applications (user_id, product_type, product_id, product_name, amount, term, term_unit,
                     amortization_system, payout_frequency, asset_cost, annual_rate, periodic_payment, total_interest,
                     total_insurance, total_charges, total_withholding, total_amount, monthly_income, purpose,
-                    schedule_base_date, optional_charges)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
+                    schedule_base_date, optional_charges, purpose_category, employment_type, monthly_expenses,
+                    funds_source, funds_lawful_declared)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
                 """, Long.class, account.id(), quote.productType(), quote.productId(), quote.productName(),
                 quote.amount(), quote.term(), quote.termUnit(), quote.amortizationSystem(), quote.payoutFrequency(),
                 quote.assetCost(), quote.annualRate(), quote.periodicPayment(), quote.totalInterest(),
                 quote.totalInsurance(), quote.totalCharges(), quote.totalWithholding(), quote.totalAmount(), income,
-                purpose, quote.baseDate(), quote.optionalChargesCsv());
+                purpose.isEmpty() ? null : purpose, quote.baseDate(), quote.optionalChargesCsv(),
+                credit ? category : null, employment, expenses, credit ? null : category, !credit);
         String code = ("CREDIT".equals(quote.productType()) ? "CR-" : "IN-") + Year.now().getValue() + "-"
                 + String.format(Locale.ROOT, "%05d", id);
         jdbc.update("UPDATE applications SET code = ? WHERE id = ?", code, id);
@@ -256,6 +313,7 @@ public class ApplicationService {
     public LivenessTicket startBiometric(String username, long id) {
         Owned owned = owned(username, id);
         requireStatus(owned, Set.of("DRAFT"), "La solicitud ya fue enviada.");
+        requireAvailable(owned);
         if (owned.biometricAttempts() >= MAX_BIOMETRIC_ATTEMPTS) {
             throw new IllegalStateException("Superaste los intentos de verificación facial para esta solicitud. "
                     + "Cancélala y crea una nueva, o comunícate con un asesor.");
@@ -313,6 +371,8 @@ public class ApplicationService {
                 "La solicitud ya está en revisión o tiene una decisión.");
         changeStatus(id, owned.status(), "CANCELLED", blankToNull(comment, "Cancelada por el cliente."),
                 owned.userId());
+        IdentityService.Account customer = identity.accountById(owned.userId());
+        notifier.notifyCancelled(customer.email(), customer.fullName(), owned.code(), owned.productName());
         return customerDetail(id);
     }
 
@@ -329,6 +389,9 @@ public class ApplicationService {
     @Transactional
     public DocumentInfo upload(String username, long id, String fileName, String contentType, byte[] content) {
         Owned owned = owned(username, id);
+        if ("INVESTMENT".equals(owned.productType()) && !settings.enabled("investment", "documentUploadEnabled")) {
+            throw new IllegalStateException("La institución no recibe documentos en línea para inversiones.");
+        }
         requireStatus(owned, Set.of("DRAFT", "OBSERVED"),
                 "Solo puedes adjuntar documentos antes de enviar la solicitud o cuando el asesor lo pida.");
         if (content == null || content.length == 0) throw new IllegalArgumentException("El archivo está vacío.");
@@ -549,6 +612,21 @@ public class ApplicationService {
                 VALUES (?, ?, ?, ?, ?, ?)
                 """, id, next, amount, paidAt, note, actor);
         jdbc.update("UPDATE applications SET updated_at = now() WHERE id = ?", id);
+
+        boolean credit = "CREDIT".equals(application.productType());
+        boolean settled = totalInstallments != null && next == totalInstallments;
+        IdentityService.Account customer = identity.accountById(application.userId());
+        if (settled) {
+            // Queda en la línea de tiempo del cliente: el producto se cerró y ya no admite cambios.
+            event(id, "APPROVED", "APPROVED", credit
+                    ? "Crédito pagado por completo. ¡Felicitaciones!"
+                    : "Inversión liquidada: se pagaron todos los intereses y se devolvió el capital.", actor);
+            notifier.notifySettled(customer.email(), customer.fullName(), application.code(),
+                    application.productName(), credit, id);
+        } else {
+            notifier.notifyPaymentRecorded(customer.email(), customer.fullName(), application.code(), credit, next,
+                    totalInstallments == null ? next : totalInstallments, amount, id);
+        }
         return reviewDetail(username, authorities, id);
     }
 
@@ -556,6 +634,9 @@ public class ApplicationService {
     @Transactional
     public ReviewDetail deletePayment(String username, Set<String> authorities, long id, long paymentId) {
         reviewable(authorities, id);
+        if (settled(id)) {
+            throw new IllegalStateException("Este producto ya se pagó por completo y quedó cerrado; no admite cambios.");
+        }
         Integer paidThrough = jdbc.queryForObject(
                 "SELECT COALESCE(max(installment_number), 0) FROM application_payments WHERE application_id = ?",
                 Integer.class, id);
@@ -597,7 +678,8 @@ public class ApplicationService {
         boolean canDecide = advisor && inReview && (!credit || withinLimit);
         boolean canFinalize = analyst && pending && !recommendedByMe && !reviewedByMe;
         boolean canReturn = canFinalize;
-        boolean canRegisterPayment = authorities.contains(PAYMENTS_REGISTER) && "APPROVED".equals(status);
+        boolean canRegisterPayment = authorities.contains(PAYMENTS_REGISTER) && "APPROVED".equals(status)
+                && !settled(application.id());
 
         String notice = null;
         if (pending && analyst && (recommendedByMe || reviewedByMe)) {
@@ -700,7 +782,11 @@ public class ApplicationService {
                 forCustomer ? null : rs.getString("recommender_name"),
                 forCustomer ? null : rs.getObject("recommended_at", OffsetDateTime.class),
                 rs.getString("decider_name"),
-                schedule(id), events(id, forCustomer), documents(id), rs.getInt("paid_through"), payments(id)), id);
+                schedule(id), events(id, forCustomer), documents(id), rs.getInt("paid_through"), payments(id),
+                new Declaration(rs.getString("purpose_category"), rs.getString("employment_type"),
+                        rs.getBigDecimal("monthly_expenses"), rs.getString("funds_source"),
+                        rs.getBoolean("funds_lawful_declared")),
+                calculator.isAvailable(rs.getString("product_type"), rs.getLong("product_id"))), id);
         if (found.isEmpty()) throw new NoSuchElementException("No encontramos la solicitud.");
         return found.getFirst();
     }
@@ -830,6 +916,16 @@ public class ApplicationService {
         event(id, from, to, comment, actor);
     }
 
+    /** Todas las cuotas del cronograma están registradas: el producto se cierra. */
+    private boolean settled(long id) {
+        Boolean done = jdbc.queryForObject("""
+                SELECT (SELECT COALESCE(max(installment_number), 0) FROM application_payments WHERE application_id = ?)
+                     >= (SELECT count(*) FROM application_schedule WHERE application_id = ?)
+                   AND EXISTS (SELECT 1 FROM application_schedule WHERE application_id = ?)
+                """, Boolean.class, id, id, id);
+        return Boolean.TRUE.equals(done);
+    }
+
     private void event(long id, String from, String to, String comment, long actor) {
         jdbc.update("""
                 INSERT INTO application_events (application_id, from_status, to_status, comment, actor_id)
@@ -842,6 +938,25 @@ public class ApplicationService {
                 INSERT INTO application_events (application_id, from_status, to_status, comment, actor_id, internal)
                 VALUES (?, ?, ?, ?, ?, TRUE)
                 """, id, from, to, comment, actor);
+    }
+
+    /** Un borrador sin firmar no se envía si el tipo de crédito o plan dejó de ofrecerse. */
+    private void requireAvailable(Owned application) {
+        if (!calculator.isAvailable(application.productType(), productId(application.id()))) {
+            throw new IllegalStateException("CREDIT".equals(application.productType())
+                    ? "Este tipo de crédito dejó de ofrecerse, así que la solicitud no puede enviarse. Cancélala y "
+                            + "simula con otro tipo de crédito."
+                    : "Este plan de inversión dejó de ofrecerse, así que la solicitud no puede enviarse. Cancélala y "
+                            + "simula con otro plan.");
+        }
+    }
+
+    private long productId(long applicationId) {
+        return jdbc.queryForObject("SELECT product_id FROM applications WHERE id = ?", Long.class, applicationId);
+    }
+
+    private static String code(String value) {
+        return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
     }
 
     private static void requireStatus(Owned application, Set<String> allowed, String message) {

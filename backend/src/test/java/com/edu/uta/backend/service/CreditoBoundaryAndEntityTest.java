@@ -37,6 +37,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
@@ -86,7 +87,8 @@ class CreditoBoundaryAndEntityTest {
         };
         configuracion = new CreditoConfiguracionService(productoRepository, tipoCreditoRepository, segmentoRepository,
                 tasaCreditoRepository, cargoCreditoRepository, normativa, settings);
-        simulador = new SimuladorService(productoRepository, normativa);
+        simulador = new SimuladorService(productoRepository, normativa, settings);
+        when(settings.enabled(eq("credit"), anyString())).thenReturn(true);
 
         TASAS_MAXIMAS_SEP_2026.forEach((segmento, tasa) -> regla(segmento, "TASA_MAXIMA", tasa));
         regla("CONSUMO_PRIORITARIO", "MONTO_MAXIMO", "30000");
@@ -281,6 +283,19 @@ class CreditoBoundaryAndEntityTest {
 
         assertEquals(0, BigDecimal.ZERO.compareTo(sinDonacion.totalCargosIndirectos()));
         assertEquals(0, new BigDecimal("10.00").compareTo(conDonacion.totalCargosIndirectos()));
+    }
+
+    @Test
+    @DisplayName("Un sistema que la institución desactivó no se puede simular aunque el producto lo tenga")
+    void sistemaDesactivadoPorLaInstitucion() {
+        ProductoCreditoEntity prod = productoSimulable(3L, "CONSUMO_PRIORITARIO", "12.00", "0.0500", "MESES");
+        when(productoRepository.findById(3L)).thenReturn(Optional.of(prod));
+        when(settings.enabled("credit", "germanSystemEnabled")).thenReturn(false);
+
+        var ex = assertThrows(NormativaFinancieraException.class,
+                () -> simulador.simularCliente(solicitud(3L, "2000", 10, SistemaAmortizacion.ALEMAN, null)));
+        assertTrue(ex.getMessage().contains("alemán"));
+        assertDoesNotThrow(() -> simulador.simularCliente(solicitud(3L, "2000", 10, SistemaAmortizacion.FRANCES, null)));
     }
 
     @Test

@@ -88,6 +88,18 @@ public class ScenarioCalculator {
         };
     }
 
+    /**
+     * El tipo de crédito o plan sigue ofreciéndose a clientes nuevos. Lo ya aprobado no depende de esto:
+     * conserva las condiciones congeladas con las que se firmó.
+     */
+    public boolean isAvailable(String productType, long productId) {
+        return switch (normalizeType(productType)) {
+            case "CREDIT" -> credits.obtenerProductosDisponibles().stream().anyMatch(item -> item.id() == productId);
+            case "INVESTMENT" -> investments.publicProducts().stream().anyMatch(item -> item.id() == productId);
+            default -> false;
+        };
+    }
+
     public static String normalizeType(String type) {
         return type == null ? "" : type.trim().toUpperCase(Locale.ROOT);
     }
