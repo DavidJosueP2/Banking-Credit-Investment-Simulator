@@ -1,5 +1,5 @@
 import { CalendarCheck, CalendarClock, PartyPopper } from 'lucide-react'
-import { useState, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 
 import { Progress } from '@/components/ui/progress'
 import { InvestmentInterestChart, InvestmentPaymentsChart, type InvestmentChartData } from '@/features/investments/investment-insights'
@@ -152,7 +152,7 @@ export function InvestmentVisuals({ application, paidThrough }: { application: A
   )
 }
 
-/** Avance de una inversión aprobada: tiempo transcurrido y pagos recibidos (registrados por el asesor). */
+/** Avance real de una inversión aprobada: pagos recibidos y registrados, no solo tiempo calendario. */
 export function InvestmentProgress({ application, audience = 'customer' }: { application: ApplicationDetail; audience?: 'customer' | 'staff' }) {
   const { schedule } = application
   const paid = Math.min(application.paidThroughInstallment, schedule.length)
@@ -163,10 +163,7 @@ export function InvestmentProgress({ application, audience = 'customer' }: { app
   const interestPending = sum(pendingRows, interestOf)
   const capitalReturned = sum(paidRows, (row) => row.principal) > 0
   const maturity = schedule.at(-1)?.dueDate ?? application.scheduleBaseDate
-  const start = new Date(`${application.scheduleBaseDate.slice(0, 10)}T00:00:00`).getTime()
-  const end = new Date(`${maturity.slice(0, 10)}T00:00:00`).getTime()
-  const [now] = useState(() => Date.now())
-  const timeShare = end > start ? (now - start) / (end - start) : 1
+  const paymentShare = schedule.length > 0 ? paid / schedule.length : 0
   const daysLeft = Math.max(0, daysFromToday(maturity))
   const next = pendingRows[0]
   const due = next ? dueText(next.dueDate) : null
@@ -179,7 +176,7 @@ export function InvestmentProgress({ application, audience = 'customer' }: { app
         <span className="text-sm text-muted-foreground">{paid} de {schedule.length} {schedule.length === 1 ? 'pago recibido' : 'pagos recibidos'}</span>
       </div>
       <div className="mt-5 flex flex-col items-center gap-6 sm:flex-row sm:items-start">
-        <ProgressRing value={settled ? 1 : timeShare} label="del plazo" tone="gold" />
+        <ProgressRing value={settled ? 1 : paymentShare} label="de pagos" tone="gold" />
         <div className="w-full min-w-0 flex-1 space-y-4">
           {settled && <SettledBanner>{audience === 'staff' ? 'Inversión liquidada: intereses y capital entregados.' : 'Inversión liquidada: recibiste tus intereses y tu capital.'}</SettledBanner>}
           <div>
@@ -187,8 +184,8 @@ export function InvestmentProgress({ application, audience = 'customer' }: { app
               <span>Desde {formatDate(application.scheduleBaseDate)}</span>
               <span>{settled ? 'Vencida' : `Vence el ${formatDate(maturity)} · faltan ${daysLeft} días`}</span>
             </div>
-            <Progress value={Math.min(100, Math.max(0, (settled ? 1 : timeShare) * 100))} className="mt-1.5 h-2.5 [&_[data-slot=progress-indicator]]:bg-brand-gold"
-              aria-label="Tiempo transcurrido del plazo" />
+            <Progress value={(settled ? 1 : paymentShare) * 100} className="mt-1.5 h-2.5 [&_[data-slot=progress-indicator]]:bg-brand-gold"
+              aria-label="Pagos recibidos de la inversión" />
           </div>
           <dl className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <Stat label="Intereses recibidos" value={formatCurrency(interestReceived)} accent

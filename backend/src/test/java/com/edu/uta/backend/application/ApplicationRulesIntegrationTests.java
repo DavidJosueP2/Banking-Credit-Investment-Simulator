@@ -132,6 +132,37 @@ class ApplicationRulesIntegrationTests {
     }
 
     @Test
+    void otherApplicationsOnlyContainRequestsTheCurrentRoleCanOpen() {
+        ApplicationService.Detail previousCredit = applications.create(customer, credit(null));
+        jdbc.update("UPDATE applications SET status = 'APPROVED' WHERE id = ?", previousCredit.id());
+        ApplicationService.Detail previousInvestment = applications.create(customer, investment(true));
+        jdbc.update("UPDATE applications SET status = 'APPROVED' WHERE id = ?", previousInvestment.id());
+
+        ApplicationService.Detail currentCredit = applications.create(customer, credit(null));
+        jdbc.update("UPDATE applications SET status = 'SUBMITTED' WHERE id = ?", currentCredit.id());
+        Set<String> creditReviewer = Set.of(ApplicationService.CREDIT_REVIEW);
+        ApplicationService.ReviewDetail creditFile = applications.reviewDetail(staff, creditReviewer, currentCredit.id());
+        assertTrue(creditFile.customer().otherApplications().stream()
+                .allMatch(item -> "CREDIT".equals(item.productType())));
+        assertTrue(creditFile.customer().otherApplications().stream()
+                .anyMatch(item -> item.id() == previousCredit.id()));
+        creditFile.customer().otherApplications().forEach(item ->
+                assertDoesNotThrow(() -> applications.reviewDetail(staff, creditReviewer, item.id())));
+
+        ApplicationService.Detail currentInvestment = applications.create(customer, investment(true));
+        jdbc.update("UPDATE applications SET status = 'SUBMITTED' WHERE id = ?", currentInvestment.id());
+        Set<String> investmentReviewer = Set.of(ApplicationService.INVESTMENT_REVIEW);
+        ApplicationService.ReviewDetail investmentFile = applications.reviewDetail(staff, investmentReviewer,
+                currentInvestment.id());
+        assertTrue(investmentFile.customer().otherApplications().stream()
+                .allMatch(item -> "INVESTMENT".equals(item.productType())));
+        assertTrue(investmentFile.customer().otherApplications().stream()
+                .anyMatch(item -> item.id() == previousInvestment.id()));
+        investmentFile.customer().otherApplications().forEach(item ->
+                assertDoesNotThrow(() -> applications.reviewDetail(staff, investmentReviewer, item.id())));
+    }
+
+    @Test
     void settledProductIsClosed() {
         ApplicationService.Detail created = applications.create(customer, credit(null));
         jdbc.update("UPDATE applications SET status = 'APPROVED', biometric_result = 'APPROVED' WHERE id = ?", created.id());

@@ -448,7 +448,7 @@ public class ApplicationService {
     public ReviewDetail reviewDetail(String username, Set<String> authorities, long id) {
         Owned application = reviewable(authorities, id);
         long me = identity.accountByUsername(username).id();
-        return new ReviewDetail(detail(id, false), customerFile(application.userId(), id),
+        return new ReviewDetail(detail(id, false), customerFile(application.userId(), id, authorities),
                 actions(application, authorities, me));
     }
 
@@ -880,14 +880,21 @@ public class ApplicationService {
         return found.getFirst();
     }
 
-    private CustomerFile customerFile(long userId, long currentApplication) {
+    private CustomerFile customerFile(long userId, long currentApplication, Set<String> authorities) {
         IdentityService.Account account = identity.accountById(userId);
         CustomerProfile profile = profiles.findByUserId(userId).orElse(null);
         CustomerBiometric biometric = biometrics.findByUserId(userId).orElse(null);
         List<String> sides = jdbc.queryForList("SELECT document_side FROM identity_documents WHERE user_id = ?",
                 String.class, userId);
-        List<Summary> others = new ArrayList<>(summaries("WHERE a.user_id = ? AND a.id <> ? AND a.status <> 'DRAFT'",
-                userId, currentApplication));
+        List<String> types = reviewableTypes(authorities);
+        String placeholders = String.join(", ", types.stream().map(type -> "?").toList());
+        List<Object> arguments = new ArrayList<>();
+        arguments.add(userId);
+        arguments.add(currentApplication);
+        arguments.addAll(types);
+        List<Summary> others = types.isEmpty() ? List.of() : new ArrayList<>(summaries("""
+                WHERE a.user_id = ? AND a.id <> ? AND a.status <> 'DRAFT' AND a.product_type IN (
+                """ + placeholders + ")", arguments.toArray()));
         return new CustomerFile(userId, account.fullName(), account.username(), account.email(),
                 profile == null ? null : profile.getIdType(), profile == null ? null : profile.getIdNumber(),
                 profile == null ? null : profile.getBirthDate(), profile == null ? null : profile.getPhone(),
