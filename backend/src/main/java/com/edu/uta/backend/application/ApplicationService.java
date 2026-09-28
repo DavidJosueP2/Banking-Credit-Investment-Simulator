@@ -393,8 +393,8 @@ public class ApplicationService {
         if ("INVESTMENT".equals(owned.productType()) && !settings.enabled("investment", "documentUploadEnabled")) {
             throw new IllegalStateException("La institución no recibe documentos en línea para inversiones.");
         }
-        requireStatus(owned, Set.of("DRAFT", "OBSERVED"),
-                "Solo puedes adjuntar documentos antes de enviar la solicitud o cuando el asesor lo pida.");
+        requireStatus(owned, Set.of("DRAFT", "SUBMITTED", "IN_REVIEW", "OBSERVED"),
+                "Solo puedes adjuntar documentos mientras la solicitud está pendiente de decisión.");
         if (content == null || content.length == 0) throw new IllegalArgumentException("El archivo está vacío.");
         if (content.length > MAX_DOCUMENT_BYTES) {
             throw new IllegalArgumentException("Cada archivo puede pesar hasta 5 MB.");
@@ -415,6 +415,9 @@ public class ApplicationService {
                     uploaded_by) VALUES (?, ?, ?, ?, ?, ?) RETURNING id
                 """, Long.class, id, name, type, content.length, content, owned.userId());
         jdbc.update("UPDATE applications SET updated_at = now() WHERE id = ?", id);
+        if (!"DRAFT".equals(owned.status())) {
+            event(id, owned.status(), owned.status(), "El cliente adjuntó un documento: " + name, owned.userId());
+        }
         return documents(id).stream().filter(item -> item.id() == documentId).findFirst().orElseThrow();
     }
 
@@ -445,7 +448,7 @@ public class ApplicationService {
     public ReviewDetail reviewDetail(String username, Set<String> authorities, long id) {
         Owned application = reviewable(authorities, id);
         long me = identity.accountByUsername(username).id();
-        return new ReviewDetail(detail(id, false), customerFile(application.userId(), id),
+        return new ReviewDetail(detail(id, false), customerFile(application.userId(), id, authorities),
                 actions(application, authorities, me));
     }
 
@@ -877,14 +880,21 @@ public class ApplicationService {
         return found.getFirst();
     }
 
-    private CustomerFile customerFile(long userId, long currentApplication) {
+    private CustomerFile customerFile(long userId, long currentApplication, Set<String> authorities) {
         IdentityService.Account account = identity.accountById(userId);
         CustomerProfile profile = profiles.findByUserId(userId).orElse(null);
         CustomerBiometric biometric = biometrics.findByUserId(userId).orElse(null);
         List<String> sides = jdbc.queryForList("SELECT document_side FROM identity_documents WHERE user_id = ?",
                 String.class, userId);
-        List<Summary> others = new ArrayList<>(summaries("WHERE a.user_id = ? AND a.id <> ? AND a.status <> 'DRAFT'",
-                userId, currentApplication));
+        List<String> types = reviewableTypes(authorities);
+        String placeholders = String.join(", ", types.stream().map(type -> "?").toList());
+        List<Object> arguments = new ArrayList<>();
+        arguments.add(userId);
+        arguments.add(currentApplication);
+        arguments.addAll(types);
+        List<Summary> others = types.isEmpty() ? List.of() : new ArrayList<>(summaries("""
+                WHERE a.user_id = ? AND a.id <> ? AND a.status <> 'DRAFT' AND a.product_type IN (
+                """ + placeholders + ")", arguments.toArray()));
         return new CustomerFile(userId, account.fullName(), account.username(), account.email(),
                 profile == null ? null : profile.getIdType(), profile == null ? null : profile.getIdNumber(),
                 profile == null ? null : profile.getBirthDate(), profile == null ? null : profile.getPhone(),

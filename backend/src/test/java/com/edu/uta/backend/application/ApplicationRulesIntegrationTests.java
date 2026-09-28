@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Set;
 
@@ -99,6 +100,66 @@ class ApplicationRulesIntegrationTests {
         ApplicationService.Detail created = applications.create(customer, withCategory(base, "OTRO", "Compra de equipo médico"));
         assertEquals("OTRO", created.declaration().purposeCategory());
         assertEquals("DEPENDIENTE", created.declaration().employmentType());
+    }
+
+    @Test
+    void customerCanAttachDocumentsBeforeAndAfterSendingWhileDecisionIsPending() {
+        ApplicationService.Detail draft = applications.create(customer, credit(null));
+        long id = draft.id();
+        byte[] pdf = "%PDF-1.4 archivo de prueba".getBytes(StandardCharsets.UTF_8);
+
+        ApplicationService.DocumentInfo first = applications.upload(customer, id, "ingresos.pdf", "application/pdf", pdf);
+        assertEquals("DRAFT", applications.customerApplication(customer, id).status(),
+                "adjuntar no debe enviar la solicitud");
+        assertEquals(1, applications.customerApplication(customer, id).documents().size());
+        applications.deleteDocument(customer, id, first.id());
+
+        jdbc.update("UPDATE applications SET status = 'SUBMITTED' WHERE id = ?", id);
+        ApplicationService.DocumentInfo sent = applications.upload(customer, id, "proforma.pdf", "application/pdf", pdf);
+        assertEquals(1, applications.customerApplication(customer, id).documents().size());
+        assertTrue(applications.customerApplication(customer, id).events().stream()
+                .anyMatch(event -> event.comment().contains("proforma.pdf")));
+        assertThrows(IllegalStateException.class, () -> applications.deleteDocument(customer, id, sent.id()),
+                "lo enviado no se retira mientras espera revisión");
+
+        jdbc.update("UPDATE applications SET status = 'IN_REVIEW' WHERE id = ?", id);
+        assertDoesNotThrow(() -> applications.upload(customer, id, "anexo.pdf", "application/pdf", pdf));
+        jdbc.update("UPDATE applications SET status = 'OBSERVED' WHERE id = ?", id);
+        assertDoesNotThrow(() -> applications.upload(customer, id, "respuesta.pdf", "application/pdf", pdf));
+        jdbc.update("UPDATE applications SET status = 'APPROVED' WHERE id = ?", id);
+        assertThrows(IllegalStateException.class,
+                () -> applications.upload(customer, id, "tarde.pdf", "application/pdf", pdf));
+    }
+
+    @Test
+    void otherApplicationsOnlyContainRequestsTheCurrentRoleCanOpen() {
+        ApplicationService.Detail previousCredit = applications.create(customer, credit(null));
+        jdbc.update("UPDATE applications SET status = 'APPROVED' WHERE id = ?", previousCredit.id());
+        ApplicationService.Detail previousInvestment = applications.create(customer, investment(true));
+        jdbc.update("UPDATE applications SET status = 'APPROVED' WHERE id = ?", previousInvestment.id());
+
+        ApplicationService.Detail currentCredit = applications.create(customer, credit(null));
+        jdbc.update("UPDATE applications SET status = 'SUBMITTED' WHERE id = ?", currentCredit.id());
+        Set<String> creditReviewer = Set.of(ApplicationService.CREDIT_REVIEW);
+        ApplicationService.ReviewDetail creditFile = applications.reviewDetail(staff, creditReviewer, currentCredit.id());
+        assertTrue(creditFile.customer().otherApplications().stream()
+                .allMatch(item -> "CREDIT".equals(item.productType())));
+        assertTrue(creditFile.customer().otherApplications().stream()
+                .anyMatch(item -> item.id() == previousCredit.id()));
+        creditFile.customer().otherApplications().forEach(item ->
+                assertDoesNotThrow(() -> applications.reviewDetail(staff, creditReviewer, item.id())));
+
+        ApplicationService.Detail currentInvestment = applications.create(customer, investment(true));
+        jdbc.update("UPDATE applications SET status = 'SUBMITTED' WHERE id = ?", currentInvestment.id());
+        Set<String> investmentReviewer = Set.of(ApplicationService.INVESTMENT_REVIEW);
+        ApplicationService.ReviewDetail investmentFile = applications.reviewDetail(staff, investmentReviewer,
+                currentInvestment.id());
+        assertTrue(investmentFile.customer().otherApplications().stream()
+                .allMatch(item -> "INVESTMENT".equals(item.productType())));
+        assertTrue(investmentFile.customer().otherApplications().stream()
+                .anyMatch(item -> item.id() == previousInvestment.id()));
+        investmentFile.customer().otherApplications().forEach(item ->
+                assertDoesNotThrow(() -> applications.reviewDetail(staff, investmentReviewer, item.id())));
     }
 
     @Test

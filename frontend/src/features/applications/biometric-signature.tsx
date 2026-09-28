@@ -22,19 +22,21 @@ type Phase = 'intro' | 'preparing' | 'capturing' | 'verifying' | 'rejected'
 interface BiometricSignatureProps {
   application: ApplicationDetail
   onSubmitted: (application: ApplicationDetail) => void
+  disabled?: boolean
 }
 
 /**
  * Firma biométrica del envío: prueba de vida con Rekognition comparada con el rostro que el cliente
  * registró con su documento. El resultado queda atado a esta solicitud en el servidor.
  */
-export default function BiometricSignature({ application, onSubmitted }: BiometricSignatureProps) {
+export default function BiometricSignature({ application, onSubmitted, disabled = false }: BiometricSignatureProps) {
   const [phase, setPhase] = useState<Phase>('intro')
   const [ticket, setTicket] = useState<LivenessTicket | null>(null)
   const [message, setMessage] = useState('')
   const [attemptsLeft, setAttemptsLeft] = useState(application.biometricAttemptsLeft)
 
   async function start() {
+    if (disabled) return
     setMessage('')
     setPhase('preparing')
     try {
@@ -124,7 +126,7 @@ export default function BiometricSignature({ application, onSubmitted }: Biometr
       {phase === 'intro' && message && <p role="alert" className="mt-4 text-sm text-destructive">{message}</p>}
 
       <div className="mt-6 flex flex-wrap items-center gap-3">
-        <Button type="button" variant="brand" disabled={phase === 'preparing' || exhausted} onClick={() => void start()}>
+        <Button type="button" variant="brand" disabled={disabled || phase === 'preparing' || exhausted} onClick={() => void start()}>
           {phase === 'preparing' && <Spinner />}
           {phase === 'preparing' ? 'Preparando cámara…' : phase === 'rejected' ? 'Intentar de nuevo' : 'Confirmar con mi rostro y enviar'}
         </Button>

@@ -307,9 +307,8 @@ export async function respondToObservation(id: number, comment: string) {
 export async function uploadApplicationDocument(id: number, file: File) {
   const form = new FormData()
   form.append('file', file)
-  return (await api.post<ApplicationDocument>(`/client/applications/${id}/documents`, form, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  })).data
+  // El navegador agrega el boundary correcto de multipart; fijar Content-Type a mano lo omite en algunos navegadores.
+  return (await api.post<ApplicationDocument>(`/client/applications/${id}/documents`, form)).data
 }
 
 export async function deleteApplicationDocument(id: number, documentId: number) {
