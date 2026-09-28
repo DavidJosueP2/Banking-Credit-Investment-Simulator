@@ -30,6 +30,9 @@ public class InstitutionSettingsService {
             "creditImage", "investmentImage",
             "creditSimulatorImage", "investmentSimulatorImage", "closingImage", "perspectiveImage");
 
+    /** Tipo de entidad financiera: define rangos prudenciales y la etiqueta de los productos. */
+    private static final Map<String, String> ENTITY_TYPES = Map.of("BANCO", "Banco", "COOPERATIVA", "Cooperativa");
+
     private static final Map<String, Map<String, String>> DEFAULTS = defaults();
 
     private final JdbcTemplate jdbc;
@@ -63,6 +66,26 @@ public class InstitutionSettingsService {
         return new SettingsView(sections, assets);
     }
 
+    /** BANCO o COOPERATIVA, según la configuración institucional. */
+    public String entityType() {
+        return effectiveSettings().sections().get("institution").get("entityType");
+    }
+
+    public String entityLabel() {
+        return ENTITY_TYPES.get(entityType());
+    }
+
+    /** Monto hasta el cual un asesor de crédito puede aprobar sin pasar por el analista. */
+    public java.math.BigDecimal advisorApprovalLimit() {
+        return new java.math.BigDecimal(effectiveSettings().sections().get("credit").get("advisorApprovalLimit"));
+    }
+
+    /** Interruptor de módulo ("true"/"false") de la configuración institucional. */
+    public boolean enabled(String category, String key) {
+        Map<String, String> section = effectiveSettings().sections().get(category);
+        return section != null && "true".equals(section.get(key));
+    }
+
     public Map<String, String> defaultsFor(String category) {
         Map<String, String> defaults = DEFAULTS.get(category);
         if (defaults == null) throw new NoSuchElementException("La sección de configuración no existe");
@@ -85,6 +108,10 @@ public class InstitutionSettingsService {
                                 "VALUES (?, ?, ?, now(), ?) ON CONFLICT (category, setting_key) DO UPDATE SET " +
                                 "setting_value = EXCLUDED.setting_value, updated_at = now(), updated_by = EXCLUDED.updated_by",
                         category, key, value, userId);
+            }
+            if (category.equals("institution") && key.equals("entityType")) {
+                // Los productos pertenecen a la institución: heredan su tipo de entidad.
+                jdbc.update("UPDATE producto_credito SET entidad = ?", ENTITY_TYPES.get(value));
             }
         }
         return effectiveSettings();
@@ -176,6 +203,21 @@ public class InstitutionSettingsService {
         if ((category.equals("credit") || category.equals("investment")) && key.endsWith("Enabled")) {
             if (!value.equals("true") && !value.equals("false")) throw new IllegalArgumentException("El valor de " + key + " debe ser verdadero o falso");
         }
+        if (category.equals("institution") && key.equals("entityType")) {
+            String type = value.toUpperCase(Locale.ROOT);
+            if (!ENTITY_TYPES.containsKey(type)) throw new IllegalArgumentException("El tipo de entidad debe ser Banco o Cooperativa");
+            return type;
+        }
+        if (category.equals("credit") && key.equals("advisorApprovalLimit")) {
+            try {
+                java.math.BigDecimal limit = new java.math.BigDecimal(value).setScale(2, java.math.RoundingMode.HALF_UP);
+                if (limit.signum() < 0 || limit.compareTo(new java.math.BigDecimal("1000000")) > 0)
+                    throw new IllegalArgumentException("El límite de aprobación del asesor debe estar entre $0 y $1.000.000");
+                return limit.stripTrailingZeros().toPlainString();
+            } catch (NumberFormatException exception) {
+                throw new IllegalArgumentException("El límite de aprobación del asesor debe ser un monto en dólares");
+            }
+        }
         if (value.isBlank()) throw new IllegalArgumentException("El campo " + key + " no puede quedar vacío");
         return value;
     }
@@ -205,7 +247,8 @@ public class InstitutionSettingsService {
                 "supportEmail", "soporte@brunexa.com",
                 "supportPhone", "+593 00 000 0000",
                 "address", "Ecuador",
-                "legalNotice", "Brunexa Bank es una institución ficticia. Los contenidos mostrados no constituyen una oferta financiera real."));
+                "legalNotice", "Brunexa Bank es una institución ficticia. Los contenidos mostrados no constituyen una oferta financiera real.",
+                "entityType", "BANCO"));
         defaults.put("appearance", Map.ofEntries(
                 Map.entry("brandPrimaryColor", "#08747b"),
                 Map.entry("brandSecondaryColor", "#946928"),
@@ -331,11 +374,12 @@ public class InstitutionSettingsService {
         defaults.put("credit", Map.of(
                 "moduleEnabled", "true",
                 "displayName", "Créditos",
-                "simulatorEnabled", "false",
+                "simulatorEnabled", "true",
                 "frenchSystemEnabled", "true",
                 "germanSystemEnabled", "true",
                 "indirectChargesEnabled", "true",
-                "pdfReportEnabled", "true"));
+                "pdfReportEnabled", "true",
+                "advisorApprovalLimit", "2000"));
         defaults.put("investment", Map.of(
                 "moduleEnabled", "true",
                 "displayName", "Inversiones",

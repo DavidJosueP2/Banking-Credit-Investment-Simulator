@@ -48,7 +48,7 @@ type CreatedInternalUser = {
   temporaryPassword: string | null
 }
 
-const internalRoleCodes = new Set(['credit_advisor', 'investment_advisor', 'administrator'])
+const internalRoleCodes = new Set(['credit_advisor', 'credit_analyst', 'investment_advisor', 'administrator'])
 
 function requestError(error: unknown) {
   if (axios.isAxiosError(error)) {
@@ -329,23 +329,32 @@ export function RolePermissionsPage() {
         <TabsContent value="users" className="space-y-5">
           <p className="text-sm text-muted-foreground">{users.data.length} cuenta{users.data.length === 1 ? '' : 's'} registrada{users.data.length === 1 ? '' : 's'}.</p>
           <div className="overflow-x-auto rounded-xl border bg-card">
-            <Table className="min-w-230">
+            <Table className="min-w-170 table-fixed">
+              <colgroup>
+                <col className="w-[34%]" /><col className="w-[30%]" /><col className="w-32" /><col className="w-44" />
+              </colgroup>
               <TableHeader><TableRow>
-                <TableHead>Nombre</TableHead><TableHead>Correo</TableHead><TableHead>Roles</TableHead><TableHead>Estado</TableHead><TableHead className="text-right">Acción</TableHead>
+                <TableHead>Cuenta</TableHead><TableHead>Roles</TableHead><TableHead>Estado</TableHead><TableHead className="text-right">Acción</TableHead>
               </TableRow></TableHeader>
               <TableBody>
-                {users.data.length === 0 && <TableRow><TableCell colSpan={5} className="py-8 text-center text-muted-foreground">Aún no hay cuentas. Crea el primer usuario para comenzar.</TableCell></TableRow>}
-                {users.data.map((user) => <TableRow key={user.id}>
-                  <TableCell className="font-medium">{user.fullName}</TableCell>
-                  <TableCell className="max-w-64 break-words">{user.email}</TableCell>
-                  <TableCell>{user.roles.map((role) => roleByCode.get(role) ?? role).join(', ')}</TableCell>
+                {users.data.length === 0 && <TableRow><TableCell colSpan={4} className="py-8 text-center text-muted-foreground">Aún no hay cuentas. Crea el primer usuario para comenzar.</TableCell></TableRow>}
+                {users.data.map((user) => <TableRow key={user.id} className="align-top">
+                  <TableCell className="whitespace-normal">
+                    <span className="block break-words font-medium">{user.fullName}</span>
+                    <span className="block break-all text-xs text-muted-foreground">{user.email}</span>
+                  </TableCell>
+                  <TableCell className="whitespace-normal">
+                    <div className="flex flex-wrap gap-1.5">
+                      {user.roles.map((role) => <Badge key={role} variant="secondary" className="font-normal">{roleByCode.get(role) ?? role}</Badge>)}
+                    </div>
+                  </TableCell>
                   <TableCell>
                     {!user.enabled && <Badge variant="destructive">Bloqueado</Badge>}
                     {user.enabled && !user.emailVerified && <Badge variant="outline" className="border-brand-gold/50 text-brand-gold">Correo pendiente</Badge>}
                     {user.enabled && user.emailVerified && <Badge variant="outline" className="border-brand-teal/50 text-brand-teal">Activo</Badge>}
                   </TableCell>
                   <TableCell>
-                    <div className="flex flex-wrap justify-end gap-2">
+                    <div className="flex flex-col items-end gap-2">
                       {!user.emailVerified && (
                         <Button variant="outline" size="sm" disabled={resendingVerification === user.id} onClick={() => void resendVerification(user)}>
                           <RefreshCw className={resendingVerification === user.id ? 'animate-spin' : undefined} aria-hidden="true" />
@@ -395,9 +404,9 @@ export function RolePermissionsPage() {
           <div className="overflow-x-auto rounded-xl border bg-card">
             <Table className="min-w-215">
               <caption className="sr-only">Permisos por rol de Brunexa</caption>
-              <TableHeader><TableRow><TableHead className="min-w-65">Permiso</TableHead>{roles.data.map((role) => <TableHead key={role.code} className="min-w-32 text-center">{role.label}</TableHead>)}</TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead className="sticky left-0 z-10 min-w-65 bg-card">Permiso</TableHead>{roles.data.map((role) => <TableHead key={role.code} className="min-w-32 text-center">{role.label}</TableHead>)}</TableRow></TableHeader>
               <TableBody>{permissions.data.map((permission) => <TableRow key={permission.code}>
-                <TableCell><span className="block font-medium">{permission.label}</span><span className="text-xs text-muted-foreground">{permission.area}</span></TableCell>
+                <TableCell className="sticky left-0 z-10 bg-card whitespace-normal"><span className="block font-medium">{permission.label}</span><span className="text-xs text-muted-foreground">{permission.area}</span></TableCell>
                 {roles.data.map((role) => <TableCell key={role.code} className="text-center">{role.permissions.includes(permission.code) ? <Check className="mx-auto size-4 text-brand-teal" aria-label="Permitido" /> : <span className="text-muted-foreground" aria-label="No permitido">—</span>}</TableCell>)}
               </TableRow>)}</TableBody>
             </Table>

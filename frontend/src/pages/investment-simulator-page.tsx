@@ -1,31 +1,39 @@
 import axios from 'axios'
-import { ArrowLeft, Download, TrendingUp } from 'lucide-react'
-import { useMemo, useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
+import { ArrowLeft, Goal, TrendingUp } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
-import { useAuth } from '@/app/providers/auth-provider'
 import { useInstitutionSettings } from '@/app/providers/settings-provider'
 import investmentPersonImage from '@/assets/imgs/investment-person.png'
 import { PageHeader } from '@/components/shared/page-header'
+import { SimulationActions } from '@/features/applications/simulation-actions'
+import { useExportBranding } from '@/features/export/branding'
+import { DownloadMenu, type ExportFormat } from '@/features/export/download-menu'
+import { exportInvestmentExcel } from '@/features/investments/investment-export'
+import { CompoundGrowthDialog, InvestmentGrowthChart, InvestmentInterestChart, InvestmentPaymentsChart } from '@/features/investments/investment-insights'
 import { SimulatorHeroBanner } from '@/components/shared/simulator-hero-banner'
 import { Button } from '@/components/ui/button'
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Input } from '@/components/ui/input'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import {
+  describeCharge,
   downloadInvestmentPdf,
   getPublicInvestmentProducts,
   investmentKeys,
   payoutLabels,
+  reachInvestmentGoal,
   termUnitLabels,
   simulateInvestment,
+  type GoalResult,
+  type InvestmentProduct,
   type SimulationRequest,
   type SimulationResult,
-  type InvestmentProduct,
+  type TermUnit,
 } from '@/features/investments/investment-api'
 import { formatCurrency, formatDate, formatPercentage } from '@/lib/formatters'
 
@@ -36,27 +44,131 @@ function requestError(error: unknown) {
   return 'No se pudo realizar la simulación.'
 }
 
+const termUnitDays: Record<TermUnit, number> = { DAYS: 1, MONTHS: 30, YEARS: 360 }
+const DAY_MS = 86_400_000
+
+/** Fecha de vencimiento como la calcula el servidor: meses de calendario, ajustando al último día del mes. */
+function maturityFrom(start: Date, value: number, unit: TermUnit) {
+  if (unit === 'DAYS') return new Date(start.getFullYear(), start.getMonth(), start.getDate() + value)
+  const month = start.getMonth() + value * (unit === 'YEARS' ? 12 : 1)
+  const lastDay = new Date(start.getFullYear(), month + 1, 0).getDate()
+  return new Date(start.getFullYear(), month, Math.min(start.getDate(), lastDay))
+}
+
+/** Días reales desde hoy hasta el vencimiento: con ellos se elige el tramo de tasa y se calcula el interés. */
+function actualTermDays(value: number, unit: TermUnit, start = new Date()) {
+  const from = new Date(start.getFullYear(), start.getMonth(), start.getDate())
+  return Math.round((maturityFrom(from, value, unit).getTime() - from.getTime()) / DAY_MS)
+}
+
+/** Menor y mayor valor de la unidad cuyos días reales caben en el rango del plan (null si ninguno cabe). */
+function unitRange(unit: TermUnit, minimumDays: number, maximumDays: number) {
+  if (unit === 'DAYS') return minimumDays > 0 && minimumDays <= maximumDays ? { minimumValue: minimumDays, maximumValue: maximumDays } : null
+  let minimumValue = 0
+  let maximumValue = 0
+  for (let value = 1; actualTermDays(value, unit) <= maximumDays; value++) {
+    if (!minimumValue && actualTermDays(value, unit) >= minimumDays) minimumValue = value
+    if (minimumValue) maximumValue = value
+  }
+  return minimumValue ? { minimumValue, maximumValue } : null
+}
+const minimumFrequencyDays: Record<string, number> = { AT_MATURITY: 0, MONTHLY: 30, BIMONTHLY: 60, QUARTERLY: 90, SEMIANNUAL: 180, ANNUAL: 360 }
+
+/** Formas de pago del plan cuyo período divide exactamente el plazo (normalizado a días). */
+function compatibleFrequencies(product: InvestmentProduct | undefined, normalizedTermDays: number) {
+  return product?.payoutFrequencies.filter((frequency) => {
+    const frequencyDays = minimumFrequencyDays[frequency]
+    return frequencyDays === 0 || (normalizedTermDays >= frequencyDays && normalizedTermDays % frequencyDays === 0)
+  }) ?? []
+}
+
 export function InvestmentSimulatorPage() {
-  const { account } = useAuth()
   const { settings, assets } = useInstitutionSettings()
   const products = useQuery({ queryKey: investmentKeys.publicProducts, queryFn: getPublicInvestmentProducts })
-  const [productId, setProductId] = useState('')
-  const [amount, setAmount] = useState('')
-  const [termDays, setTermDays] = useState('')
-  const [payoutFrequency, setPayoutFrequency] = useState('')
+  const [searchParams] = useSearchParams()
+  const [initial] = useState(() => {
+    const productId = searchParams.get('producto') ?? ''
+    const amount = searchParams.get('monto') ?? ''
+    const term = searchParams.get('plazo') ?? ''
+    const unit = searchParams.get('unidad') ?? 'DAYS'
+    return productId && Number(amount) > 0 && Number(term) > 0
+      ? {
+          productId, amount, term, unit: (unit in termUnitDays ? unit : 'DAYS') as TermUnit, payout: searchParams.get('pago') ?? '',
+          optional: (searchParams.get('opcionales') ?? '').split(',').map(Number).filter((id) => Number.isInteger(id) && id > 0),
+        }
+      : null
+  })
+  const [productId, setProductId] = useState(initial?.productId ?? '')
+  const [amount, setAmount] = useState(initial?.amount ?? '')
+  const [termValue, setTermValue] = useState(initial?.term ?? '')
+  const [termUnit, setTermUnit] = useState<TermUnit | ''>(initial?.unit ?? '')
+  const [payoutFrequency, setPayoutFrequency] = useState(initial?.payout ?? '')
+  const [selectedCharges, setSelectedCharges] = useState<number[]>(initial?.optional ?? [])
   const [result, setResult] = useState<SimulationResult>()
+  const [mode, setMode] = useState<'amount' | 'goal'>('amount')
+  const [target, setTarget] = useState('')
+  const [goal, setGoal] = useState<GoalResult>()
 
   const effectiveProductId = productId || String(products.data?.[0]?.id ?? '')
   const selected = useMemo(() => products.data?.find((product) => String(product.id) === effectiveProductId), [products.data, effectiveProductId])
   const effectiveAmount = amount || String(selected?.minimumAmount ?? '')
-  const effectiveTermDays = termDays || String(selected?.terms[0] ?? '')
-  const effectivePayoutFrequency = payoutFrequency || selected?.payoutFrequencies[0] || ''
+  const minimumTermDays = selected?.rates.length ? Math.min(...selected.rates.map((rate) => rate.minimumTermDays)) : 0
+  const maximumTermDays = selected?.rates.length ? Math.max(...selected.rates.map((rate) => rate.maximumTermDays)) : 0
+  const termUnits = (['DAYS', 'MONTHS', 'YEARS'] as const).flatMap((unit) => {
+    const range = unitRange(unit, minimumTermDays, maximumTermDays)
+    return range ? [{ unit, ...range }] : []
+  })
+  const effectiveTermUnit = (termUnit || termUnits[0]?.unit || '') as TermUnit
+  const selectedTermUnit = termUnits.find((item) => item.unit === effectiveTermUnit)
+  const effectiveTermValue = termValue || String(selectedTermUnit?.minimumValue ?? '')
+  const normalizedTermDays = Number(effectiveTermValue) * (termUnitDays[effectiveTermUnit] ?? 1)
+  const availableFrequencies = compatibleFrequencies(selected, normalizedTermDays)
+  const effectivePayoutFrequency = availableFrequencies.some((frequency) => frequency === payoutFrequency) ? payoutFrequency : availableFrequencies[0] || ''
+  const amountNumber = Number(effectiveAmount)
+  const termNumber = Number(effectiveTermValue)
+  const realTermDays = Number.isInteger(termNumber) && termNumber > 0 && effectiveTermUnit ? actualTermDays(termNumber, effectiveTermUnit) : 0
+  const amountError = selected && (!Number.isFinite(amountNumber) || amountNumber < selected.minimumAmount || amountNumber > selected.maximumAmount)
+    ? `Ingresa un monto entre ${formatCurrency(selected.minimumAmount)} y ${formatCurrency(selected.maximumAmount)}.` : ''
+  const termError = selectedTermUnit && (!Number.isInteger(termNumber) || termNumber < selectedTermUnit.minimumValue || termNumber > selectedTermUnit.maximumValue)
+    ? `Ingresa un plazo entero entre ${selectedTermUnit.minimumValue} y ${selectedTermUnit.maximumValue} ${termUnitLabels[effectiveTermUnit].toLowerCase()}.` : ''
+  const targetNumber = Number(target)
+  const canSimulate = Boolean(selected && !termError && effectivePayoutFrequency
+    && (mode === 'goal' ? Number.isFinite(targetNumber) && targetNumber > 0 : !amountError))
 
   const simulation = useMutation({
     mutationFn: simulateInvestment,
-    onSuccess: setResult,
+    onSuccess: (data) => { setGoal(undefined); setResult(data) },
     onError: (error) => toast.error(requestError(error)),
   })
+  const goalSearch = useMutation({
+    mutationFn: reachInvestmentGoal,
+    onSuccess: (data) => {
+      setAmount(String(data.requiredAmount))
+      setGoal(data)
+      setResult(data.simulation)
+    },
+    onError: (error) => toast.error(requestError(error)),
+  })
+  const brandingFor = useExportBranding()
+  const excel = useMutation({
+    mutationFn: async (data: SimulationResult) => exportInvestmentExcel(data, await brandingFor()),
+    onError: () => toast.error('No se pudo generar el Excel.'),
+  })
+
+  // Abrir una simulación guardada: /inversiones/simulador?producto=&monto=&plazo=&unidad=&pago= la rellena
+  // (estado inicial) y la calcula en cuanto cargan los planes.
+  const restored = useRef(false)
+  const { mutate: simulate } = simulation
+  useEffect(() => {
+    if (restored.current || !products.data || !initial) return
+    restored.current = true
+    const product = products.data.find((item) => String(item.id) === initial.productId)
+    if (!product) return
+    const frequencies = compatibleFrequencies(product, Number(initial.term) * termUnitDays[initial.unit])
+    const frequency = frequencies.find((item) => item === initial.payout) ?? frequencies[0]
+    if (!frequency) return
+    simulate({ productId: product.id, amount: Number(initial.amount), termValue: Number(initial.term), termUnit: initial.unit, payoutFrequency: frequency, optionalCharges: initial.optional })
+  }, [products.data, initial, simulate])
   const pdf = useMutation({
     mutationFn: downloadInvestmentPdf,
     onSuccess: (blob) => {
@@ -70,15 +182,34 @@ export function InvestmentSimulatorPage() {
     onError: (error) => toast.error(requestError(error)),
   })
 
+  const activeCharges = selected?.charges?.filter((charge) => charge.active) ?? []
+  const mandatoryCharges = activeCharges.filter((charge) => charge.mandatory)
+  const optionalCharges = activeCharges.filter((charge) => !charge.mandatory)
+  const chosenOptional = optionalCharges.flatMap((charge) => charge.id != null && selectedCharges.includes(charge.id) ? [charge.id] : [])
+  function toggleCharge(id: number, checked: boolean) {
+    setSelectedCharges((current) => checked ? [...current, id] : current.filter((item) => item !== id))
+    setResult(undefined)
+    setGoal(undefined)
+  }
+
   const currentRequest = (): SimulationRequest => ({
     productId: Number(effectiveProductId), amount: Number(effectiveAmount),
-    termDays: Number(effectiveTermDays), payoutFrequency: effectivePayoutFrequency as SimulationRequest['payoutFrequency'],
+    termValue: Number(effectiveTermValue), termUnit: effectiveTermUnit,
+    payoutFrequency: effectivePayoutFrequency as SimulationRequest['payoutFrequency'],
+    optionalCharges: chosenOptional,
   })
 
   function submit(event: FormEvent) {
     event.preventDefault()
     setResult(undefined)
-    simulation.mutate(currentRequest())
+    setGoal(undefined)
+    const request = currentRequest()
+    if (mode === 'goal') {
+      goalSearch.mutate({ productId: request.productId, targetAmount: targetNumber, termValue: request.termValue,
+        termUnit: request.termUnit, payoutFrequency: request.payoutFrequency, optionalCharges: request.optionalCharges })
+      return
+    }
+    simulation.mutate(request)
   }
 
   if (settings.investment.moduleEnabled !== 'true' || settings.investment.simulatorEnabled !== 'true') {
@@ -94,79 +225,134 @@ export function InvestmentSimulatorPage() {
           { label: 'Simulador de Inversiones' },
         ]}
         title="Simulador de Inversiones"
-        description="Proyecta el rendimiento de un producto con las tasas y condiciones configuradas por la institución."
+        description="Proyecta el rendimiento de un plan de inversión con las tasas y condiciones vigentes de la institución."
         imageSrc={assets.investmentSimulatorImage ?? investmentPersonImage}
         imageAlt="Persona simulando una inversión financiera"
       />
       <div className="mx-auto max-w-7xl px-5 py-8 sm:px-8 lg:py-12">
         <div className="grid gap-8 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:items-start">
           <form onSubmit={submit} className="space-y-6 rounded-xl border bg-card p-6 lg:sticky lg:top-24">
-            {products.data && products.data.length > 1 && <div className="space-y-2"><Label>Producto</Label><Select value={effectiveProductId} onValueChange={(value) => { setProductId(value); setAmount(''); setTermDays(''); setPayoutFrequency(''); setResult(undefined) }} disabled={products.isPending}><SelectTrigger><SelectValue placeholder="Selecciona un producto" /></SelectTrigger><SelectContent>{products.data.map((product) => <SelectItem key={product.id} value={String(product.id)}>{product.name}</SelectItem>)}</SelectContent></Select></div>}
-            <div className="space-y-2"><Label htmlFor="simulation-amount">Monto a invertir</Label><Input id="simulation-amount" type="number" step="0.01" min={selected?.minimumAmount} max={selected?.maximumAmount} value={effectiveAmount} onChange={(event) => { setAmount(event.target.value); setResult(undefined) }} onBlur={() => { if (selected && Number(effectiveAmount) < selected.minimumAmount) toast.error(`El monto mínimo es ${formatCurrency(selected.minimumAmount)}.`); if (selected && Number(effectiveAmount) > selected.maximumAmount) toast.error(`El monto máximo es ${formatCurrency(selected.maximumAmount)}.`) }} required /></div>
-            <div className="space-y-2"><Label htmlFor="simulation-term">Plazo</Label>{selected?.termSelection === 'RANGE' ? <Input id="simulation-term" type="number" min={selected.minimumTermValue} max={selected.maximumTermValue} step={selected.termIncrement} value={effectiveTermDays} onChange={(event) => { setTermDays(event.target.value); setResult(undefined) }} required /> : <Select value={effectiveTermDays} onValueChange={(value) => { setTermDays(value); setResult(undefined) }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{selected?.terms.map((term) => <SelectItem key={term} value={String(term)}>{term} {termUnitLabels[selected.termUnit]}</SelectItem>)}</SelectContent></Select>}</div>
-            <div className="space-y-2"><Label>Pago de intereses</Label><Select value={effectivePayoutFrequency} onValueChange={(value) => { setPayoutFrequency(value); setResult(undefined) }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{selected?.payoutFrequencies.map((frequency) => <SelectItem key={frequency} value={frequency}>{payoutLabels[frequency]}</SelectItem>)}</SelectContent></Select></div>
-            {products.isError && <p className="text-sm text-destructive">No se pudieron cargar los productos disponibles.</p>}
-            {!products.isPending && products.data?.length === 0 && <p className="text-sm text-muted-foreground">No existen productos activos para simular.</p>}
-            <Button type="submit" className="w-full" size="lg" disabled={!selected || simulation.isPending}>{simulation.isPending ? 'Calculando…' : 'Simular inversión'}</Button>
+            {products.data && products.data.length > 1 && <div className="space-y-2"><Label>Plan de inversión</Label><Select value={effectiveProductId} onValueChange={(value) => { setProductId(value); setAmount(''); setTermValue(''); setTermUnit(''); setPayoutFrequency(''); setSelectedCharges([]); setResult(undefined) }} disabled={products.isPending}><SelectTrigger><SelectValue placeholder="Selecciona un plan" /></SelectTrigger><SelectContent>{products.data.map((product) => <SelectItem key={product.id} value={String(product.id)}>{product.name}</SelectItem>)}</SelectContent></Select></div>}
+            {selected && <div className="rounded-lg bg-muted/40 p-4"><p className="font-medium text-foreground">{selected.name}</p><p className="mt-1 text-sm leading-6 text-muted-foreground">{selected.description}</p></div>}
+            <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted/50 p-1" role="radiogroup" aria-label="Qué quieres calcular">
+              {([['amount', 'Sé cuánto invertir'], ['goal', 'Tengo una meta']] as const).map(([value, label]) => (
+                <button key={value} type="button" role="radio" aria-checked={mode === value}
+                  onClick={() => { setMode(value); setResult(undefined); setGoal(undefined) }}
+                  className={`rounded-md px-3 py-1.5 text-sm transition-colors ${mode === value ? 'bg-card font-medium text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            {mode === 'amount' ? (
+            <div className="space-y-2"><div className="flex flex-wrap items-baseline justify-between gap-2"><Label htmlFor="simulation-amount">Monto a invertir</Label>{selected && <span id="amount-conditions" className="text-xs text-muted-foreground">Permitido: {formatCurrency(selected.minimumAmount)} a {formatCurrency(selected.maximumAmount)}</span>}</div><Input id="simulation-amount" aria-describedby="amount-conditions amount-error" aria-invalid={Boolean(amountError)} className={amountError ? 'border-destructive focus-visible:ring-destructive' : undefined} type="number" step="0.01" min={selected?.minimumAmount} max={selected?.maximumAmount} value={effectiveAmount} onChange={(event) => { setAmount(event.target.value); setResult(undefined) }} required />{amountError && <p id="amount-error" className="text-xs text-destructive">{amountError}</p>}</div>
+            ) : (
+              <div className="space-y-2">
+                <Label htmlFor="simulation-target">¿Cuánto quieres reunir?</Label>
+                <Input id="simulation-target" type="number" min="1" step="0.01" required value={target}
+                  onChange={(event) => { setTarget(event.target.value); setResult(undefined); setGoal(undefined) }} aria-describedby="target-hint" />
+                <p id="target-hint" className="text-xs text-muted-foreground">Te diremos cuánto invertir hoy para llegar a ese valor al vencimiento, con el plazo y la forma de pago que elijas.</p>
+              </div>
+            )}
+            <div className="space-y-3"><div className="flex flex-wrap items-baseline justify-between gap-2"><Label htmlFor="simulation-term">Plazo</Label>{selectedTermUnit && <span id="term-conditions" className="text-xs text-muted-foreground">Entre {selectedTermUnit.minimumValue} y {selectedTermUnit.maximumValue} {termUnitLabels[effectiveTermUnit].toLowerCase()}</span>}</div>{termUnits.length > 1 && <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${termUnits.length}, minmax(0, 1fr))` }}>{termUnits.map((item) => <Button key={item.unit} type="button" variant={effectiveTermUnit === item.unit ? 'default' : 'outline'} onClick={() => { setTermUnit(item.unit); setTermValue(''); setPayoutFrequency(''); setResult(undefined) }}>{termUnitLabels[item.unit]}</Button>)}</div>}<Input id="simulation-term" aria-describedby="term-conditions term-error" aria-invalid={Boolean(termError)} className={termError ? 'border-destructive focus-visible:ring-destructive' : undefined} type="number" min={selectedTermUnit?.minimumValue} max={selectedTermUnit?.maximumValue} step="1" value={effectiveTermValue} onChange={(event) => { setTermValue(event.target.value); setResult(undefined) }} required />{termError
+              ? <p id="term-error" className="text-xs text-destructive">{termError}</p>
+              : effectiveTermUnit !== 'DAYS' && realTermDays > 0 && <p className="text-xs text-muted-foreground">Equivale a {realTermDays} días reales; la tasa y el interés se calculan con esos días.</p>}</div>
+            <div className="space-y-2"><div className="flex flex-wrap items-baseline justify-between gap-2"><Label>Pago de intereses</Label>{selected && <span className="text-xs text-muted-foreground">Opciones compatibles con el plazo</span>}</div><Select value={effectivePayoutFrequency} onValueChange={(value) => { setPayoutFrequency(value); setResult(undefined) }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{availableFrequencies.map((frequency) => <SelectItem key={frequency} value={frequency}>{payoutLabels[frequency]}</SelectItem>)}</SelectContent></Select></div>
+            {activeCharges.length > 0 && (
+              <div className="space-y-2">
+                <Label>Costos del plan</Label>
+                {mandatoryCharges.map((charge) => (
+                  <div key={charge.id} className="rounded-md bg-muted/40 px-3 py-2 text-sm">
+                    <p className="flex justify-between gap-3"><span>{charge.name}</span><span className="text-right text-xs text-muted-foreground">{describeCharge(charge)}</span></p>
+                    {charge.description && <p className="mt-1 text-xs leading-5 text-muted-foreground">{charge.description}</p>}
+                  </div>
+                ))}
+                {optionalCharges.map((charge) => (
+                  <label key={charge.id} className="flex cursor-pointer items-start gap-3 rounded-md border px-3 py-2 text-sm">
+                    <Checkbox className="mt-0.5" checked={charge.id != null && selectedCharges.includes(charge.id)}
+                      onCheckedChange={(checked) => charge.id != null && toggleCharge(charge.id, checked === true)} />
+                    <span className="flex-1">
+                      <span className="flex justify-between gap-3"><span>{charge.name} <span className="text-xs text-muted-foreground">(opcional)</span></span><span className="text-right text-xs text-muted-foreground">{describeCharge(charge)}</span></span>
+                      {charge.description && <span className="mt-1 block text-xs leading-5 text-muted-foreground">{charge.description}</span>}
+                    </span>
+                  </label>
+                ))}
+                <p className="text-xs text-muted-foreground">Se descuentan del interés de cada pago; son distintos de la retención de impuesto.</p>
+              </div>
+            )}
+            {products.isError && <p className="text-sm text-destructive">No se pudieron cargar los planes de inversión.</p>}
+            {!products.isPending && products.data?.length === 0 && <p className="text-sm text-muted-foreground">No hay planes de inversión disponibles por ahora.</p>}
+            {!effectivePayoutFrequency && selected && <p className="text-xs text-destructive">No existe una frecuencia de pago compatible con este plazo.</p>}
+            <Button type="submit" className="w-full" size="lg" disabled={!canSimulate || simulation.isPending || goalSearch.isPending}>{simulation.isPending || goalSearch.isPending ? 'Calculando…' : mode === 'goal' ? 'Calcular cuánto invertir' : 'Simular inversión'}</Button>
             <p className="text-xs leading-5 text-muted-foreground">La simulación es referencial y no constituye una oferta ni una contratación.</p>
           </form>
 
           <section aria-live="polite">
             {!result && <div className="flex min-h-80 flex-col items-center justify-center rounded-xl border border-dashed px-8 text-center"><TrendingUp className="size-10 text-brand-gold" /><h2 className="mt-5 text-xl">Completa los parámetros</h2><p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">Aquí aparecerán la tasa aplicable, el rendimiento y el cronograma estimado.</p></div>}
-            {result && <SimulationResults result={result} downloading={pdf.isPending} onDownload={() => pdf.mutate(currentRequest())} continueTo={account ? '/cuenta' : '/login?next=%2Fcuenta'} />}
+            {result && <SimulationResults result={result} goal={goal} pending={pdf.isPending ? 'pdf' : excel.isPending ? 'excel' : null} onDownload={(format) => format === 'pdf' ? pdf.mutate(currentRequest()) : excel.mutate(result)} />}
           </section>
         </div>
-        {selected && <PlanInformation product={selected} />}
         <Button asChild variant="ghost" className="mt-10"><Link to="/"><ArrowLeft />Volver al inicio</Link></Button>
       </div>
     </main>
   )
 }
 
-function PlanInformation({ product }: { product: InvestmentProduct }) {
-  const unit = termUnitLabels[product.termUnit]
-  return <section className="mt-10 rounded-xl border bg-card p-6 sm:p-8">
-    <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-      <div><p className="text-sm font-medium text-brand-gold">Conoce el plan</p><h2 className="mt-1 text-2xl">{product.name}</h2></div>
-      <p className="max-w-xl text-sm text-muted-foreground">Una alternativa diseñada para ayudarte a organizar tus metas financieras con condiciones claras antes de invertir.</p>
-    </div>
-    <Accordion type="single" collapsible className="mt-5">
-      <AccordionItem value="details">
-        <AccordionTrigger>Ver características y condiciones</AccordionTrigger>
-        <AccordionContent>
-          <div className="grid gap-4 pt-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
-            <Detail label="Monto disponible" value={`${formatCurrency(product.minimumAmount)} – ${formatCurrency(product.maximumAmount)}`} />
-            <Detail label="Plazos disponibles" value={`${product.terms.join(', ')} ${unit}`} />
-            <Detail label="Pago de intereses" value={product.payoutFrequencies.map((frequency) => payoutLabels[frequency]).join(', ')} />
-            <Detail label="Tasa aplicable" value="Se determina según el monto y el plazo elegidos." />
-          </div>
-          <p className="mt-5 leading-6 text-muted-foreground">{product.description}</p>
-        </AccordionContent>
-      </AccordionItem>
-    </Accordion>
-  </section>
-}
-
-function Detail({ label, value }: { label: string; value: string }) {
-  return <div className="rounded-lg bg-muted/40 p-4"><p className="text-muted-foreground">{label}</p><p className="mt-1 font-medium text-foreground">{value}</p></div>
-}
-
-function SimulationResults({ result, downloading, onDownload, continueTo }: { result: SimulationResult; downloading: boolean; onDownload: () => void; continueTo: string }) {
+function SimulationResults({ result, goal, pending, onDownload }: { result: SimulationResult; goal?: GoalResult; pending: ExportFormat | null; onDownload: (format: ExportFormat) => void }) {
   return <div className="space-y-7">
+    {goal && (
+      <div className="flex gap-3 rounded-xl border border-brand-teal/30 bg-brand-teal/5 p-5">
+        <Goal className="mt-1 size-5 shrink-0 text-brand-teal" aria-hidden="true" />
+        <div>
+          <p className="text-sm text-muted-foreground">Para reunir {formatCurrency(goal.targetAmount)} necesitas invertir hoy</p>
+          <p className="text-3xl font-semibold tabular-nums text-foreground">{formatCurrency(goal.requiredAmount)}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {goal.coveredByMinimum
+              ? `Es el monto mínimo del plan; con él reunirías ${formatCurrency(result.maturityValue)}.`
+              : `Recibirías ${formatCurrency(result.maturityValue)} el ${formatDate(result.maturityDate)}: ${formatCurrency(result.netInterest)} de rendimiento neto.`}
+          </p>
+        </div>
+      </div>
+    )}
     <div className="rounded-xl border bg-card p-6 sm:p-8">
       <p className="text-sm font-medium text-brand-gold">Resultado de la simulación</p><h2 className="mt-2 text-2xl">{result.productName}</h2><p className="mt-1 text-sm text-muted-foreground">Referencia {result.reference}</p>
       <dl className="mt-7 grid gap-5 border-y py-6 sm:grid-cols-2 xl:grid-cols-3">
         <ResultItem label="Capital invertido" value={formatCurrency(result.amount)} />
         <ResultItem label="Tasa anual aplicable" value={formatPercentage(result.annualRate)} />
         <ResultItem label="Interés bruto" value={formatCurrency(result.grossInterest)} />
-        <ResultItem label="Retención" value={formatCurrency(result.withholding)} />
+        <ResultItem label="Retención estimada" value={formatCurrency(result.withholding)} />
         <ResultItem label="Interés neto" value={formatCurrency(result.netInterest)} />
-        <ResultItem label="Valor total estimado" value={formatCurrency(result.maturityValue)} featured />
+        {result.charges > 0 && <ResultItem label="Costos adicionales" value={`− ${formatCurrency(result.charges)}`} />}
+        <ResultItem label="Rendimiento neto anual" value={formatPercentage(result.netAnnualYield)} />
+        <ResultItem label="Total estimado a recibir" value={formatCurrency(result.maturityValue)} featured />
       </dl>
-      <div className="mt-6 flex flex-wrap gap-3"><Button onClick={onDownload} disabled={downloading}><Download />{downloading ? 'Generando…' : 'Descargar PDF'}</Button><Button asChild variant="outline"><Link to={continueTo}>Continuar con la inversión</Link></Button></div>
-      <p className="mt-5 text-xs leading-5 text-muted-foreground">Vencimiento estimado: {formatDate(result.maturityDate)}. Cálculo con base de {result.dayCountBasis} días y tasa correspondiente a “{result.rateLabel}”.</p>
+      {result.netAnnualYield < result.annualRate && (
+        <p className="mt-3 text-xs leading-5 text-muted-foreground">
+          La tasa ofrecida es {formatPercentage(result.annualRate)}; después de {result.charges > 0 ? 'la retención y los costos adicionales' : 'la retención'} tu rendimiento real equivale a {formatPercentage(result.netAnnualYield)} anual.
+        </p>
+      )}
+      <div className="mt-4 rounded-lg border bg-muted/30 p-4">
+        <p className="text-sm font-medium">Tratamiento tributario estimado</p>
+        <p className="mt-1 text-sm leading-6 text-muted-foreground">{result.withholdingNote}</p>
+        {result.withholdingDetails.map((detail) => <p key={detail.name} className="mt-2 text-sm"><span className="font-medium">{detail.name}</span><span className="text-muted-foreground"> · {detail.percentage}% del interés bruto · {formatCurrency(detail.amount)}</span></p>)}
+      </div>
+      {result.chargeDetails.length > 0 && (
+        <div className="mt-3 rounded-lg border bg-muted/30 p-4">
+          <p className="text-sm font-medium">Costos adicionales de la institución</p>
+          {result.chargeDetails.map((charge) => (
+            <p key={charge.id} className="mt-2 flex justify-between gap-3 text-sm">
+              <span><span className="font-medium">{charge.name}</span><span className="text-muted-foreground"> · {describeCharge(charge)}{charge.mandatory ? '' : ' · opcional'}</span></span>
+              <span className="tabular-nums">{formatCurrency(charge.amount)}</span>
+            </p>
+          ))}
+        </div>
+      )}
+      <div className="mt-6 flex flex-wrap items-start gap-2"><DownloadMenu size="default" onSelect={onDownload} pending={pending} />{result.calculationMethod === 'COMPOUND' && <CompoundGrowthDialog result={result} />}<SimulationActions scenario={{ productType: 'INVESTMENT', productId: result.productId, productName: result.productName, amount: result.amount, term: result.termValue, termUnit: result.termUnit, payoutFrequency: result.payoutFrequency, optionalCharges: result.chargeDetails.filter((charge) => !charge.mandatory).map((charge) => charge.id) }} /></div>
+      <p className="mt-5 text-xs leading-5 text-muted-foreground">Plazo seleccionado: {result.termValue} {termUnitLabels[result.termUnit].toLowerCase()} ({result.termDays} días reales). Vencimiento estimado: {formatDate(result.maturityDate)}. Cálculo con base de {result.dayCountBasis} días y tasa correspondiente a “{result.rateLabel}”.</p>
     </div>
-    <div><h2 className="text-xl">Cronograma estimado</h2><div className="mt-4 overflow-hidden rounded-xl border"><Table><TableHeader><TableRow><TableHead>Pago</TableHead><TableHead>Fecha</TableHead><TableHead>Días</TableHead><TableHead className="text-right">Interés bruto</TableHead><TableHead className="text-right">Retención</TableHead><TableHead className="text-right">Capital</TableHead><TableHead className="text-right">Total</TableHead></TableRow></TableHeader><TableBody>{result.payments.map((payment) => <TableRow key={payment.number}><TableCell>{payment.number}</TableCell><TableCell>{formatDate(payment.paymentDate)}</TableCell><TableCell>{payment.periodDays}</TableCell><TableCell className="text-right tabular-nums">{formatCurrency(payment.grossInterest)}</TableCell><TableCell className="text-right tabular-nums">{formatCurrency(payment.withholding)}</TableCell><TableCell className="text-right tabular-nums">{formatCurrency(payment.capital)}</TableCell><TableCell className="text-right font-medium tabular-nums">{formatCurrency(payment.totalPayment)}</TableCell></TableRow>)}</TableBody></Table></div></div>
+    {(result.withholding > 0 || result.charges > 0) && <InvestmentInterestChart result={result} />}
+    {result.calculationMethod === 'COMPOUND' && <InvestmentGrowthChart result={result} />}
+    {result.payments.length > 1 && <InvestmentPaymentsChart result={result} />}
+    <div><h2 className="text-xl">Cronograma estimado</h2><div className="mt-4 overflow-hidden rounded-xl border"><Table><TableHeader><TableRow><TableHead>Pago</TableHead><TableHead>Fecha</TableHead><TableHead>Días</TableHead><TableHead className="text-right">Interés bruto</TableHead><TableHead className="text-right">Retención IR</TableHead>{result.charges > 0 && <TableHead className="text-right">Costos</TableHead>}<TableHead className="text-right">Capital</TableHead><TableHead className="text-right">Total recibido</TableHead></TableRow></TableHeader><TableBody>{result.payments.map((payment) => <TableRow key={payment.number}><TableCell>{payment.number}</TableCell><TableCell>{formatDate(payment.paymentDate)}</TableCell><TableCell>{payment.periodDays}</TableCell><TableCell className="text-right tabular-nums">{formatCurrency(payment.grossInterest)}</TableCell><TableCell className="text-right tabular-nums">{formatCurrency(payment.withholding)}</TableCell>{result.charges > 0 && <TableCell className="text-right tabular-nums">{formatCurrency(payment.charges)}</TableCell>}<TableCell className="text-right tabular-nums">{formatCurrency(payment.capital)}</TableCell><TableCell className="text-right font-medium tabular-nums">{formatCurrency(payment.totalPayment)}</TableCell></TableRow>)}</TableBody></Table></div></div>
   </div>
 }
 

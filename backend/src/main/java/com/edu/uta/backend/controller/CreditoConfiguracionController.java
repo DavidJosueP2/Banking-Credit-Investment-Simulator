@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/admin/creditos/configurar")
+@RequestMapping({"/api/admin/creditos/configurar", "/api/admin/creditos"})
 @RequiredArgsConstructor
 @PreAuthorize("hasAnyAuthority('credit.products.manage', 'credit_advisor', 'ROLE_ASESOR', 'ROLE_ADMINISTRATOR', 'administrator')")
 public class CreditoConfiguracionController {
@@ -32,10 +32,44 @@ public class CreditoConfiguracionController {
     }
 
     /**
+     * Permite al asesor/administrador actualizar un producto de crédito existente según normativa BCE.
+     */
+    @PutMapping("/{id}")
+    public ResponseEntity<ConfigurarCreditoResponseDto> actualizar(
+            @PathVariable Long id,
+            @Valid @RequestBody ConfigurarCreditoRequestDto dto
+    ) {
+        return ResponseEntity.ok(service.actualizar(id, dto));
+    }
+
+    /**
+     * Marco normativo vigente para el configurador: segmentos con su tasa máxima BCE, tipo de entidad
+     * de la institución, rango de desgravamen y topes de cobros indirectos.
+     */
+    @GetMapping("/marco")
+    public ResponseEntity<com.edu.uta.backend.service.NormativaRegulatoriaService.Marco> marco() {
+        return ResponseEntity.ok(service.marco());
+    }
+
+    /**
      * Lista todos los créditos configurados en el banco o cooperativa.
      */
     @GetMapping
     public ResponseEntity<List<ConfigurarCreditoResponseDto>> listar() {
         return ResponseEntity.ok(service.listarConfigurados());
+    }
+
+    /**
+     * Actualiza el estado activo/inactivo del producto de crédito.
+     */
+    @PatchMapping("/{id}/estado")
+    public ResponseEntity<ConfigurarCreditoResponseDto> cambiarEstado(
+            @PathVariable Long id,
+            @RequestBody(required = false) java.util.Map<String, Boolean> body
+    ) {
+        Boolean active = (body != null)
+                ? (body.containsKey("active") ? body.get("active") : body.get("activo"))
+                : null;
+        return ResponseEntity.ok(service.cambiarEstado(id, active));
     }
 }

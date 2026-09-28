@@ -9,6 +9,15 @@ export type TaxRuleType = 'PERCENTAGE' | 'FIXED'
 export type TaxBase = 'GROSS_INTEREST' | 'CAPITAL' | 'TOTAL'
 export type CalendarMode = 'FIXED_DAYS' | 'CALENDAR'
 
+export interface InvestmentTermConfiguration {
+  unit: TermUnit
+  selection: TermSelection
+  minimumValue: number
+  maximumValue: number
+  increment: number
+  options: number[]
+}
+
 export interface InvestmentRate {
   id?: number
   label: string
@@ -29,7 +38,39 @@ export interface InvestmentTaxRule {
   value: number
   base: TaxBase
   active: boolean
+  exemptFromTermDays: number | null
   position?: number
+}
+
+/**
+ * Costo adicional de la institución (seguro, comisión, donación), separado de la retención de IR: un porcentaje
+ * del interés generado que se descuenta en cada pago, así nunca supera lo que gana el cliente.
+ */
+export interface InvestmentCharge {
+  id?: number
+  name: string
+  percentage: number
+  /** Si es false, el cliente decide si lo agrega en el simulador. */
+  mandatory: boolean
+  active: boolean
+  /** Qué cubre o a qué se destina; obligatoria en los opcionales para que el cliente pueda decidir. */
+  description: string | null
+  position?: number
+}
+
+export interface InvestmentChargeDetail {
+  id: number
+  name: string
+  percentage: number
+  mandatory: boolean
+  amount: number
+  description: string | null
+}
+
+export interface InvestmentWithholdingDetail {
+  name: string
+  percentage: number
+  amount: number
 }
 
 export interface InvestmentProduct {
@@ -59,6 +100,8 @@ export interface InvestmentProduct {
   payoutFrequencies: PayoutFrequency[]
   rates: InvestmentRate[]
   taxRules: InvestmentTaxRule[]
+  termConfigurations: InvestmentTermConfiguration[]
+  charges: InvestmentCharge[]
 }
 
 export interface InvestmentProductInput {
@@ -84,13 +127,18 @@ export interface InvestmentProductInput {
   payoutFrequencies: PayoutFrequency[]
   rates: InvestmentRate[]
   taxRules: InvestmentTaxRule[]
+  termConfigurations: InvestmentTermConfiguration[]
+  charges: InvestmentCharge[]
 }
 
 export interface SimulationRequest {
   productId: number
   amount: number
-  termDays: number
+  termValue: number
+  termUnit: TermUnit
   payoutFrequency: PayoutFrequency
+  /** Costos opcionales del plan que el cliente decidió agregar. */
+  optionalCharges?: number[]
 }
 
 export interface InvestmentPayment {
@@ -101,6 +149,7 @@ export interface InvestmentPayment {
   withholding: number
   netInterest: number
   capital: number
+  charges: number
   totalPayment: number
 }
 
@@ -112,6 +161,7 @@ export interface SimulationResult {
   currency: string
   amount: number
   termDays: number
+  normalizedTermDays: number
   termValue: number
   termUnit: TermUnit
   rateLabel: string
@@ -127,7 +177,13 @@ export interface SimulationResult {
   netInterest: number
   maturityValue: number
   maturityDate: string
+  withholdingDetails: InvestmentWithholdingDetail[]
+  withholdingNote: string
   payments: InvestmentPayment[]
+  charges: number
+  chargeDetails: InvestmentChargeDetail[]
+  /** Rendimiento anual después de retención y costos, expresado igual que la tasa ofrecida. */
+  netAnnualYield: number
 }
 
 export const investmentKeys = {
@@ -159,6 +215,28 @@ export async function simulateInvestment(input: SimulationRequest) {
   return (await api.post<SimulationResult>('/public/investments/simulations', input)).data
 }
 
+export interface GoalRequest {
+  productId: number
+  targetAmount: number
+  termValue: number
+  termUnit: TermUnit
+  payoutFrequency: SimulationRequest['payoutFrequency']
+  optionalCharges?: number[]
+}
+
+export interface GoalResult {
+  requiredAmount: number
+  targetAmount: number
+  /** El monto mínimo del producto ya alcanza la meta. */
+  coveredByMinimum: boolean
+  simulation: SimulationResult
+}
+
+/** Meta de ahorro: capital necesario para reunir un monto en el plazo elegido. */
+export async function reachInvestmentGoal(input: GoalRequest) {
+  return (await api.post<GoalResult>('/public/investments/goals', input)).data
+}
+
 export async function downloadInvestmentPdf(input: SimulationRequest) {
   return (await api.post<Blob>('/public/investments/simulations/pdf', input, { responseType: 'blob' })).data
 }
@@ -175,6 +253,11 @@ export const payoutLabels: Record<PayoutFrequency, string> = {
 export const calculationMethodLabels: Record<CalculationMethod, string> = {
   SIMPLE: 'Interés simple',
   COMPOUND: 'Interés compuesto',
+}
+
+/** "5 % del interés generado". */
+export function describeCharge(charge: Pick<InvestmentCharge, 'percentage'>) {
+  return `${charge.percentage.toLocaleString('es-EC', { maximumFractionDigits: 4 })} % del interés generado`
 }
 
 export const rateTypeLabels: Record<RateType, string> = {

@@ -5,6 +5,7 @@ import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 
 import { useAuth, type Account } from '@/app/providers/auth-provider'
 import { IllustratedAccessLayout } from '@/components/layout/illustrated-access-layout'
+import { CLIENT_HOME_PATH, NEW_APPLICATION_PATH, pendingScenario } from '@/features/applications/pending-scenario'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -15,12 +16,24 @@ const protectedDestinations: Record<string, string> = {
   '/admin/inversiones': 'investment.products.manage',
   '/admin/configuracion': 'institution.manage',
   '/admin/roles': 'users.roles.manage',
+  '/admin/solicitudes': 'admin.dashboard.view',
+  [CLIENT_HOME_PATH]: 'own.requests.read',
+  [NEW_APPLICATION_PATH]: 'own.requests.read',
   '/dev/table': 'admin.dashboard.view',
 }
 
+function clientFallback(account: Account) {
+  if (!account.permissions?.includes('own.requests.read')) return '/cuenta'
+  // Retoma la simulación que la persona dejó pendiente antes de ingresar o registrarse.
+  if (pendingScenario('apply')) return NEW_APPLICATION_PATH
+  return CLIENT_HOME_PATH
+}
+
 function destinationAfterLogin(account: Account, requested: string | null) {
-  const fallback = account.permissions?.includes('admin.dashboard.view') ? '/admin' : '/cuenta'
+  const fallback = account.permissions?.includes('admin.dashboard.view') ? '/admin' : clientFallback(account)
   if (requested === '/cuenta') return requested
+  if (requested && /^\/cliente\/solicitudes\/\d+$/.test(requested)
+    && account.permissions?.includes('own.requests.read')) return requested
   const permission = requested ? protectedDestinations[requested] : undefined
   if (requested?.startsWith('/admin/') && !account.permissions?.includes('admin.dashboard.view')) return fallback
   if (requested && permission && account.permissions?.includes(permission)) return requested

@@ -102,27 +102,25 @@ export function HomePage() {
     }] : []),
   ]
 
-  useEffect(() => {
-    if (currentSlide < carouselSlides.length) return
-    setCurrentSlide(0)
-  }, [carouselSlides.length, currentSlide])
+  // Si se oculta una diapositiva y el índice queda fuera de rango, se muestra la primera (sin un efecto extra).
+  const activeSlide = currentSlide < carouselSlides.length ? currentSlide : 0
 
   useEffect(() => {
     if (landing.bannerEnabled !== 'true' || carouselSlides.length < 2 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
 
     const timer = window.setTimeout(
-      () => setCurrentSlide((slide) => (slide + 1) % carouselSlides.length),
+      () => setCurrentSlide((activeSlide + 1) % carouselSlides.length),
       Number(landing.bannerIntervalSeconds) * 1_000,
     )
     return () => window.clearTimeout(timer)
-  }, [carouselSlides.length, currentSlide, landing.bannerEnabled, landing.bannerIntervalSeconds])
+  }, [carouselSlides.length, activeSlide, landing.bannerEnabled, landing.bannerIntervalSeconds])
 
   function showPreviousSlide() {
-    setCurrentSlide((slide) => (slide - 1 + carouselSlides.length) % carouselSlides.length)
+    setCurrentSlide((activeSlide - 1 + carouselSlides.length) % carouselSlides.length)
   }
 
   function showNextSlide() {
-    setCurrentSlide((slide) => (slide + 1) % carouselSlides.length)
+    setCurrentSlide((activeSlide + 1) % carouselSlides.length)
   }
 
   const services = [
@@ -205,7 +203,7 @@ export function HomePage() {
       {landing.bannerEnabled === 'true' && <section aria-label="Destacados de Brunexa">
         <div className="relative min-h-92 overflow-hidden bg-primary sm:min-h-96 lg:min-h-100">
           {carouselSlides.map((slide, index) => {
-            const isActive = currentSlide === index
+            const isActive = activeSlide === index
 
             return (
               <article
@@ -269,9 +267,9 @@ export function HomePage() {
                     key={slide.id}
                     type="button"
                     onClick={() => setCurrentSlide(index)}
-                    className={`h-1.5 rounded-full transition-[width,background-color] ${currentSlide === index ? 'w-7 bg-brand-gold' : 'w-2.5 bg-white/65 hover:bg-white'}`}
+                    className={`h-1.5 rounded-full transition-[width,background-color] ${activeSlide === index ? 'w-7 bg-brand-gold' : 'w-2.5 bg-white/65 hover:bg-white'}`}
                     aria-label={`Ver destacado ${index + 1}`}
-                    aria-current={currentSlide === index ? 'true' : undefined}
+                    aria-current={activeSlide === index ? 'true' : undefined}
                   />
                 ))}
               </div>

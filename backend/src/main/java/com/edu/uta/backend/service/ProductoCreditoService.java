@@ -76,7 +76,7 @@ public class ProductoCreditoService {
     @Transactional
     public void toggleActivo(Long id) {
         ProductoCreditoEntity e = getOrThrow(id);
-        e.setActivo(!e.getActivo());
+        e.setActivo(!Boolean.TRUE.equals(e.getActivo()));
         repository.save(e);
     }
 

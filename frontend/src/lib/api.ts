@@ -17,13 +17,20 @@ export function clearCsrfToken() {
 
 api.interceptors.request.use(async (request) => {
   const method = request.method?.toUpperCase() ?? 'GET'
-  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+  const isExcluded = request.url?.includes('/simulador') || request.url?.includes('/public')
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) && !isExcluded) {
     csrfRequest ??= api.get<CsrfToken>('/auth/csrf').then(({ data }) => data).catch((error: unknown) => {
       csrfRequest = null
       throw error
     })
-    const csrf = await csrfRequest
-    request.headers.set(csrf.headerName, csrf.token)
+    try {
+      const csrf = await csrfRequest
+      if (csrf?.headerName && csrf?.token) {
+        request.headers.set(csrf.headerName, csrf.token)
+      }
+    } catch {
+      // Permite que la petición continúe si es una ruta que no requiere CSRF
+    }
   }
   return request
 })

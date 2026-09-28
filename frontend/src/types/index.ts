@@ -131,8 +131,50 @@ export interface CuotaCliente {
   capital: number
   interes: number
   desgravamen: number
+  cargosIndirectos?: number
   cuotaTotal: number
   saldoFinal: number
+}
+
+export interface CargoIndirectoInfo {
+  id?: number
+  nombre: string
+  tipoCargo: 'FIJO' | 'PORCENTAJE' | string
+  valor: number
+  periodicidad: 'MENSUAL' | 'UNICO' | string
+  baseCalculo: 'SALDO_DEUDOR' | 'MONTO_SOLICITADO' | 'FIJO' | string
+  normaAplicable?: string
+  obligatorio?: boolean
+  categoria?: 'SEGURO' | 'GASTO' | 'DONACION' | 'OTRO'
+}
+
+export interface ProductoSimulador {
+  id: number
+  nombre: string
+  descripcion?: string
+  tasaNominal: number
+  desgravamen: number
+  montoMin: number
+  montoMax: number
+  plazoMin: number
+  plazoMax: number
+  unidadPlazo: 'MESES' | 'ANIOS' | string
+  sistemasPermitidos: SistemaAmortizacion[]
+  segmentoBce?: string
+  cargosIndirectos?: CargoIndirectoInfo[]
+}
+
+export interface ReglaNormativa {
+  id?: number
+  segmento: string
+  tipoParametro: string
+  limite: number
+  unidad: string
+  fechaInicioVigencia: string
+  fechaFinVigencia?: string
+  normativa: string
+  resolucion?: string
+  organismo: string
 }
 
 export interface EntidadCredito {
@@ -149,14 +191,18 @@ export interface EntidadCredito {
 }
 
 export interface SimulacionClienteRequest {
+  productoId: number
+  costoTotal?: number
   monto: number
-  frecuencia: 'MENSUAL' | 'ANUAL'
+  frecuencia?: 'MENSUAL' | 'ANUAL'
   plazo: number
   sistema: SistemaAmortizacion
   entidadId?: number
-  productoId?: number
+  creditTypeId?: number
   entidad?: string
   usuario?: string
+  /** Cobros opcionales (p. ej. donaciones) que el cliente decide sumar. */
+  cargosOpcionales?: number[]
 }
 
 export interface SimulacionClienteResponse {
@@ -164,6 +210,7 @@ export interface SimulacionClienteResponse {
   nombreProducto: string
   entidad: string
   segmentoBce: string
+  costoTotal?: number
   monto: number
   frecuencia: string
   plazoMeses: number
@@ -175,7 +222,9 @@ export interface SimulacionClienteResponse {
   totalCapital: number
   totalIntereses: number
   totalDesgravamen: number
+  totalCargosIndirectos?: number
   totalPagar: number
+  unidadPlazo?: string
   tablaCuotas: CuotaCliente[]
   usuario?: string
 }
@@ -208,9 +257,52 @@ export interface SimulacionResult {
   tablaCuotas: CuotaSimulacion[]
 }
 
+export interface CargoConfiguracionDto {
+  id?: number
+  nombre: string
+  tipoCargo: 'FIJO' | 'PORCENTAJE' | string
+  valor: number
+  periodicidad?: 'MENSUAL' | 'UNICO' | string
+  baseCalculo?: 'SALDO_DEUDOR' | 'MONTO_SOLICITADO' | 'FIJO' | string
+  normaAplicable?: string
+  obligatorio?: boolean
+  categoria?: CategoriaCargo
+}
+
+export type CategoriaCargo = 'SEGURO' | 'GASTO' | 'DONACION' | 'OTRO'
+
+export interface SegmentoNormativo {
+  codigo: string
+  nombre: string
+  descripcion: string | null
+  tasaMaxima: number | null
+  tasaReferencial: number | null
+  montoMaximo: number | null
+  plazoMaximoMeses: number | null
+  fuenteTasa: string | null
+  resolucion: string | null
+  urlFuente: string | null
+  vigenteDesde: string | null
+}
+
+/** Marco vigente para configurar créditos: lo arma el backend desde la normativa registrada. */
+export interface MarcoNormativo {
+  tipoEntidad: 'BANCO' | 'COOPERATIVA'
+  fecha: string
+  segmentos: SegmentoNormativo[]
+  desgravamen: { minimo: number; maximo: number; fuente: string | null }
+  cargos: {
+    porcentajeMensualMaximo: number
+    fijoMensualMaximo: number
+    unicoPorcentajeMaximo: number
+    unicoFijoMaximo: number
+    maximoPorProducto: number
+  }
+}
+
 export interface ConfigurarCreditoRequest {
   nombre: string
-  entidad: string
+  entidad?: string
   segmentoBce: string
   montoMin: number
   montoMax: number
@@ -220,6 +312,8 @@ export interface ConfigurarCreditoRequest {
   tasaDesgravamenMensual: number
   sistemasPermitidos: SistemaAmortizacion[]
   descripcion?: string
+  unidadPlazo?: string
+  cargosIndirectos?: CargoConfiguracionDto[]
 }
 
 export interface ConfigurarCreditoResponse {
@@ -237,4 +331,7 @@ export interface ConfigurarCreditoResponse {
   descripcion?: string
   activo: boolean
   creadoEn: string
+  unidadPlazo?: string
+  cargosIndirectos?: CargoConfiguracionDto[]
 }
+

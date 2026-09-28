@@ -14,6 +14,11 @@ public class InvestmentCalculator {
 
     public record TaxRule(String ruleType, BigDecimal value, String base, boolean active) {}
 
+    /** Costo adicional de la institución: un porcentaje del interés bruto, descontado en cada pago. */
+    public record Charge(long id, String name, BigDecimal percentage) {}
+
+    public record ChargeAmount(long id, String name, BigDecimal amount) {}
+
     public record Payment(
             int number,
             LocalDate paymentDate,
@@ -22,15 +27,18 @@ public class InvestmentCalculator {
             BigDecimal withholding,
             BigDecimal netInterest,
             BigDecimal capital,
+            BigDecimal charges,
             BigDecimal totalPayment) {}
 
     public record Projection(
             BigDecimal grossInterest,
             BigDecimal withholding,
             BigDecimal netInterest,
+            BigDecimal charges,
             BigDecimal maturityValue,
             LocalDate maturityDate,
-            List<Payment> payments) {}
+            List<Payment> payments,
+            List<ChargeAmount> chargeDetails) {}
 
     public Projection calculate(BigDecimal principal, BigDecimal annualRate, int termDays,
             int dayCountBasis, BigDecimal withholdingRate, String payoutFrequency, LocalDate startDate) {
@@ -57,6 +65,14 @@ public class InvestmentCalculator {
             int dayCountBasis, BigDecimal withholdingRate, String payoutFrequency,
             String calculationMethod, String rateType, String capitalizationFrequency, LocalDate startDate,
             List<TaxRule> taxRules, String calendarMode) {
+        return calculate(principal, annualRate, termDays, dayCountBasis, withholdingRate, payoutFrequency,
+                calculationMethod, rateType, capitalizationFrequency, startDate, taxRules, calendarMode, List.of());
+    }
+
+    public Projection calculate(BigDecimal principal, BigDecimal annualRate, int termDays,
+            int dayCountBasis, BigDecimal withholdingRate, String payoutFrequency,
+            String calculationMethod, String rateType, String capitalizationFrequency, LocalDate startDate,
+            List<TaxRule> taxRules, String calendarMode, List<Charge> charges) {
         if (principal == null || principal.signum() <= 0 || annualRate == null || annualRate.signum() <= 0
                 || withholdingRate == null || withholdingRate.signum() < 0) {
             throw new IllegalArgumentException("El capital, la tasa y la retención deben ser válidos.");
@@ -72,12 +88,16 @@ public class InvestmentCalculator {
         BigDecimal balance = principal;
         BigDecimal grossTotal = BigDecimal.ZERO;
         BigDecimal taxTotal = BigDecimal.ZERO;
+        BigDecimal chargeTotal = BigDecimal.ZERO;
+        BigDecimal[] chargeTotals = new BigDecimal[charges.size()];
+        java.util.Arrays.fill(chargeTotals, BigDecimal.ZERO);
         int elapsed = 0;
         int number = 1;
 
         while (elapsed < termDays) {
             LocalDate previousDate = startDate.plusDays(elapsed);
-            LocalDate nextDate = nextPaymentDate(previousDate, payoutFrequency, termDays - elapsed, calendarMode);
+            LocalDate nextDate = nextPaymentDate(startDate, previousDate, payoutFrequency,
+                    termDays - elapsed, number, calendarMode);
             int periodDays = Math.toIntExact(ChronoUnit.DAYS.between(previousDate, nextDate));
             periodDays = Math.min(periodDays, termDays - elapsed);
             elapsed += periodDays;
@@ -86,19 +106,28 @@ public class InvestmentCalculator {
             boolean finalPayment = elapsed == termDays;
             BigDecimal legacyTax = "COMPOUND".equals(calculationMethod) && !finalPayment
                     ? BigDecimal.ZERO : gross.multiply(withholdingRate);
-            BigDecimal tax = legacyTax.add(taxes(taxRules, gross, balance, gross,
-                    !"COMPOUND".equals(calculationMethod) || finalPayment))
-                    .setScale(2, RoundingMode.HALF_UP);
+            BigDecimal maximumDeduction = gross.add(finalPayment ? balance : BigDecimal.ZERO);
+            BigDecimal tax = legacyTax.add(taxes(taxRules, gross, balance, gross, finalPayment))
+                    .min(maximumDeduction).setScale(2, RoundingMode.HALF_UP);
             BigDecimal net = gross.subtract(tax).setScale(2, RoundingMode.HALF_UP);
             BigDecimal capital = finalPayment ? principal.setScale(2, RoundingMode.HALF_UP)
                     : BigDecimal.ZERO.setScale(2);
+            BigDecimal paymentCharges = BigDecimal.ZERO.setScale(2);
+            for (int index = 0; index < charges.size(); index++) {
+                BigDecimal amount = gross.multiply(charges.get(index).percentage())
+                        .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+                chargeTotals[index] = chargeTotals[index].add(amount);
+                paymentCharges = paymentCharges.add(amount);
+            }
             BigDecimal total = "COMPOUND".equals(calculationMethod)
-                    ? finalPayment ? balance.add(gross).subtract(tax).setScale(2, RoundingMode.HALF_UP)
+                    ? finalPayment ? balance.add(gross).subtract(tax).subtract(paymentCharges).setScale(2, RoundingMode.HALF_UP)
                             : BigDecimal.ZERO.setScale(2)
-                    : net.add(capital).setScale(2, RoundingMode.HALF_UP);
-            payments.add(new Payment(number++, previousDate.plusDays(periodDays), periodDays, gross, tax, net, capital, total));
+                    : net.add(capital).subtract(paymentCharges).setScale(2, RoundingMode.HALF_UP);
+            payments.add(new Payment(number++, previousDate.plusDays(periodDays), periodDays, gross, tax, net, capital,
+                    paymentCharges, total));
             grossTotal = grossTotal.add(gross);
             taxTotal = taxTotal.add(tax);
+            chargeTotal = chargeTotal.add(paymentCharges);
             if ("COMPOUND".equals(calculationMethod)) {
                 balance = balance.add(gross);
             }
@@ -108,26 +137,35 @@ public class InvestmentCalculator {
         BigDecimal netTotal = grossTotal.subtract(taxTotal).setScale(2, RoundingMode.HALF_UP);
         BigDecimal maturityValue = "COMPOUND".equals(calculationMethod)
                 ? payments.getLast().totalPayment()
-                : principal.add(netTotal).setScale(2, RoundingMode.HALF_UP);
+                : principal.add(netTotal).subtract(chargeTotal).setScale(2, RoundingMode.HALF_UP);
+        List<ChargeAmount> chargeDetails = new ArrayList<>();
+        for (int index = 0; index < charges.size(); index++) {
+            Charge charge = charges.get(index);
+            chargeDetails.add(new ChargeAmount(charge.id(), charge.name(), chargeTotals[index]));
+        }
         return new Projection(grossTotal.setScale(2, RoundingMode.HALF_UP), taxTotal.setScale(2, RoundingMode.HALF_UP),
-                netTotal, maturityValue, startDate.plusDays(termDays), List.copyOf(payments));
+                netTotal, chargeTotal.setScale(2, RoundingMode.HALF_UP), maturityValue, startDate.plusDays(termDays),
+                List.copyOf(payments), List.copyOf(chargeDetails));
     }
 
     private BigDecimal taxes(List<TaxRule> rules, BigDecimal gross, BigDecimal capital, BigDecimal total,
             boolean finalPayment) {
-        return rules.stream().filter(TaxRule::active).filter(rule -> finalPayment).map(rule -> {
+        return rules.stream().filter(TaxRule::active)
+                .filter(rule -> finalPayment || "GROSS_INTEREST".equals(rule.base())).map(rule -> {
             BigDecimal base = switch (rule.base()) {
                 case "CAPITAL" -> capital;
                 case "TOTAL" -> total.add(capital);
                 default -> gross;
             };
-            return "PERCENTAGE".equals(rule.ruleType())
+            BigDecimal calculated = "PERCENTAGE".equals(rule.ruleType())
                     ? base.multiply(rule.value()).divide(BigDecimal.valueOf(100), 8, RoundingMode.HALF_UP)
                     : rule.value();
+            return calculated.min(base.max(BigDecimal.ZERO));
         }).reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
-    private LocalDate nextPaymentDate(LocalDate previousDate, String frequency, int remainingDays, String calendarMode) {
+    private LocalDate nextPaymentDate(LocalDate startDate, LocalDate previousDate, String frequency,
+            int remainingDays, int paymentNumber, String calendarMode) {
         if ("AT_MATURITY".equals(frequency)) return previousDate.plusDays(remainingDays);
         if ("CALENDAR".equals(calendarMode)) {
             int months = switch (frequency) {
@@ -138,14 +176,16 @@ public class InvestmentCalculator {
                 case "ANNUAL" -> 12;
                 default -> throw new IllegalArgumentException("La frecuencia de pago no es válida.");
             };
-            return previousDate.plusMonths(months);
+            LocalDate maturity = previousDate.plusDays(remainingDays);
+            LocalDate scheduled = startDate.plusMonths((long) months * paymentNumber);
+            return scheduled.isAfter(maturity) ? maturity : scheduled;
         }
         int days = switch (frequency) {
             case "MONTHLY" -> 30;
             case "BIMONTHLY" -> 60;
             case "QUARTERLY" -> 90;
             case "SEMIANNUAL" -> 180;
-            case "ANNUAL" -> 365;
+            case "ANNUAL" -> 360;
             default -> throw new IllegalArgumentException("La frecuencia de pago no es válida.");
         };
         return previousDate.plusDays(Math.min(days, remainingDays));
@@ -162,7 +202,7 @@ public class InvestmentCalculator {
             case "BIMONTHLY" -> 60;
             case "QUARTERLY" -> 90;
             case "SEMIANNUAL" -> 180;
-            case "ANNUAL" -> 365;
+            case "ANNUAL" -> basis;
             default -> throw new IllegalArgumentException("La frecuencia de capitalización no es válida.");
         };
         double periods = (double) periodDays / capitalizationDays;

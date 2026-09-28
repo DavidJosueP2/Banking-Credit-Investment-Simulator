@@ -9,6 +9,8 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -26,15 +28,20 @@ import com.edu.uta.backend.identity.IdentityService;
 @RestController
 @RequestMapping("/api")
 public class InvestmentController {
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(InvestmentController.class);
+
 
     private final InvestmentService investments;
     private final InvestmentPdfService pdf;
     private final IdentityService identity;
+    private final InvestmentGoalService goals;
 
-    public InvestmentController(InvestmentService investments, InvestmentPdfService pdf, IdentityService identity) {
+    public InvestmentController(InvestmentService investments, InvestmentPdfService pdf, IdentityService identity,
+                                InvestmentGoalService goals) {
         this.investments = investments;
         this.pdf = pdf;
         this.identity = identity;
+        this.goals = goals;
     }
 
     public record StatusInput(boolean active) {}
@@ -47,6 +54,12 @@ public class InvestmentController {
     @PostMapping("/public/investments/simulations")
     public InvestmentService.SimulationResult simulate(@RequestBody InvestmentService.SimulationRequest request) {
         return investments.simulate(request);
+    }
+
+    /** Meta de ahorro: capital necesario para reunir un monto en el plazo elegido. */
+    @PostMapping("/public/investments/goals")
+    public InvestmentGoalService.GoalResult goal(@RequestBody InvestmentGoalService.GoalRequest request) {
+        return goals.reach(request);
     }
 
     @PostMapping(value = "/public/investments/simulations/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
@@ -99,5 +112,19 @@ public class InvestmentController {
     @ExceptionHandler(NoSuchElementException.class)
     public ResponseEntity<Map<String, String>> missing(NoSuchElementException exception) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", exception.getMessage()));
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<Map<String, String>> unreadable(HttpMessageNotReadableException exception) {
+        return ResponseEntity.badRequest().body(Map.of(
+                "message", "Los datos del producto no tienen el formato esperado. Revisa las reglas fiscales."));
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<Map<String, String>> integrity(DataIntegrityViolationException exception) {
+        // Se registra la causa real; al usuario se le indica que el producto no cumple una regla de la base de datos.
+        log.warn("No se pudo guardar el producto de inversión: {}", exception.getMostSpecificCause().getMessage());
+        return ResponseEntity.badRequest().body(Map.of(
+                "message", "No se pudo guardar el producto porque algún dato no cumple las reglas del sistema. Revisa montos, tasas, retención y costos."));
     }
 }
