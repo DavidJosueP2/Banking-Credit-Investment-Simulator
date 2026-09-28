@@ -17,6 +17,7 @@ import com.edu.uta.backend.dto.SimulacionRequestDto;
 import com.edu.uta.backend.dto.SimulacionResponseDto;
 import com.edu.uta.backend.dto.SimulacionResponseDto.CuotaDto;
 import com.edu.uta.backend.repository.ProductoCreditoRepository;
+import com.edu.uta.backend.settings.InstitutionSettingsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -47,14 +48,26 @@ public class SimuladorService {
 
     private final ProductoCreditoRepository productoRepository;
     private final NormativaRegulatoriaService normativaService;
+    private final InstitutionSettingsService settings;
+
+    /** Sistemas que la institución ofrece (Configuración → Créditos); un producto solo usa los que estén aquí. */
+    private List<SistemaAmortizacion> sistemasHabilitados() {
+        List<SistemaAmortizacion> habilitados = new java.util.ArrayList<>();
+        if (settings.enabled("credit", "frenchSystemEnabled")) habilitados.add(SistemaAmortizacion.FRANCES);
+        if (settings.enabled("credit", "germanSystemEnabled")) habilitados.add(SistemaAmortizacion.ALEMAN);
+        return habilitados;
+    }
 
     /**
      * Catálogo de productos de crédito configurados en base de datos para el simulador de clientes.
      */
     @Transactional(readOnly = true)
     public List<ProductoSimuladorDto> obtenerProductosDisponibles() {
+        List<SistemaAmortizacion> habilitados = sistemasHabilitados();
         return productoRepository.findAllByActivoTrueOrderByOrdenAsc().stream()
                 .filter(this::ofertable)
+                // Sin ningún sistema habilitado para la institución, el producto no puede simularse.
+                .filter(p -> parseSistemas(p.getSistemasPermitidos()).stream().anyMatch(habilitados::contains))
                 .map(p -> {
                     BigDecimal tasa = obtenerTasaAnual(p);
                     BigDecimal desgravamen = p.getTasaDesgravamenMensual() != null
@@ -64,7 +77,8 @@ public class SimuladorService {
                     boolean esAnios = "ANIOS".equals(unidad);
                     int plazoMin = esAnios ? Math.max(1, p.getPlazoMinMeses() / 12) : p.getPlazoMinMeses();
                     int plazoMax = esAnios ? Math.max(1, p.getPlazoMaxMeses() / 12) : p.getPlazoMaxMeses();
-                    List<SistemaAmortizacion> sistemas = parseSistemas(p.getSistemasPermitidos());
+                    List<SistemaAmortizacion> sistemas = parseSistemas(p.getSistemasPermitidos()).stream()
+                            .filter(habilitados::contains).toList();
 
                     List<CargoIndirectoDto> cargos = p.getCargos() != null
                             ? p.getCargos().stream()
@@ -310,6 +324,11 @@ public class SimuladorService {
     }
 
     private void validarSistemaPermitido(ProductoCreditoEntity producto, SistemaAmortizacion sistema) {
+        if (!sistemasHabilitados().contains(sistema)) {
+            throw new NormativaFinancieraException(String.format(
+                    "La institución no ofrece por ahora el sistema %s.",
+                    sistema == SistemaAmortizacion.FRANCES ? "francés" : "alemán"));
+        }
         String permitidos = producto.getSistemasPermitidos();
         if (permitidos != null && !permitidos.isBlank()) {
             boolean admitido = permitidos.toUpperCase().contains(sistema.name());

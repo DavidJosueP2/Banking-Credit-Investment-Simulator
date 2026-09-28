@@ -1,10 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
 import { ArrowRight, Inbox, ShieldAlert } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 
 import { useAuth } from '@/app/providers/auth-provider'
 import { PageHeader } from '@/components/shared/page-header'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -13,20 +14,28 @@ import {
   applicationKeys,
   formatTerm,
   getReviewQueue,
+  isSettled,
+  type ApplicationSummary,
   productTypeLabels,
   type ApplicationStatus,
   type ProductType,
 } from '@/features/applications/applications-api'
 import { messageFrom } from '@/features/identity-check/utils'
-import { formatCurrency, formatDateTime } from '@/lib/formatters'
+import { formatCurrency, formatDate, formatDateTime } from '@/lib/formatters'
+import { QuickPaymentDialog } from './quick-payment-dialog'
 
-type Filter = 'pending' | 'IN_REVIEW' | 'approval' | 'OBSERVED' | 'decided' | 'all'
+type Filter = 'pending' | 'IN_REVIEW' | 'approval' | 'OBSERVED' | 'portfolio' | 'decided' | 'all'
 
-const filters: Array<{ value: Filter; label: string; statuses?: ApplicationStatus[] }> = [
+const today = () => new Date().toISOString().slice(0, 10)
+const isLate = (row: ApplicationSummary) => !isSettled(row) && row.nextDueDate != null && row.nextDueDate.slice(0, 10) < today()
+
+const filters: Array<{ value: Filter; label: string; statuses?: ApplicationStatus[]; matches?: (row: ApplicationSummary) => boolean }> = [
   { value: 'pending', label: 'Por revisar', statuses: ['SUBMITTED'] },
   { value: 'IN_REVIEW', label: 'En revisión', statuses: ['IN_REVIEW'] },
   { value: 'approval', label: 'Por aprobar', statuses: ['PENDING_APPROVAL'] },
   { value: 'OBSERVED', label: 'Observadas', statuses: ['OBSERVED'] },
+  // Cartera: aprobados con cuotas o pagos por registrar, lo más urgente primero.
+  { value: 'portfolio', label: 'Cartera', statuses: ['APPROVED'], matches: (row) => !isSettled(row) },
   { value: 'decided', label: 'Decididas', statuses: ['APPROVED', 'REJECTED', 'CANCELLED'] },
   { value: 'all', label: 'Todas' },
 ]
@@ -39,25 +48,30 @@ export function ApplicationsQueuePage() {
   const { hasPermission } = useAuth()
   const queue = useQuery({ queryKey: applicationKeys.queue, queryFn: getReviewQueue, refetchInterval: 30_000 })
   const analystOnly = hasPermission('credit.requests.approve') && !hasPermission('credit.requests.review')
-  const [filter, setFilter] = useState<Filter>(analystOnly ? 'approval' : 'pending')
+  const [searchParams] = useSearchParams()
+  const [filter, setFilter] = useState<Filter>(searchParams.get('vista') === 'cartera' ? 'portfolio' : analystOnly ? 'approval' : 'pending')
   const [type, setType] = useState<ProductType | 'ALL'>('ALL')
   const [search, setSearch] = useState('')
+  const [selectedPayment, setSelectedPayment] = useState<ApplicationSummary | null>(null)
   const audit = hasPermission('requests.audit')
   const seesCredit = audit || hasPermission('credit.requests.review') || hasPermission('credit.requests.approve')
   const seesInvestment = audit || hasPermission('investment.requests.review')
   const both = seesCredit && seesInvestment
 
   const counts = useMemo(() => Object.fromEntries(filters.map((item) => [item.value,
-    (queue.data ?? []).filter((row) => !item.statuses || item.statuses.includes(row.status)).length])), [queue.data])
+    (queue.data ?? []).filter((row) => (!item.statuses || item.statuses.includes(row.status)) && (!item.matches || item.matches(row))).length])), [queue.data])
 
   const rows = useMemo(() => {
-    const statuses = filters.find((item) => item.value === filter)?.statuses
+    const current = filters.find((item) => item.value === filter)
+    const statuses = current?.statuses
     const term = search.trim().toLowerCase()
     const list = (queue.data ?? [])
       .filter((row) => !statuses || statuses.includes(row.status))
+      .filter((row) => !current?.matches || current.matches(row))
       .filter((row) => type === 'ALL' || row.productType === type)
       .filter((row) => !term || `${row.code} ${row.customerName} ${row.productName}`.toLowerCase().includes(term))
     // Lo más antiguo primero en las colas de trabajo; lo más reciente primero en el historial.
+    if (filter === 'portfolio') return [...list].sort((a, b) => (a.nextDueDate ?? '9').localeCompare(b.nextDueDate ?? '9'))
     return filter === 'decided' || filter === 'all'
       ? list
       : [...list].sort((a, b) => (a.submittedAt ?? '').localeCompare(b.submittedAt ?? ''))
@@ -122,7 +136,7 @@ export function ApplicationsQueuePage() {
                 <TableHead>Plazo</TableHead>
                 <TableHead>Enviada</TableHead>
                 <TableHead>Estado</TableHead>
-                <TableHead><span className="sr-only">Abrir</span></TableHead>
+                <TableHead><span className="sr-only">Acciones</span></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -144,13 +158,24 @@ export function ApplicationsQueuePage() {
                   <TableCell>{formatTerm(row.term, row.termUnit)}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">{formatDateTime(row.submittedAt)}</TableCell>
                   <TableCell>
-                    <ApplicationStatusBadge status={row.status} />
+                    <ApplicationStatusBadge status={row.status} settled={isSettled(row) ? row.productType : null} />
                     {row.reviewerName && row.status === 'IN_REVIEW' && <p className="mt-1 text-xs text-muted-foreground">{row.reviewerName}</p>}
+                    {row.status === 'APPROVED' && !isSettled(row) && (
+                      <p className={`mt-1 text-xs ${isLate(row) ? 'font-medium text-destructive' : 'text-muted-foreground'}`}>
+                        {row.elapsedInstallments}/{row.totalInstallments} pagadas
+                        {row.nextDueDate && ` · ${isLate(row) ? 'venció' : 'vence'} ${formatDate(row.nextDueDate)}`}
+                      </p>
+                    )}
                   </TableCell>
                   <TableCell>
-                    <Link to={`/admin/solicitudes/${row.id}`} aria-label={`Abrir ${row.code}`} className="text-brand-teal">
-                      <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
-                    </Link>
+                    <div className="flex items-center gap-3">
+                      {filter === 'portfolio' && hasPermission('payments.register') && row.nextPayment != null && (
+                        <Button size="sm" variant="outline" className="whitespace-nowrap" onClick={() => setSelectedPayment(row)}>Registrar pago</Button>
+                      )}
+                      <Link to={`/admin/solicitudes/${row.id}`} aria-label={`Abrir ${row.code}`} className="text-brand-teal">
+                        <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
+                      </Link>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -158,6 +183,7 @@ export function ApplicationsQueuePage() {
           </Table>
         </div>
       )}
+      {selectedPayment && <QuickPaymentDialog row={selectedPayment} onClose={() => setSelectedPayment(null)} />}
     </div>
   )
 }

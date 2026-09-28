@@ -14,7 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class InternalUserService {
 
     private static final Set<String> INTERNAL_ROLES = Set.of(
-            "credit_advisor", "investment_advisor", "administrator");
+            "credit_advisor", "credit_analyst", "investment_advisor", "administrator");
     private static final String UPPERCASE = "ABCDEFGHJKLMNPQRSTUVWXYZ";
     private static final String LOWERCASE = "abcdefghijkmnopqrstuvwxyz";
     private static final String NUMBERS = "23456789";

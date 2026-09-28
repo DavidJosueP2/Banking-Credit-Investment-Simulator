@@ -23,7 +23,10 @@ const round = (value: number) => Math.round(value * 100) / 100
  * Reparto del interés bruto: cuánto se queda el cliente, cuánto retiene el Estado y cuánto cobra la
  * institución. Explica por qué el rendimiento real es menor que la tasa ofrecida.
  */
-export function InvestmentInterestChart({ result }: { result: SimulationResult }) {
+/** Lo mínimo que necesitan los gráficos: sirve tanto para una simulación como para una solicitud guardada. */
+export type InvestmentChartData = Pick<SimulationResult, 'payments' | 'amount' | 'grossInterest' | 'netInterest' | 'withholding' | 'charges'>
+
+export function InvestmentInterestChart({ result }: { result: InvestmentChartData }) {
   const data = ([
     ['ganancia', round(result.netInterest - result.charges)],
     ['retencion', result.withholding],
@@ -71,7 +74,8 @@ export function InvestmentInterestChart({ result }: { result: SimulationResult }
  * Interés de cada pago repartido entre lo que recibe el cliente, la retención y los costos. El capital
  * queda fuera de las barras: al vencimiento las dejaría ilegibles, así que se indica en el pie.
  */
-export function InvestmentPaymentsChart({ result }: { result: SimulationResult }) {
+/** {@code paidThrough}: pagos ya recibidos; los siguientes se muestran atenuados. */
+export function InvestmentPaymentsChart({ result, paidThrough }: { result: InvestmentChartData; paidThrough?: number }) {
   const data = result.payments.map((payment) => ({
     etiqueta: String(payment.number),
     ganancia: round(payment.netInterest - payment.charges),
@@ -91,6 +95,12 @@ export function InvestmentPaymentsChart({ result }: { result: SimulationResult }
               {SERIES[key].label}
             </li>
           ))}
+          {paidThrough !== undefined && (
+            <li className="flex items-center gap-1.5">
+              <span className="size-2.5 rounded-sm bg-muted-foreground/30" aria-hidden="true" />
+              Claras: por recibir
+            </li>
+          )}
         </ul>
       </div>
       <ChartContainer id="investment-payments" config={SERIES} className="mt-4 aspect-auto h-56 w-full" initialDimension={{ width: 600, height: 224 }}>
@@ -100,7 +110,8 @@ export function InvestmentPaymentsChart({ result }: { result: SimulationResult }
           <YAxis tickLine={false} axisLine={false} width={64} fontSize={11}
             tickFormatter={(value: number) => value >= 1000 ? `$${Math.round(value / 1000)}k` : `$${value}`} />
           <ChartTooltip cursor={{ fill: 'var(--muted)', opacity: 0.5 }} content={<ChartTooltipContent
-            labelFormatter={(label) => `Pago ${label}`}
+            labelFormatter={(label) => paidThrough === undefined ? `Pago ${label}`
+              : `Pago ${label} · ${Number(label) <= paidThrough ? 'recibido' : 'por recibir'}`}
             formatter={(value, name) => (
               <span className="flex w-full justify-between gap-3">
                 <span className="flex items-center gap-1.5">
@@ -113,7 +124,11 @@ export function InvestmentPaymentsChart({ result }: { result: SimulationResult }
           {series.map((key, index) => (
             <Bar key={key} dataKey={key} stackId="pago" fill={`var(--color-${key})`} isAnimationActive={false}
               stroke="var(--card)" strokeWidth={data.length > 30 ? 0 : 1}
-              radius={index === series.length - 1 ? [4, 4, 0, 0] : 0} />
+              radius={index === series.length - 1 ? [4, 4, 0, 0] : 0}>
+              {paidThrough !== undefined && data.map((item) => (
+                <Cell key={item.etiqueta} fillOpacity={Number(item.etiqueta) <= paidThrough ? 1 : 0.3} />
+              ))}
+            </Bar>
           ))}
         </BarChart>
       </ChartContainer>

@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import { useAuth } from '@/app/providers/auth-provider'
+import { useInstitutionSettings } from '@/app/providers/settings-provider'
 import { Button } from '@/components/ui/button'
 import { messageFrom } from '@/features/identity-check/utils'
 import { cn } from '@/lib/utils'
@@ -29,7 +30,9 @@ export function SimulationActions({ scenario, applyLabel, className }: Simulatio
   const [savedKey, setSavedKey] = useState('')
   const scenarioKey = JSON.stringify(scenario)
   const isCredit = scenario.productType === 'CREDIT'
-  const canApply = !account || hasPermission(isCredit ? 'credit.request.create' : 'investment.request.create')
+  const { settings } = useInstitutionSettings()
+  const onlineEnabled = isCredit || settings.investment.onlineApplicationEnabled === 'true'
+  const canApply = onlineEnabled && (!account || hasPermission(isCredit ? 'credit.request.create' : 'investment.request.create'))
   const canSave = !account || hasPermission('simulation.save')
 
   const save = useMutation({

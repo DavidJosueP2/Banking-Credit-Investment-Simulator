@@ -57,6 +57,34 @@ public class DashboardService {
                     """, args);
             kpis.add(new Kpi("approvedMonth", "Aprobado este mes", (BigDecimal) month.get("amount"), "CURRENCY",
                     month.get("total") + " solicitud(es) aprobada(s)", "/admin/solicitudes"));
+
+            // Cartera: aprobados que aún tienen cuotas o pagos por registrar, y los ya cerrados.
+            Map<String, Object> portfolio = jdbc.queryForMap("""
+                    SELECT count(*) FILTER (WHERE paid.through < rows.total) AS active,
+                           count(*) FILTER (WHERE paid.through >= rows.total AND rows.total > 0) AS settled,
+                           count(*) FILTER (WHERE paid.through < rows.total AND next_row.due_date <= current_date) AS overdue
+                    FROM applications a
+                     CROSS JOIN LATERAL (
+                         SELECT COALESCE(MIN(s.number) FILTER (WHERE p.id IS NULL OR p.amount <> s.payment) - 1,
+                                         count(*)) AS through
+                         FROM application_schedule s
+                         LEFT JOIN application_payments p ON p.application_id = s.application_id
+                             AND p.installment_number = s.number
+                         WHERE s.application_id = a.id
+                     ) paid
+                    CROSS JOIN LATERAL (SELECT count(*) AS total FROM application_schedule s
+                                        WHERE s.application_id = a.id) rows
+                    LEFT JOIN LATERAL (SELECT s.due_date FROM application_schedule s
+                                       WHERE s.application_id = a.id AND s.number = paid.through + 1) next_row ON TRUE
+                    WHERE a.status = 'APPROVED' AND a.product_type IN (""" + in + ")", args);
+            long overdue = ((Number) portfolio.get("overdue")).longValue();
+            if (authorities.contains(ApplicationService.PAYMENTS_REGISTER)) {
+                kpis.add(new Kpi("dueToRegister", "Pagos por registrar", BigDecimal.valueOf(overdue), "COUNT",
+                        "Cuotas o pagos ya vencidos sin registrar", "/admin/solicitudes?vista=cartera"));
+            }
+            kpis.add(new Kpi("portfolio", "Cartera activa",
+                    BigDecimal.valueOf(((Number) portfolio.get("active")).longValue()), "COUNT",
+                    portfolio.get("settled") + " ya pagado(s) o liquidado(s)", "/admin/solicitudes?vista=cartera"));
         }
 
         if (authorities.contains("credit.products.manage")) {
@@ -82,6 +110,10 @@ public class DashboardService {
                     "COUNT", clients.get("recent") + " en los últimos 30 días", "/admin/roles"));
         }
 
+        // Interés del público: útil para quien diseña productos y para administración, no para quien revisa.
+        boolean productOwner = authorities.contains("credit.products.manage")
+                || authorities.contains("investment.products.manage") || authorities.contains("users.roles.manage");
+        if (!productOwner) return new Summary(kpis, byStatus);
         Map<String, Object> saved = jdbc.queryForMap("""
                 SELECT count(*) FILTER (WHERE created_at >= date_trunc('day', now())) AS today,
                        count(*) FILTER (WHERE created_at >= now() - interval '7 days') AS week

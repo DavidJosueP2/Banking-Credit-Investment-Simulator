@@ -121,6 +121,14 @@ export interface PaymentRecord {
   recordedAt: string
 }
 
+/** Los saldos pactados solo se liberan con cuotas completas, nunca con abonos parciales. */
+export function hasPaymentMismatch(item: { schedule: Installment[]; payments: PaymentRecord[] }) {
+  return item.payments.some((payment) => {
+    const row = item.schedule.find((installment) => installment.number === payment.installmentNumber)
+    return !row || Math.round(payment.amount * 100) !== Math.round(row.payment * 100)
+  })
+}
+
 export interface ApplicationDetail {
   id: number
   code: string
@@ -141,7 +149,8 @@ export interface ApplicationDetail {
   totalWithholding: number
   totalAmount: number
   monthlyIncome: number | null
-  purpose: string
+  /** Detalle libre del destino u origen de fondos (opcional salvo con "Otro"). */
+  purpose: string | null
   status: ApplicationStatus
   biometricResult: BiometricResult | null
   biometricAttemptsLeft: number
@@ -164,6 +173,18 @@ export interface ApplicationDetail {
   /** Cuotas ya cobradas de verdad (no por fecha); 0 si ninguna. */
   paidThroughInstallment: number
   payments: PaymentRecord[]
+  declaration: ApplicantDeclaration
+  /** El tipo de crédito o plan sigue ofreciéndose; lo ya aprobado conserva sus condiciones igual. */
+  productAvailable: boolean
+}
+
+/** Lo que el cliente declaró al solicitar. */
+export interface ApplicantDeclaration {
+  purposeCategory: string | null
+  employmentType: string | null
+  monthlyExpenses: number | null
+  fundsSource: string | null
+  fundsLawfulDeclared: boolean
 }
 
 export interface CustomerFile {
@@ -207,6 +228,11 @@ export interface ReviewDetail {
 export interface NewApplicationInput extends Scenario {
   monthlyIncome?: number
   purpose: string
+  purposeCategory?: string
+  employmentType?: string
+  monthlyExpenses?: number
+  fundsSource?: string
+  fundsLawfulDeclared?: boolean
 }
 
 export interface LivenessTicket extends TemporaryCredentials {
@@ -320,8 +346,8 @@ export async function openIdentityDocument(id: number, side: 'front' | 'back') {
   return openBlob(`/admin/applications/${id}/identity/${side}`)
 }
 
-/** Registra la cuota siguiente del cronograma (el servidor calcula cuál es; no se elige el número). */
-export async function registerPayment(id: number, input: { amount: number; paidAt: string; note?: string }) {
+/** Confirma la cuota completa del cronograma; el servidor calcula número y monto. */
+export async function registerPayment(id: number, input: { paidAt: string; note?: string }) {
   return (await api.post<ReviewDetail>(`/admin/applications/${id}/payments`, input)).data
 }
 
@@ -366,6 +392,46 @@ export const statusTones: Record<ApplicationStatus, 'neutral' | 'success' | 'war
   CANCELLED: 'neutral',
 }
 
+/** Reglas de adjuntos: las mismas que valida el servidor (tipo real del archivo, tamaño y cantidad). */
+export const DOCUMENT_RULES = {
+  accept: 'application/pdf,image/jpeg,image/png',
+  formats: 'PDF, JPG o PNG',
+  maxFiles: 6,
+  maxMegabytes: 5,
+}
+
+/** Destino del crédito (mismos códigos que el backend). */
+export const creditPurposeLabels: Record<string, string> = {
+  CONSUMO_BIENES: 'Compra de bienes (electrodomésticos, equipos, muebles)',
+  VEHICULO: 'Vehículo',
+  EDUCACION: 'Educación',
+  SALUD: 'Salud',
+  VIVIENDA: 'Vivienda o remodelación',
+  CONSOLIDACION_DEUDAS: 'Pagar otras deudas',
+  NEGOCIO: 'Mi negocio (capital de trabajo o equipos)',
+  VIAJE: 'Viaje',
+  OTRO: 'Otro',
+}
+
+export const employmentLabels: Record<string, string> = {
+  DEPENDIENTE: 'Empleado con relación de dependencia',
+  INDEPENDIENTE: 'Profesional independiente',
+  NEGOCIO_PROPIO: 'Negocio propio',
+  JUBILADO: 'Jubilado',
+  OTRO: 'Otra situación',
+}
+
+/** Origen de los fondos para invertir (debida diligencia). */
+export const fundsSourceLabels: Record<string, string> = {
+  SUELDO_AHORROS: 'Ahorros de mi sueldo',
+  NEGOCIO: 'Ingresos de mi negocio o actividad',
+  VENTA_BIEN: 'Venta de un bien (casa, vehículo…)',
+  HERENCIA_DONACION: 'Herencia o donación',
+  JUBILACION_LIQUIDACION: 'Jubilación, liquidación o indemnización',
+  INVERSIONES: 'Vencimiento de otras inversiones',
+  OTRO: 'Otro',
+}
+
 export const systemLabels: Record<'FRANCES' | 'ALEMAN', string> = {
   FRANCES: 'Francés (cuota fija)',
   ALEMAN: 'Alemán (capital fijo)',
@@ -385,6 +451,19 @@ export function formatTerm(term: number, unit: TermUnit) {
 /** La API guarda la tasa en porcentaje (15.5 = 15,5 %). */
 export function formatRate(rate: number) {
   return `${new Intl.NumberFormat('es-EC', { maximumFractionDigits: 2 }).format(rate)} %`
+}
+
+/** Aprobado y con todas las cuotas o pagos registrados: el producto quedó cerrado. */
+export function isSettled(item: { status: ApplicationStatus; elapsedInstallments?: number; totalInstallments?: number; paidThroughInstallment?: number; schedule?: Installment[] }) {
+  if (item.status !== 'APPROVED') return false
+  const total = item.totalInstallments ?? item.schedule?.length ?? 0
+  const paid = item.elapsedInstallments ?? item.paidThroughInstallment ?? 0
+  return total > 0 && paid >= total
+}
+
+export const settledLabels: Record<ProductType, string> = {
+  CREDIT: 'Pagado',
+  INVESTMENT: 'Liquidada',
 }
 
 export const OPEN_STATUSES: ApplicationStatus[] = ['DRAFT', 'SUBMITTED', 'IN_REVIEW', 'OBSERVED', 'PENDING_APPROVAL']

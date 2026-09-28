@@ -1,5 +1,5 @@
-import { CheckCircle2, Circle, CircleAlert, FileText, MailCheck, ScanFace, UserRound, XCircle } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { CheckCircle2, Circle, CircleAlert, FileText, Info, MailCheck, ScanFace, UserRound, XCircle } from 'lucide-react'
+import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 
 import { StatusBadge } from '@/components/shared/status-badge'
@@ -8,7 +8,12 @@ import { formatCurrency, formatDate, formatDateTime } from '@/lib/formatters'
 import { cn } from '@/lib/utils'
 
 import {
+  creditPurposeLabels,
+  employmentLabels,
   formatRate,
+  fundsSourceLabels,
+  hasPaymentMismatch,
+  settledLabels,
   formatTerm,
   statusLabels,
   statusTones,
@@ -18,12 +23,15 @@ import {
   type ApplicationEvent,
   type ApplicationStatus,
   type Installment,
+  type ProductType,
   type PaymentRecord,
   type Readiness,
 } from './applications-api'
 import { payoutLabels } from '@/features/investments/investment-api'
 
-export function ApplicationStatusBadge({ status }: { status: ApplicationStatus }) {
+/** Con {@code settled}, un producto aprobado y ya pagado se muestra como "Pagado" o "Liquidada". */
+export function ApplicationStatusBadge({ status, settled }: { status: ApplicationStatus; settled?: ProductType | null }) {
+  if (status === 'APPROVED' && settled) return <StatusBadge tone="success">{settledLabels[settled]}</StatusBadge>
   return <StatusBadge tone={statusTones[status]}>{statusLabels[status]}</StatusBadge>
 }
 
@@ -88,23 +96,24 @@ export function ApplicationFigures({ application }: { application: ApplicationDe
   if (credit && application.totalCharges > 0) items.splice(7, 0, ['Cargos', formatCurrency(application.totalCharges)])
 
   return (
-    <dl className="grid gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-4">
+    <dl className="grid grid-cols-2 overflow-hidden rounded-xl border bg-card sm:grid-cols-4">
       {items.map(([label, value, featured]) => (
-        <div key={label}>
-          <dt className="text-xs text-muted-foreground">{label}</dt>
-          <dd className={cn('mt-1 font-medium tabular-nums', featured ? 'text-lg text-brand-teal' : 'text-foreground')}>{value}</dd>
+        <div key={label} className={cn('flex min-w-0 flex-col justify-between gap-1 border-b border-r p-4', featured && 'bg-brand-teal/5')}>
+          <dt className="text-xs leading-4 text-muted-foreground">{label}</dt>
+          <dd className={cn('font-medium tabular-nums leading-snug', featured ? 'text-lg text-brand-teal' : 'text-foreground')}>{value}</dd>
         </div>
       ))}
     </dl>
   )
 }
 
-export function ScheduleTable({ productType, schedule, highlightNext = false, paidThrough }: {
+export function ScheduleTable({ productType, schedule, highlightNext = false, paidThrough, payments = [] }: {
   productType: 'CREDIT' | 'INVESTMENT'
   schedule: Installment[]
   highlightNext?: boolean
   /** Cuotas ya cobradas de verdad; si se da, manda sobre `highlightNext` (que solo mira la fecha). */
   paidThrough?: number
+  payments?: PaymentRecord[]
 }) {
   const credit = productType === 'CREDIT'
   const today = new Date().toISOString().slice(0, 10)
@@ -112,26 +121,67 @@ export function ScheduleTable({ productType, schedule, highlightNext = false, pa
     ? schedule.find((row) => row.number > paidThrough)?.number
     : highlightNext ? schedule.find((row) => row.dueDate > today)?.number : undefined
   const hasCharges = schedule.some((row) => row.charges > 0)
+  const paymentsByNumber = new Map(payments.map((payment) => [payment.installmentNumber, payment]))
+  const mismatched = hasPaymentMismatch({ schedule, payments })
 
   return (
-    <div className="max-h-[28rem] overflow-auto rounded-xl border">
-      <Table>
+    <div className="@container min-w-0">
+      {mismatched && (
+        <p role="alert" className="mb-3 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+          Hay montos registrados que no coinciden con su cuota. Esas cuotas siguen pendientes y requieren conciliación; no se pueden registrar otras hasta resolverlo.
+        </p>
+      )}
+      <ol className="max-h-[28rem] divide-y overflow-y-auto rounded-xl border @min-[64rem]:hidden" aria-label="Cronograma de cuotas">
+        {schedule.map((row) => {
+          const payment = paymentsByNumber.get(row.number)
+          return (
+            <li key={row.number} className={cn('space-y-3 p-4', row.number === nextNumber && 'bg-brand-teal/5')}>
+              <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
+                <div>
+                  <p className="font-medium">{credit ? 'Cuota' : 'Pago'} N.º {row.number}
+                    {paidThrough !== undefined && row.number <= paidThrough && (
+                      <CheckCircle2 className="ml-1.5 inline size-4 text-brand-teal" aria-label="Pagada" />
+                    )}
+                    {row.number === nextNumber && <span className="ml-2 text-xs text-brand-teal">Próxima</span>}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Vence {formatDate(row.dueDate)}</p>
+                </div>
+                <p className="text-right font-medium tabular-nums"><span className="block text-xs font-normal text-muted-foreground">{credit ? 'Cuota pactada' : 'Pago pactado'}</span>{formatCurrency(row.payment)}</p>
+              </div>
+              <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs sm:grid-cols-3">
+                {credit && <ScheduleValue label="Saldo inicial previsto" value={formatCurrency(row.openingBalance)} />}
+                <ScheduleValue label={credit ? 'Capital' : 'Capital devuelto'} value={formatCurrency(row.principal)} />
+                <ScheduleValue label={credit ? 'Interés' : 'Interés bruto'} value={formatCurrency(row.interest)} />
+                {credit && <ScheduleValue label="Desgravamen" value={formatCurrency(row.insurance)} />}
+                {hasCharges && credit && <ScheduleValue label="Cargos" value={formatCurrency(row.charges)} />}
+                {!credit && <ScheduleValue label="Retención" value={formatCurrency(row.withholding)} />}
+                {credit && <ScheduleValue label="Saldo final previsto" value={formatCurrency(row.closingBalance)} />}
+              </dl>
+              {payment && <PaymentSummary payment={payment} expected={row.payment} counted={row.number <= (paidThrough ?? 0)} />}
+            </li>
+          )
+        })}
+      </ol>
+      <div className="hidden max-h-[28rem] overflow-auto rounded-xl border @min-[64rem]:block">
+      <Table className="min-w-[64rem]">
         <TableHeader className="sticky top-0 bg-card">
           <TableRow>
             <TableHead>N.º</TableHead>
-            <TableHead>Fecha</TableHead>
-            {credit && <TableHead className="text-right">Saldo inicial</TableHead>}
+            <TableHead>Vencimiento / pago real</TableHead>
+            {credit && <TableHead className="text-right">Saldo inicial (plan)</TableHead>}
             <TableHead className="text-right">{credit ? 'Capital' : 'Capital devuelto'}</TableHead>
             <TableHead className="text-right">{credit ? 'Interés' : 'Interés bruto'}</TableHead>
             {credit && <TableHead className="text-right">Desgravamen</TableHead>}
             {credit && hasCharges && <TableHead className="text-right">Cargos</TableHead>}
             {!credit && <TableHead className="text-right">Retención</TableHead>}
-            <TableHead className="text-right">{credit ? 'Cuota' : 'Recibes'}</TableHead>
-            {credit && <TableHead className="text-right">Saldo final</TableHead>}
+            <TableHead className="text-right">{credit ? 'Cuota pactada' : 'Pago pactado'}</TableHead>
+            {credit && <TableHead className="text-right">Saldo final (plan)</TableHead>}
           </TableRow>
         </TableHeader>
         <TableBody>
-          {schedule.map((row) => (
+          {schedule.map((row) => {
+            const payment = paymentsByNumber.get(row.number)
+            return (
             <TableRow key={row.number} className={cn(row.number === nextNumber && 'bg-brand-teal/5')}>
               <TableCell>
                 {row.number}
@@ -140,7 +190,10 @@ export function ScheduleTable({ productType, schedule, highlightNext = false, pa
                 )}
                 {row.number === nextNumber && <span className="ml-2 text-xs text-brand-teal">Próxima</span>}
               </TableCell>
-              <TableCell>{formatDate(row.dueDate)}</TableCell>
+              <TableCell className="max-w-56 whitespace-normal">
+                <span>{formatDate(row.dueDate)}</span>
+                {payment && <PaymentSummary payment={payment} expected={row.payment} counted={row.number <= (paidThrough ?? 0)} />}
+              </TableCell>
               {credit && <TableCell className="text-right tabular-nums">{formatCurrency(row.openingBalance)}</TableCell>}
               <TableCell className="text-right tabular-nums">{formatCurrency(row.principal)}</TableCell>
               <TableCell className="text-right tabular-nums">{formatCurrency(row.interest)}</TableCell>
@@ -150,9 +203,26 @@ export function ScheduleTable({ productType, schedule, highlightNext = false, pa
               <TableCell className="text-right font-medium tabular-nums">{formatCurrency(row.payment)}</TableCell>
               {credit && <TableCell className="text-right tabular-nums">{formatCurrency(row.closingBalance)}</TableCell>}
             </TableRow>
-          ))}
+            )
+          })}
         </TableBody>
       </Table>
+      </div>
+    </div>
+  )
+}
+
+function ScheduleValue({ label, value }: { label: string; value: string }) {
+  return <div className="min-w-0"><dt className="text-muted-foreground">{label}</dt><dd className="break-words font-medium tabular-nums">{value}</dd></div>
+}
+
+function PaymentSummary({ payment, expected, counted }: { payment: PaymentRecord; expected: number; counted: boolean }) {
+  const mismatched = Math.round(payment.amount * 100) !== Math.round(expected * 100)
+  return (
+    <div className={cn('min-w-0 rounded-md px-2 py-1.5 text-xs leading-5', counted ? 'bg-brand-teal/5' : 'bg-destructive/10')}>
+      <p>{counted ? 'Pagado' : 'Registrado'} el {formatDate(payment.paidAt)} · Monto registrado: {formatCurrency(payment.amount)}</p>
+      {!counted && <p className="font-medium text-destructive">{mismatched ? `No coincide con la cuota de ${formatCurrency(expected)}: requiere conciliación.` : 'Pendiente de corregir un pago anterior.'}</p>}
+      {payment.note && <p className="break-words text-muted-foreground">Nota: {payment.note}</p>}
     </div>
   )
 }
@@ -255,25 +325,120 @@ export function ReadinessChecklist({ readiness, returnTo }: { readiness: Readine
 }
 
 /** Historial de cuotas cobradas de verdad (no proyectadas); solo lectura, la registra el personal. */
-export function PaymentsList({ payments, empty = 'Aún no se registran pagos.' }: {
+const RECENT_PAYMENTS = 5
+
+/** Pagos registrados, los más recientes primero; el resto queda a un clic para no alargar la página. */
+export function PaymentsList({ payments, schedule = [], paidThrough, productType = 'CREDIT', empty = 'Aún no se registran pagos.' }: {
   payments: PaymentRecord[]
+  schedule?: Installment[]
+  paidThrough?: number
+  productType?: ProductType
   empty?: string
 }) {
+  const [expanded, setExpanded] = useState(false)
   if (payments.length === 0) return <p className="text-sm text-muted-foreground">{empty}</p>
+  const ordered = [...payments].reverse()
+  const visible = expanded ? ordered : ordered.slice(0, RECENT_PAYMENTS)
+  const total = payments.reduce((sum, payment) => sum + payment.amount, 0)
   return (
-    <ul className="divide-y rounded-lg border">
-      {payments.map((payment) => (
-        <li key={payment.id} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
-          <div className="min-w-0">
-            <p className="font-medium">Cuota N.º {payment.installmentNumber}</p>
-            <p className="mt-0.5 truncate text-xs text-muted-foreground">
-              {formatDate(payment.paidAt)} · registrado por {payment.recordedByName}
-              {payment.note && ` · ${payment.note}`}
-            </p>
-          </div>
-          <span className="shrink-0 font-medium tabular-nums">{formatCurrency(payment.amount)}</span>
-        </li>
+    <div>
+      <ul className="divide-y rounded-lg border">
+        {visible.map((payment) => {
+          const row = schedule.find((item) => item.number === payment.installmentNumber)
+          const mismatch = row && Math.round(payment.amount * 100) !== Math.round(row.payment * 100)
+          const pending = paidThrough !== undefined && payment.installmentNumber > paidThrough
+          return (
+          <li key={payment.id} className="flex flex-wrap items-start justify-between gap-2 px-4 py-3 text-sm">
+            <div className="min-w-0">
+              <p className="font-medium">{productType === 'CREDIT' ? 'Cuota' : 'Pago'} N.º {payment.installmentNumber}</p>
+              {pending && (
+                <p className="text-xs font-medium text-destructive">{mismatch ? 'Monto distinto a la cuota; no cuenta como pagada.' : 'Pendiente de corregir un pago anterior.'}</p>
+              )}
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {pending ? 'Registrado' : 'Pagado'} el {formatDate(payment.paidAt)} · registrado por {payment.recordedByName}
+              </p>
+              {payment.note && <p className="mt-1 break-words text-xs text-muted-foreground">Nota: {payment.note}</p>}
+            </div>
+            <span className="shrink-0 font-medium tabular-nums">{formatCurrency(payment.amount)}</span>
+          </li>
+          )
+        })}
+      </ul>
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+        <span>{payments.length} {payments.length === 1 ? 'registro' : 'registros'} · total registrado {formatCurrency(total)}</span>
+        {payments.length > RECENT_PAYMENTS && (
+          <button type="button" onClick={() => setExpanded((value) => !value)} className="font-medium text-brand-teal hover:underline">
+            {expanded ? 'Ver solo los recientes' : `Ver los ${payments.length} pagos`}
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/** Datos declarados por el cliente, con sus etiquetas legibles. */
+export function DeclarationList({ application }: { application: ApplicationDetail }) {
+  const credit = application.productType === 'CREDIT'
+  const { declaration } = application
+  const rows: Array<[string, ReactNode]> = []
+  if (credit) {
+    if (declaration.employmentType) rows.push(['Situación laboral', employmentLabels[declaration.employmentType] ?? declaration.employmentType])
+    if (application.monthlyIncome != null) rows.push(['Ingreso mensual neto', formatCurrency(application.monthlyIncome)])
+    if (declaration.monthlyExpenses != null) rows.push(['Gastos mensuales', formatCurrency(declaration.monthlyExpenses)])
+    if (application.monthlyIncome != null && declaration.monthlyExpenses != null) {
+      const free = application.monthlyIncome - declaration.monthlyExpenses
+      // En cuotas anuales se compara la parte mensual de la cuota.
+      const monthly = application.periodicPayment && (application.termUnit === 'YEARS' ? application.periodicPayment / 12 : application.periodicPayment)
+      const share = monthly && free > 0 ? monthly / free : null
+      rows.push(['Disponible para la cuota', `${formatCurrency(free)}${share != null ? ` · la cuota ${application.termUnit === 'YEARS' ? '(mensualizada) ' : ''}usaría el ${Math.round(share * 100)} %` : ''}`])
+    }
+    rows.push(['Destino', declaration.purposeCategory ? creditPurposeLabels[declaration.purposeCategory] ?? declaration.purposeCategory : '—'])
+  } else {
+    rows.push(['Origen de los fondos', declaration.fundsSource ? fundsSourceLabels[declaration.fundsSource] ?? declaration.fundsSource : '—'])
+    rows.push(['Declaración de licitud', declaration.fundsLawfulDeclared ? 'Firmada' : 'No registrada'])
+  }
+  if (application.purpose) rows.push(['Detalle', application.purpose])
+
+  return (
+    <dl className="divide-y rounded-xl border bg-card text-sm">
+      {rows.map(([label, value]) => (
+        <div key={label} className="grid gap-1 px-4 py-3 sm:grid-cols-[minmax(0,14rem)_minmax(0,1fr)] sm:gap-4">
+          <dt className="text-muted-foreground">{label}</dt>
+          <dd className="min-w-0 break-words font-medium">{value}</dd>
+        </div>
       ))}
-    </ul>
+    </dl>
+  )
+}
+
+/**
+ * Qué pasa si el tipo de crédito o plan se desactivó después de solicitar: lo firmado conserva sus
+ * condiciones; lo que aún no se envía ya no puede enviarse.
+ */
+export function DiscontinuedNotice({ application, audience, className }: {
+  application: ApplicationDetail
+  audience: 'customer' | 'staff'
+  className?: string
+}) {
+  if (application.productAvailable || ['REJECTED', 'CANCELLED'].includes(application.status)) return null
+  const credit = application.productType === 'CREDIT'
+  const kind = credit ? 'Este tipo de crédito' : 'Este plan de inversión'
+  let message: string
+  if (application.status === 'DRAFT') {
+    message = audience === 'customer'
+      ? `${kind} dejó de ofrecerse antes de que confirmaras tu solicitud, así que ya no puede enviarse. Cancélala y simula con otra opción.`
+      : `${kind} dejó de ofrecerse; el cliente ya no puede enviar este borrador.`
+  } else if (application.status === 'APPROVED') {
+    message = `${kind} ya no se ofrece a clientes nuevos. ${credit ? 'Este crédito' : 'Esta inversión'} conserva las condiciones y el cronograma con que se aprobó.`
+  } else {
+    message = audience === 'customer'
+      ? `${kind} ya no se ofrece a clientes nuevos, pero tu solicitud se evalúa con las condiciones con que la enviaste.`
+      : `${kind} ya no se ofrece a clientes nuevos. La solicitud se envió antes y puede decidirse con sus condiciones congeladas.`
+  }
+  return (
+    <p className={cn('flex gap-2 rounded-xl border border-brand-gold/40 bg-brand-gold/5 p-4 text-sm leading-6', className)}>
+      <Info className="mt-1 size-4 shrink-0 text-brand-gold" aria-hidden="true" />
+      <span>{message}</span>
+    </p>
   )
 }

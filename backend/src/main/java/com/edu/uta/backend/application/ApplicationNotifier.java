@@ -1,38 +1,22 @@
 package com.edu.uta.backend.application;
 
-import java.nio.charset.StandardCharsets;
-
-import jakarta.mail.internet.MimeMessage;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.ObjectProvider;
+import com.edu.uta.backend.mail.BrandedMailer;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Component;
 
 /**
- * Correo al cliente en cada cambio de estado que le corresponde actuar o enterarse. Sigue el mismo
- * patrón que {@link com.edu.uta.backend.registration.VerificationMailer}: si no hay `JavaMailSender`
- * configurado, se registra en el log en vez de fallar (igual que en desarrollo local).
+ * Correo al cliente en cada cambio de estado que le corresponde actuar o enterarse. El envío (plantilla,
+ * SMTP no configurado, dominios de ejemplo) lo resuelve {@link BrandedMailer}.
  */
 @Component
 public class ApplicationNotifier {
 
-    private static final Logger log = LoggerFactory.getLogger(ApplicationNotifier.class);
-
-    private final ObjectProvider<JavaMailSender> mailSender;
-    private final String sender;
-    private final String senderName;
+    private final BrandedMailer mailer;
     private final String frontendUrl;
 
-    public ApplicationNotifier(ObjectProvider<JavaMailSender> mailSender,
-                               @Value("${app.mail.sender:no-reply@brunexa.com}") String sender,
-                               @Value("${app.mail.sender-name:Brunexa}") String senderName,
+    public ApplicationNotifier(BrandedMailer mailer,
                                @Value("${app.cors.allowed-origin:http://localhost:5173}") String frontendUrl) {
-        this.mailSender = mailSender;
-        this.sender = sender;
-        this.senderName = senderName;
+        this.mailer = mailer;
         this.frontendUrl = frontendUrl.replaceAll("/+$", "");
     }
 
@@ -65,49 +49,56 @@ public class ApplicationNotifier {
                 "Ver mis solicitudes", applicationUrl(null));
     }
 
+    /**
+     * Cancelar es una acción sensible: si no la hizo el cliente, alguien más usa su cuenta. Por eso el
+     * correo le dice qué hacer en ese caso.
+     */
+    public void notifyCancelled(String email, String fullName, String code, String productName) {
+        send(email, "Cancelaste tu solicitud " + code, "Solicitud cancelada",
+                fullName + ", tu solicitud de " + productName + " (" + code + ") fue cancelada desde tu cuenta.\n\n"
+                        + "Si fuiste tú, no necesitas hacer nada; puedes crear otra cuando quieras desde el simulador.\n\n"
+                        + "Si no fuiste tú, cambia tu contraseña ahora mismo desde Mi cuenta y comunícate con Brunexa: "
+                        + "alguien podría estar usando tu cuenta.",
+                "Revisar mi cuenta", frontendUrl + "/cuenta");
+    }
+
+    public void notifyPaymentRecorded(String email, String fullName, String code, boolean credit, int installment,
+                                      int total, java.math.BigDecimal amount, long applicationId) {
+        String what = credit ? "tu pago de la cuota " + installment + " de " + total
+                : "el pago " + installment + " de " + total + " de tu inversión";
+        send(email, (credit ? "Recibimos tu pago · " : "Pago de intereses · ") + code,
+                credit ? "Pago registrado" : "Pago de tu inversión",
+                fullName + ", registramos " + what + " (" + code + ") por $"
+                        + amount.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString() + ".",
+                "Ver mi avance", applicationUrl(applicationId));
+    }
+
+    public void notifySettled(String email, String fullName, String code, String productName, boolean credit,
+                               long applicationId) {
+        send(email, credit ? "Terminaste de pagar tu crédito " + code : "Tu inversión " + code + " se liquidó",
+                credit ? "¡Crédito pagado!" : "Inversión liquidada",
+                credit ? fullName + ", registramos la última cuota de tu " + productName + " (" + code
+                        + "). Tu crédito quedó pagado por completo."
+                        : fullName + ", se completaron todos los pagos de tu " + productName + " (" + code
+                        + "), incluida la devolución de tu capital.",
+                "Ver el detalle", applicationUrl(applicationId));
+    }
+
+    public void notifyPaymentRemoved(String email, String fullName, String code, int installment,
+                                     java.math.BigDecimal amount, long applicationId) {
+        send(email, "Corrección de pago · " + code, "Registro de pago corregido",
+                fullName + ", se anuló el registro del pago N.º " + installment + " de " + code + " por $"
+                        + amount.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString()
+                        + ". Si entregaste ese dinero y no reconoces esta corrección, comunícate con Brunexa."
+                        + " Un abono parcial no se considera cuota pagada en este sistema.",
+                "Ver mis pagos", applicationUrl(applicationId));
+    }
+
     private String applicationUrl(Long applicationId) {
         return applicationId == null ? frontendUrl + "/cliente" : frontendUrl + "/cliente/solicitudes/" + applicationId;
     }
 
     private void send(String email, String subject, String heading, String message, String ctaLabel, String ctaUrl) {
-        JavaMailSender available = mailSender.getIfAvailable();
-        if (available == null) {
-            log.warn("Correo no configurado. Notificación para {}: {} — {}", email, subject, message);
-            return;
-        }
-        try {
-            MimeMessage mime = available.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(mime, true, StandardCharsets.UTF_8.name());
-            helper.setFrom(sender, senderName);
-            helper.setTo(email);
-            helper.setSubject(subject);
-            helper.setText(plainBody(message, ctaLabel, ctaUrl), htmlBody(heading, message, ctaLabel, ctaUrl));
-            available.send(mime);
-        } catch (Exception exception) {
-            log.error("No se pudo enviar la notificación de solicitud a {}", email, exception);
-        }
-    }
-
-    private String plainBody(String message, String ctaLabel, String ctaUrl) {
-        return message + "\n\n" + ctaLabel + ": " + ctaUrl;
-    }
-
-    private String htmlBody(String heading, String message, String ctaLabel, String ctaUrl) {
-        return """
-                <div style="font-family:Segoe UI,Arial,sans-serif;background:#f4f5f7;padding:32px">
-                  <div style="max-width:480px;margin:0 auto;background:#ffffff;border-radius:12px;padding:32px">
-                    <p style="margin:0;font-size:14px;letter-spacing:.08em;text-transform:uppercase;color:#0f766e">Brunexa</p>
-                    <h1 style="margin:12px 0 0;font-size:22px;color:#111827">%s</h1>
-                    <p style="margin:16px 0 0;font-size:15px;line-height:24px;color:#374151;white-space:pre-line">%s</p>
-                    <p style="margin:24px 0 0;text-align:center">
-                      <a href="%s" style="display:inline-block;background:#08747b;color:#ffffff;text-decoration:none;border-radius:999px;padding:12px 22px;font-size:14px;font-weight:700">%s</a>
-                    </p>
-                  </div>
-                </div>
-                """.formatted(heading, escapeHtml(message), ctaUrl, ctaLabel);
-    }
-
-    private static String escapeHtml(String value) {
-        return value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+        mailer.send(email, subject, heading, message, ctaLabel, ctaUrl);
     }
 }

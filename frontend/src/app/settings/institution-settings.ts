@@ -327,7 +327,7 @@ export const defaultInstitutionSettings: InstitutionSettings = {
   credit: {
     moduleEnabled: 'true',
     displayName: 'Créditos',
-    simulatorEnabled: 'false',
+    simulatorEnabled: 'true',
     frenchSystemEnabled: 'true',
     germanSystemEnabled: 'true',
     indirectChargesEnabled: 'true',

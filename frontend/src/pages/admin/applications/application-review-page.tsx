@@ -1,15 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { format } from 'date-fns'
 import { ArrowLeft, BadgeCheck, CircleAlert, IdCard, Info, ShieldAlert, ThumbsDown, ThumbsUp } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
+import { ConfirmDialog } from '@/components/shared/confirm-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import {
   ApplicationFigures,
+  DeclarationList,
+  DiscontinuedNotice,
   ApplicationStatusBadge,
   DocumentList,
   PaymentsList,
@@ -22,6 +26,8 @@ import {
   deletePayment,
   formatTerm,
   getReviewDetail,
+  hasPaymentMismatch,
+  isSettled,
   openIdentityDocument,
   openReviewDocument,
   productTypeLabels,
@@ -35,6 +41,7 @@ import {
 } from '@/features/applications/applications-api'
 import { messageFrom } from '@/features/identity-check/utils'
 import { CreditVisuals } from '@/features/applications/credit-visuals'
+import { CreditProgress, InvestmentProgress, InvestmentVisuals } from '@/features/applications/progress-panels'
 import { idTypeLabels } from '@/features/registration/registration-api'
 import { formatCurrency, formatDate, formatDateTime } from '@/lib/formatters'
 import { cn } from '@/lib/utils'
@@ -89,7 +96,10 @@ export function ApplicationReviewPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <ApplicationStatusBadge status={application.status} />
+          <ApplicationStatusBadge status={application.status} settled={isSettled(application) ? application.productType : null} />
+          {actions.canRegisterPayment && (
+            <Button asChild variant="outline" size="sm"><a href="#payments-title">Ir a pagos</a></Button>
+          )}
           {actions.canTake && (
             <Button variant="brand" disabled={take.isPending} onClick={() => take.mutate()}>
               {take.isPending ? 'Tomando…' : 'Tomar para revisión'}
@@ -103,6 +113,7 @@ export function ApplicationReviewPage() {
           <Info className="size-4 shrink-0 text-brand-teal" aria-hidden="true" />{actions.notice}
         </p>
       )}
+      <DiscontinuedNotice application={application} audience="staff" />
       {application.recommendation && <RecommendationBox application={application} />}
       {canAct && <DecisionPanel application={application} actions={actions} onDone={replace} />}
       {(application.status === 'APPROVED' || application.status === 'REJECTED') && application.decidedByName && (
@@ -124,21 +135,22 @@ export function ApplicationReviewPage() {
           <section className="rounded-xl border p-6" aria-labelledby="conditions-title">
             <h2 id="conditions-title" className="mb-5 text-lg">Condiciones calculadas</h2>
             <ApplicationFigures application={application} />
-            <div className="mt-6 grid gap-4 border-t pt-5 text-sm sm:grid-cols-2">
-              {credit && <CapacityIndicator application={application} />}
-              <div>
-                <p className="text-muted-foreground">{credit ? 'Destino del crédito' : 'Origen de los fondos'}</p>
-                <p className="mt-1">{application.purpose}</p>
-              </div>
-            </div>
+            {credit && <div className="mt-6 text-sm"><CapacityIndicator application={application} /></div>}
+            <h3 className="mb-3 mt-6 text-sm font-medium">Declarado por el cliente</h3>
+            <DeclarationList application={application} />
           </section>
 
-          {credit && <CreditVisuals application={application} />}
+          {application.status === 'APPROVED' && (credit ? <CreditProgress application={application} audience="staff" /> : <InvestmentProgress application={application} audience="staff" />)}
+          {credit
+            ? <CreditVisuals application={application} paidThrough={application.status === 'APPROVED' ? application.paidThroughInstallment : undefined} />
+            : <InvestmentVisuals application={application} paidThrough={application.status === 'APPROVED' ? application.paidThroughInstallment : undefined} />}
 
           <section aria-labelledby="schedule-title">
             <h2 id="schedule-title" className="mb-4 text-lg">Cronograma {application.status === 'APPROVED' ? '' : 'proyectado'}</h2>
+            <p className="mb-3 text-sm text-muted-foreground">El vencimiento y el monto de la cuota son los pactados; la fecha, el monto y la nota del pago real aparecen al registrarlo. Un monto distinto no recalcula el cronograma.</p>
             <ScheduleTable productType={application.productType} schedule={application.schedule}
-              paidThrough={application.status === 'APPROVED' ? application.paidThroughInstallment : undefined} />
+              paidThrough={application.status === 'APPROVED' ? application.paidThroughInstallment : undefined}
+              payments={application.status === 'APPROVED' ? application.payments : undefined} />
           </section>
 
           {application.status === 'APPROVED' && (
@@ -175,19 +187,16 @@ function PaymentsSection({ application, actions, onDone }: {
 }) {
   const nextNumber = application.paidThroughInstallment + 1
   const nextRow = application.schedule.find((row) => row.number === nextNumber)
-  const [amount, setAmount] = useState('')
-  const [paidAt, setPaidAt] = useState(() => new Date().toISOString().slice(0, 10))
+  const [paidAt, setPaidAt] = useState(() => format(new Date(), 'yyyy-MM-dd'))
   const [note, setNote] = useState('')
 
   const register = useMutation({
     mutationFn: () => registerPayment(application.id, {
-      amount: Number(amount || nextRow?.payment || 0),
       paidAt,
       note: note.trim() || undefined,
     }),
     onSuccess: (detail) => {
       onDone(detail)
-      setAmount('')
       setNote('')
       toast.success(`Pago de la cuota N.º ${nextNumber} registrado.`)
     },
@@ -195,6 +204,7 @@ function PaymentsSection({ application, actions, onDone }: {
   })
 
   const lastPayment = application.payments.at(-1)
+  const mismatched = hasPaymentMismatch(application)
   const removeLast = useMutation({
     mutationFn: () => deletePayment(application.id, lastPayment!.id),
     onSuccess: (detail) => { onDone(detail); toast.success('Se quitó el último pago.') },
@@ -204,23 +214,27 @@ function PaymentsSection({ application, actions, onDone }: {
   return (
     <section className="rounded-xl border p-6" aria-labelledby="payments-title">
       <h2 id="payments-title" className="mb-4 text-lg">Pagos</h2>
-      <PaymentsList payments={application.payments} />
+      <PaymentsList payments={application.payments} schedule={application.schedule}
+        paidThrough={application.paidThroughInstallment} productType={application.productType} />
 
-      {actions.canRegisterPayment && nextRow && (
+      {mismatched && (
+        <p role="alert" className="mt-4 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+          Hay pagos registrados por un monto distinto al de la cuota. No cuentan como cuotas completas ni puedes registrar nuevas.
+          Si fueron errores de captura, anúlalos desde el más reciente hasta el primero incorrecto y regístralos con el monto pactado.
+          Si el dinero se recibió de verdad, consúltalo con contabilidad antes de anular: este flujo no administra abonos parciales.
+        </p>
+      )}
+
+      {actions.canRegisterPayment && nextRow && !mismatched && (
         <div className="mt-5 space-y-3 border-t pt-4">
           <p className="text-sm">
             Próxima cuota a registrar: <strong>N.º {nextNumber}</strong> · vence {formatDate(nextRow.dueDate)}
             {' '}· cuota {formatCurrency(nextRow.payment)}
           </p>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div className="space-y-1">
-              <Label htmlFor="payment-amount" className="text-xs">Monto pagado</Label>
-              <Input id="payment-amount" type="number" min="0.01" step="0.01" placeholder={String(nextRow.payment)}
-                value={amount} onChange={(event) => setAmount(event.target.value)} />
-            </div>
+          <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1">
               <Label htmlFor="payment-date" className="text-xs">Fecha de pago</Label>
-              <Input id="payment-date" type="date" max={new Date().toISOString().slice(0, 10)}
+              <Input id="payment-date" type="date" required max={format(new Date(), 'yyyy-MM-dd')}
                 value={paidAt} onChange={(event) => setPaidAt(event.target.value)} />
             </div>
             <div className="space-y-1">
@@ -229,21 +243,35 @@ function PaymentsSection({ application, actions, onDone }: {
                 value={note} onChange={(event) => setNote(event.target.value)} />
             </div>
           </div>
-          <Button type="button" size="sm" variant="brand" disabled={register.isPending} onClick={() => register.mutate()}>
-            {register.isPending ? 'Registrando…' : 'Registrar pago'}
+          <Button type="button" size="sm" variant="brand" disabled={register.isPending || !paidAt} onClick={() => register.mutate()}>
+            {register.isPending ? 'Registrando…' : `Registrar cuota completa · ${formatCurrency(nextRow.payment)}`}
           </Button>
         </div>
       )}
 
-      {actions.canRegisterPayment && !nextRow && (
-        <p className="mt-4 text-sm text-muted-foreground">Ya se registraron todas las cuotas del cronograma.</p>
+      {isSettled(application) && (
+        <p className="mt-4 rounded-lg border border-brand-teal/30 bg-brand-teal/5 p-3 text-sm">
+          {application.productType === 'CREDIT' ? 'Crédito pagado por completo.' : 'Inversión liquidada.'} Quedó cerrado:
+          ya no se pueden registrar ni quitar pagos.
+        </p>
       )}
 
       {actions.canRegisterPayment && lastPayment && (
-        <button type="button" disabled={removeLast.isPending} onClick={() => removeLast.mutate()}
-          className="mt-3 text-xs text-destructive hover:underline disabled:opacity-50">
-          {removeLast.isPending ? 'Quitando…' : `Quitar el último pago (cuota N.º ${lastPayment.installmentNumber})`}
-        </button>
+        <ConfirmDialog
+          trigger={
+            <button type="button" disabled={removeLast.isPending}
+              className="mt-3 text-xs text-destructive hover:underline disabled:opacity-50">
+              {removeLast.isPending ? 'Quitando…' : `Quitar el último pago (cuota N.º ${lastPayment.installmentNumber})`}
+            </button>
+          }
+          title={`¿Quitar el pago de la cuota N.º ${lastPayment.installmentNumber}?`}
+          description={`Se borrará el registro de ${formatCurrency(lastPayment.amount)} del ${formatDate(lastPayment.paidAt)}. El cliente volverá a ver esa cuota como pendiente. Úsalo solo para corregir un registro equivocado.`}
+          confirmLabel="Quitar pago"
+          cancelLabel="Volver"
+          confirmVariant="destructive"
+          isPending={removeLast.isPending}
+          onConfirm={() => removeLast.mutate()}
+        />
       )}
     </section>
   )
@@ -405,6 +433,16 @@ function decisionOptions(application: ApplicationDetail, actions: ReviewActions)
   return options
 }
 
+/** Qué pasa después de cada decisión, para que quien revisa no tenga que adivinarlo. */
+const DECISION_EFFECTS: Record<Decision, string> = {
+  RECOMMEND_APPROVE: 'La solicitud pasa a “En aprobación” y la decide un analista de crédito (otra persona). Tu comentario es interno: el cliente no lo ve.',
+  RECOMMEND_REJECT: 'La solicitud pasa a “En aprobación”; el analista confirma el rechazo o la aprueba justificándolo. Tu comentario es interno.',
+  OBSERVE: 'Vuelve al cliente con tu pedido (le llega un correo). Cuando responda, regresa a tu bandeja como “Enviada”.',
+  APPROVE: 'Se aprueba ahora: el cronograma empieza a contar desde hoy y el cliente recibe un correo.',
+  REJECT: 'Se rechaza de forma definitiva. El cliente verá tu motivo y recibirá un correo.',
+  RETURN: 'Vuelve al asesor para que la revise de nuevo, con tu comentario.',
+}
+
 function DecisionPanel({ application, actions, onDone }: { application: ApplicationDetail; actions: ReviewActions; onDone: (detail: ReviewDetail) => void }) {
   const options = decisionOptions(application, actions)
   const [selected, setSelected] = useState<Decision>(options[0]?.value ?? 'OBSERVE')
@@ -427,8 +465,8 @@ function DecisionPanel({ application, actions, onDone }: { application: Applicat
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 id="decision-title" className="text-lg">{actions.canFinalize ? 'Decisión del analista' : 'Revisión del asesor'}</h2>
         {credit && actions.advisorApprovalLimit !== null && !actions.canFinalize && (
-          <span className="text-xs text-muted-foreground">
-            Atribución del asesor: hasta {formatCurrency(actions.advisorApprovalLimit)} con biometría aprobada
+          <span className="text-xs text-muted-foreground" title="La define administración en Configuración → Créditos">
+            Tu atribución: apruebas hasta {formatCurrency(actions.advisorApprovalLimit)} con biometría aprobada; sobre eso, recomiendas
           </span>
         )}
       </div>
@@ -441,6 +479,9 @@ function DecisionPanel({ application, actions, onDone }: { application: Applicat
           </Button>
         ))}
       </div>
+      <p className="mt-3 flex gap-2 text-xs leading-5 text-muted-foreground">
+        <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />{DECISION_EFFECTS[option.value]}
+      </p>
       <div className="mt-4 space-y-2">
         <Label htmlFor="decision-comment">
           Comentario {option.commentRequired ? <span className="text-destructive">(obligatorio)</span> : <span className="text-muted-foreground">(opcional)</span>}

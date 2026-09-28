@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -31,10 +32,13 @@ public class IdentityController {
 
     private final IdentityService identity;
     private final InternalUserService internalUsers;
+    private final AccountSecurityNotifier securityNotifier;
 
-    public IdentityController(IdentityService identity, InternalUserService internalUsers) {
+    public IdentityController(IdentityService identity, InternalUserService internalUsers,
+                              AccountSecurityNotifier securityNotifier) {
         this.identity = identity;
         this.internalUsers = internalUsers;
+        this.securityNotifier = securityNotifier;
     }
 
     public record CreateUser(@NotBlank @Size(min = 4, max = 30) String username,
@@ -43,6 +47,9 @@ public class IdentityController {
                              @Size(max = 128) String password,
                              @NotBlank String passwordMode,
                              @Size(min = 1) List<String> roles) {}
+
+    public record ChangePassword(@NotBlank String currentPassword,
+                                 @NotBlank @Size(min = 12, max = 128) String newPassword) {}
 
     public record AssignRoles(@Size(min = 1) List<String> roles) {}
 
@@ -56,6 +63,18 @@ public class IdentityController {
     @GetMapping("/auth/me")
     public IdentityService.Account me(Authentication authentication) {
         return identity.accountByUsername(authentication.getName());
+    }
+
+    @PutMapping("/auth/password")
+    public ResponseEntity<Void> changePassword(@Valid @RequestBody ChangePassword request,
+                                               Authentication authentication, HttpServletRequest http) {
+        IdentityService.Account account = identity.changePassword(authentication.getName(),
+                request.currentPassword(), request.newPassword());
+        // Esta sesión sigue abierta; las demás de la cuenta se cierran en su próxima petición.
+        AuthorityRefreshFilter.rememberCredential(http.getSession(false),
+                identity.loadUserByUsername(authentication.getName()).getPassword());
+        securityNotifier.passwordChanged(account);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/admin/roles")

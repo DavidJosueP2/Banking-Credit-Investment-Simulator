@@ -3,6 +3,7 @@ package com.edu.uta.backend.config;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
+import com.edu.uta.backend.identity.AccountSecurityNotifier;
 import com.edu.uta.backend.identity.AuthorityRefreshFilter;
 import com.edu.uta.backend.identity.IdentityService;
 import org.springframework.beans.factory.annotation.Value;
@@ -16,6 +17,7 @@ import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.web.cors.CorsConfiguration;
@@ -32,7 +34,8 @@ public class SecurityConfig {
     }
 
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http, IdentityService identity) throws Exception {
+    SecurityFilterChain securityFilterChain(HttpSecurity http, IdentityService identity,
+                                            AccountSecurityNotifier securityNotifier) throws Exception {
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(csrf -> csrf.ignoringRequestMatchers(
@@ -62,7 +65,7 @@ public class SecurityConfig {
                                 "/api/creditos/simular"
                         ).permitAll()
                         .requestMatchers("/api/simulador/guardar/**", "/api/simulador/guardar").authenticated()
-                        .requestMatchers("/api/auth/me", "/api/auth/logout").authenticated()
+                        .requestMatchers("/api/auth/me", "/api/auth/logout", "/api/auth/password").authenticated()
                         .requestMatchers("/api/profile/**", "/api/dev/liveness/**")
                             .hasAuthority("identity.verification.start")
                         .requestMatchers("/api/admin/creditos/**").hasAnyAuthority("credit.products.manage", "ROLE_ASESOR", "credit_advisor")
@@ -78,7 +81,13 @@ public class SecurityConfig {
                 .formLogin(form -> form
                         .loginProcessingUrl("/api/auth/login")
                         .usernameParameter("username")
-                        .successHandler((request, response, authentication) -> response.setStatus(HttpStatus.NO_CONTENT.value()))
+                        .successHandler((request, response, authentication) -> {
+                            response.setStatus(HttpStatus.NO_CONTENT.value());
+                            if (authentication.getPrincipal() instanceof UserDetails user) {
+                                AuthorityRefreshFilter.rememberCredential(request.getSession(), user.getPassword());
+                            }
+                            securityNotifier.loginSucceeded(authentication.getName(), request);
+                        })
                         .failureHandler((request, response, exception) -> {
                             if (exception instanceof DisabledException) {
                                 response.setStatus(HttpStatus.FORBIDDEN.value());

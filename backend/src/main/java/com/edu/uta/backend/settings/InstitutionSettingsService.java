@@ -80,6 +80,12 @@ public class InstitutionSettingsService {
         return new java.math.BigDecimal(effectiveSettings().sections().get("credit").get("advisorApprovalLimit"));
     }
 
+    /** Interruptor de módulo ("true"/"false") de la configuración institucional. */
+    public boolean enabled(String category, String key) {
+        Map<String, String> section = effectiveSettings().sections().get(category);
+        return section != null && "true".equals(section.get(key));
+    }
+
     public Map<String, String> defaultsFor(String category) {
         Map<String, String> defaults = DEFAULTS.get(category);
         if (defaults == null) throw new NoSuchElementException("La sección de configuración no existe");
@@ -368,7 +374,7 @@ public class InstitutionSettingsService {
         defaults.put("credit", Map.of(
                 "moduleEnabled", "true",
                 "displayName", "Créditos",
-                "simulatorEnabled", "false",
+                "simulatorEnabled", "true",
                 "frenchSystemEnabled", "true",
                 "germanSystemEnabled", "true",
                 "indirectChargesEnabled", "true",

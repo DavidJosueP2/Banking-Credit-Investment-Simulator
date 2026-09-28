@@ -64,6 +64,26 @@ public class IdentityService implements UserDetailsService {
         }
     }
 
+    /** Cambio de contraseña del propio usuario: exige la actual para que una sesión robada no baste. */
+    @Transactional
+    public Account changePassword(String username, String currentPassword, String newPassword) {
+        Credentials account = jdbc.queryForObject(
+                "SELECT id, username, password_hash, enabled FROM app_users WHERE username = ?",
+                (row, index) -> new Credentials(row.getLong("id"), row.getString("username"),
+                        row.getString("password_hash"), row.getBoolean("enabled")), normalizeUsername(username));
+        if (currentPassword == null || !passwords.matches(currentPassword, account.passwordHash())) {
+            throw new IllegalArgumentException("La contraseña actual no es correcta");
+        }
+        if (newPassword == null || newPassword.length() < 12) {
+            throw new IllegalArgumentException("La nueva contraseña debe tener al menos 12 caracteres");
+        }
+        if (passwords.matches(newPassword, account.passwordHash())) {
+            throw new IllegalArgumentException("La nueva contraseña debe ser distinta de la actual");
+        }
+        jdbc.update("UPDATE app_users SET password_hash = ? WHERE id = ?", passwords.encode(newPassword), account.id());
+        return accountById(account.id());
+    }
+
     public Account accountByEmail(String email) {
         try {
             Long id = jdbc.queryForObject("SELECT id FROM app_users WHERE email = ?", Long.class,
@@ -214,6 +234,11 @@ public class IdentityService implements UserDetailsService {
         if (roles == null || roles.isEmpty()) throw new IllegalArgumentException("Selecciona al menos un rol");
         Set<String> known = this.roles().stream().map(Role::code).collect(Collectors.toSet());
         if (!known.containsAll(roles)) throw new IllegalArgumentException("Uno de los roles no existe");
+        // Separación de funciones: un cliente no puede revisar ni aprobar solicitudes (tampoco las suyas).
+        if (roles.contains("client") && roles.stream().anyMatch(role -> !"client".equals(role))) {
+            throw new IllegalArgumentException(
+                    "Una cuenta de cliente no puede tener roles internos. Crea una cuenta aparte para el personal.");
+        }
     }
 
     private List<String> rolesFor(long id) {

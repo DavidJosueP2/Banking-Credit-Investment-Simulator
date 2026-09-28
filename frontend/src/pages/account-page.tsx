@@ -5,6 +5,7 @@ import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/app/providers/auth-provider'
 import { Button } from '@/components/ui/button'
 import { StatusBadge } from '@/components/shared/status-badge'
+import { ChangePasswordCard } from '@/features/account/change-password-card'
 import { applicationKeys, getReadiness } from '@/features/applications/applications-api'
 import { formatDate } from '@/lib/formatters'
 
@@ -72,6 +73,7 @@ export function AccountPage() {
         <Button variant="outline" onClick={signOut} disabled={signingOut}>{signingOut ? 'Saliendo…' : 'Cerrar sesión'}</Button>
       </div>
       {error && <p role="alert" className="mt-4 text-sm text-destructive">{error}</p>}
+      <ChangePasswordCard />
     </div>
   </main>
 }
