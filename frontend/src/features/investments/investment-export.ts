@@ -43,7 +43,9 @@ export async function exportInvestmentExcel(result: SimulationResult, branding: 
         ['Tasa anual', `${formatPercentage(result.annualRate)} ${rateTypeLabels[result.rateType]?.toLowerCase() ?? ''}`.trim()],
         ['Pago de intereses', payoutLabels[result.payoutFrequency]],
         ['Cálculo', `${calculationMethodLabels[result.calculationMethod]} · base ${result.dayCountBasis} días`],
-        ['Retención', formatPercentage(result.withholdingRate)],
+        ['Retención IR', result.withholdingDetails.length
+          ? `${result.withholdingDetails[0].percentage} % del interés`
+          : 'No aplica (exenta o sin retención)'],
         ...(withCharges
           ? [['Costos adicionales', result.chargeDetails.map((charge) => `${charge.name}: ${money(charge.amount, result.currency)}`).join(' · ')] as [string, string]]
           : []),

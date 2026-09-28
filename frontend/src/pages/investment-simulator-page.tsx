@@ -12,6 +12,7 @@ import { SimulationActions } from '@/features/applications/simulation-actions'
 import { useExportBranding } from '@/features/export/branding'
 import { DownloadMenu, type ExportFormat } from '@/features/export/download-menu'
 import { exportInvestmentExcel } from '@/features/investments/investment-export'
+import { CompoundGrowthDialog, InvestmentGrowthChart, InvestmentInterestChart, InvestmentPaymentsChart } from '@/features/investments/investment-insights'
 import { SimulatorHeroBanner } from '@/components/shared/simulator-hero-banner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -345,9 +346,12 @@ function SimulationResults({ result, goal, pending, onDownload }: { result: Simu
           ))}
         </div>
       )}
-      <div className="mt-6 flex flex-wrap items-start gap-2"><DownloadMenu size="default" onSelect={onDownload} pending={pending} /><SimulationActions scenario={{ productType: 'INVESTMENT', productId: result.productId, productName: result.productName, amount: result.amount, term: result.termValue, termUnit: result.termUnit, payoutFrequency: result.payoutFrequency, optionalCharges: result.chargeDetails.filter((charge) => !charge.mandatory).map((charge) => charge.id) }} /></div>
+      <div className="mt-6 flex flex-wrap items-start gap-2"><DownloadMenu size="default" onSelect={onDownload} pending={pending} />{result.calculationMethod === 'COMPOUND' && <CompoundGrowthDialog result={result} />}<SimulationActions scenario={{ productType: 'INVESTMENT', productId: result.productId, productName: result.productName, amount: result.amount, term: result.termValue, termUnit: result.termUnit, payoutFrequency: result.payoutFrequency, optionalCharges: result.chargeDetails.filter((charge) => !charge.mandatory).map((charge) => charge.id) }} /></div>
       <p className="mt-5 text-xs leading-5 text-muted-foreground">Plazo seleccionado: {result.termValue} {termUnitLabels[result.termUnit].toLowerCase()} ({result.termDays} días reales). Vencimiento estimado: {formatDate(result.maturityDate)}. Cálculo con base de {result.dayCountBasis} días y tasa correspondiente a “{result.rateLabel}”.</p>
     </div>
+    {(result.withholding > 0 || result.charges > 0) && <InvestmentInterestChart result={result} />}
+    {result.calculationMethod === 'COMPOUND' && <InvestmentGrowthChart result={result} />}
+    {result.payments.length > 1 && <InvestmentPaymentsChart result={result} />}
     <div><h2 className="text-xl">Cronograma estimado</h2><div className="mt-4 overflow-hidden rounded-xl border"><Table><TableHeader><TableRow><TableHead>Pago</TableHead><TableHead>Fecha</TableHead><TableHead>Días</TableHead><TableHead className="text-right">Interés bruto</TableHead><TableHead className="text-right">Retención IR</TableHead>{result.charges > 0 && <TableHead className="text-right">Costos</TableHead>}<TableHead className="text-right">Capital</TableHead><TableHead className="text-right">Total recibido</TableHead></TableRow></TableHeader><TableBody>{result.payments.map((payment) => <TableRow key={payment.number}><TableCell>{payment.number}</TableCell><TableCell>{formatDate(payment.paymentDate)}</TableCell><TableCell>{payment.periodDays}</TableCell><TableCell className="text-right tabular-nums">{formatCurrency(payment.grossInterest)}</TableCell><TableCell className="text-right tabular-nums">{formatCurrency(payment.withholding)}</TableCell>{result.charges > 0 && <TableCell className="text-right tabular-nums">{formatCurrency(payment.charges)}</TableCell>}<TableCell className="text-right tabular-nums">{formatCurrency(payment.capital)}</TableCell><TableCell className="text-right font-medium tabular-nums">{formatCurrency(payment.totalPayment)}</TableCell></TableRow>)}</TableBody></Table></div></div>
   </div>
 }

@@ -192,7 +192,7 @@ public class InvestmentService {
                     maximum_term_days, term_unit, term_selection, minimum_term_value, maximum_term_value,
                     term_increment, calculation_method, rate_type, capitalization_frequency,
                     calendar_mode, day_count_basis, withholding_rate, active, updated_by
-                ) VALUES (?, ?, 'USD', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
+                ) VALUES (?, ?, 'USD', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
                 """, Long.class, input.name().trim(), normalizedDescription(input.description()),
                 input.minimumAmount(), input.maximumAmount(), input.minimumTermDays(), input.maximumTermDays(),
                 primary.unit(), primary.selection(), primary.minimumValue(), primary.maximumValue(),

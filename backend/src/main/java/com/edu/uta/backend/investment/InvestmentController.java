@@ -28,6 +28,8 @@ import com.edu.uta.backend.identity.IdentityService;
 @RestController
 @RequestMapping("/api")
 public class InvestmentController {
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(InvestmentController.class);
+
 
     private final InvestmentService investments;
     private final InvestmentPdfService pdf;
@@ -120,7 +122,9 @@ public class InvestmentController {
 
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<Map<String, String>> integrity(DataIntegrityViolationException exception) {
+        // Se registra la causa real; al usuario se le indica que el producto no cumple una regla de la base de datos.
+        log.warn("No se pudo guardar el producto de inversión: {}", exception.getMostSpecificCause().getMessage());
         return ResponseEntity.badRequest().body(Map.of(
-                "message", "No se pudo guardar porque una regla fiscal contiene datos incompatibles."));
+                "message", "No se pudo guardar el producto porque algún dato no cumple las reglas del sistema. Revisa montos, tasas, retención y costos."));
     }
 }
