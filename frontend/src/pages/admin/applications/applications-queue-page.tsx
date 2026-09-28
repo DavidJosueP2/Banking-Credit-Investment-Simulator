@@ -5,6 +5,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 
 import { useAuth } from '@/app/providers/auth-provider'
 import { PageHeader } from '@/components/shared/page-header'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -21,6 +22,7 @@ import {
 } from '@/features/applications/applications-api'
 import { messageFrom } from '@/features/identity-check/utils'
 import { formatCurrency, formatDate, formatDateTime } from '@/lib/formatters'
+import { QuickPaymentDialog } from './quick-payment-dialog'
 
 type Filter = 'pending' | 'IN_REVIEW' | 'approval' | 'OBSERVED' | 'portfolio' | 'decided' | 'all'
 
@@ -50,6 +52,7 @@ export function ApplicationsQueuePage() {
   const [filter, setFilter] = useState<Filter>(searchParams.get('vista') === 'cartera' ? 'portfolio' : analystOnly ? 'approval' : 'pending')
   const [type, setType] = useState<ProductType | 'ALL'>('ALL')
   const [search, setSearch] = useState('')
+  const [selectedPayment, setSelectedPayment] = useState<ApplicationSummary | null>(null)
   const audit = hasPermission('requests.audit')
   const seesCredit = audit || hasPermission('credit.requests.review') || hasPermission('credit.requests.approve')
   const seesInvestment = audit || hasPermission('investment.requests.review')
@@ -133,7 +136,7 @@ export function ApplicationsQueuePage() {
                 <TableHead>Plazo</TableHead>
                 <TableHead>Enviada</TableHead>
                 <TableHead>Estado</TableHead>
-                <TableHead><span className="sr-only">Abrir</span></TableHead>
+                <TableHead><span className="sr-only">Acciones</span></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -165,9 +168,14 @@ export function ApplicationsQueuePage() {
                     )}
                   </TableCell>
                   <TableCell>
-                    <Link to={`/admin/solicitudes/${row.id}`} aria-label={`Abrir ${row.code}`} className="text-brand-teal">
-                      <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
-                    </Link>
+                    <div className="flex items-center gap-3">
+                      {filter === 'portfolio' && hasPermission('payments.register') && row.nextPayment != null && (
+                        <Button size="sm" variant="outline" className="whitespace-nowrap" onClick={() => setSelectedPayment(row)}>Registrar pago</Button>
+                      )}
+                      <Link to={`/admin/solicitudes/${row.id}`} aria-label={`Abrir ${row.code}`} className="text-brand-teal">
+                        <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
+                      </Link>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -175,6 +183,7 @@ export function ApplicationsQueuePage() {
           </Table>
         </div>
       )}
+      {selectedPayment && <QuickPaymentDialog row={selectedPayment} onClose={() => setSelectedPayment(null)} />}
     </div>
   )
 }

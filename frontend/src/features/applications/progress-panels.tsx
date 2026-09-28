@@ -65,7 +65,7 @@ function SettledBanner({ children }: { children: ReactNode }) {
 }
 
 /** Avance real de un crédito aprobado, calculado con los pagos registrados (no por fecha). */
-export function CreditProgress({ application }: { application: ApplicationDetail }) {
+export function CreditProgress({ application, audience = 'customer' }: { application: ApplicationDetail; audience?: 'customer' | 'staff' }) {
   const { schedule } = application
   const paid = Math.min(application.paidThroughInstallment, schedule.length)
   const paidRows = schedule.slice(0, paid)
@@ -81,13 +81,13 @@ export function CreditProgress({ application }: { application: ApplicationDetail
   return (
     <section aria-labelledby="progress-title" className="rounded-xl border bg-card p-6">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="progress-title" className="text-xl">Tu avance</h2>
+        <h2 id="progress-title" className="text-xl">{audience === 'staff' ? 'Avance' : 'Tu avance'}</h2>
         <span className="text-sm text-muted-foreground">{paid} de {schedule.length} cuotas pagadas</span>
       </div>
       <div className="mt-5 flex flex-col items-center gap-6 sm:flex-row sm:items-start">
         <ProgressRing value={application.amount ? capitalPaid / application.amount : 0} label="del capital" />
         <div className="w-full min-w-0 flex-1 space-y-4">
-          {settled && <SettledBanner>¡Crédito pagado por completo! Ya no tienes saldo pendiente.</SettledBanner>}
+          {settled && <SettledBanner>{audience === 'staff' ? 'Crédito pagado por completo. Sin saldo pendiente.' : '¡Crédito pagado por completo! Ya no tienes saldo pendiente.'}</SettledBanner>}
           <div>
             <div className="flex justify-between text-xs text-muted-foreground">
               <span>Capital pagado {formatCurrency(capitalPaid)}</span>
@@ -97,8 +97,8 @@ export function CreditProgress({ application }: { application: ApplicationDetail
               aria-label="Capital pagado del crédito" />
           </div>
           <dl className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <Stat label="Has pagado" value={formatCurrency(paidAmount)} hint={`${paid} ${paid === 1 ? 'cuota' : 'cuotas'}`} />
-            <Stat label="Te falta pagar" value={formatCurrency(pendingAmount)} accent={!settled}
+            <Stat label={audience === 'staff' ? 'Pagado por el cliente' : 'Has pagado'} value={formatCurrency(paidAmount)} hint={`${paid} ${paid === 1 ? 'cuota' : 'cuotas'}`} />
+            <Stat label={audience === 'staff' ? 'Pendiente por pagar' : 'Te falta pagar'} value={formatCurrency(pendingAmount)} accent={!settled}
               hint={`${pendingRows.length} ${pendingRows.length === 1 ? 'cuota' : 'cuotas'} con interés y seguros`} />
             {next && due ? (
               <Stat label="Próxima cuota" value={formatCurrency(next.payment)}
@@ -108,7 +108,7 @@ export function CreditProgress({ application }: { application: ApplicationDetail
             ) : (
               <Stat label="Próxima cuota" value="—" hint="No quedan cuotas" />
             )}
-            <Stat label={settled ? 'Terminaste de pagar' : 'Terminas de pagar'}
+            <Stat label={audience === 'staff' ? (settled ? 'Último pago' : 'Fin previsto') : settled ? 'Terminaste de pagar' : 'Terminas de pagar'}
               value={formatDate((settled ? application.payments.at(-1)?.paidAt : schedule.at(-1)?.dueDate) ?? '')}
               hint={<span className="inline-flex items-center gap-1"><CalendarCheck className="size-3" aria-hidden="true" />{settled ? 'Último pago registrado' : 'Según el cronograma'}</span>} />
           </dl>
@@ -152,7 +152,7 @@ export function InvestmentVisuals({ application, paidThrough }: { application: A
 }
 
 /** Avance de una inversión aprobada: tiempo transcurrido y pagos recibidos (registrados por el asesor). */
-export function InvestmentProgress({ application }: { application: ApplicationDetail }) {
+export function InvestmentProgress({ application, audience = 'customer' }: { application: ApplicationDetail; audience?: 'customer' | 'staff' }) {
   const { schedule } = application
   const paid = Math.min(application.paidThroughInstallment, schedule.length)
   const paidRows = schedule.slice(0, paid)
@@ -174,13 +174,13 @@ export function InvestmentProgress({ application }: { application: ApplicationDe
   return (
     <section aria-labelledby="progress-title" className="rounded-xl border bg-card p-6">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="progress-title" className="text-xl">Tu avance</h2>
+        <h2 id="progress-title" className="text-xl">{audience === 'staff' ? 'Avance' : 'Tu avance'}</h2>
         <span className="text-sm text-muted-foreground">{paid} de {schedule.length} {schedule.length === 1 ? 'pago recibido' : 'pagos recibidos'}</span>
       </div>
       <div className="mt-5 flex flex-col items-center gap-6 sm:flex-row sm:items-start">
         <ProgressRing value={settled ? 1 : timeShare} label="del plazo" tone="gold" />
         <div className="w-full min-w-0 flex-1 space-y-4">
-          {settled && <SettledBanner>Inversión liquidada: recibiste tus intereses y tu capital.</SettledBanner>}
+          {settled && <SettledBanner>{audience === 'staff' ? 'Inversión liquidada: intereses y capital entregados.' : 'Inversión liquidada: recibiste tus intereses y tu capital.'}</SettledBanner>}
           <div>
             <div className="flex justify-between text-xs text-muted-foreground">
               <span>Desde {formatDate(application.scheduleBaseDate)}</span>
@@ -202,8 +202,8 @@ export function InvestmentProgress({ application }: { application: ApplicationDe
             ) : (
               <Stat label="Próximo pago" value="—" hint="No quedan pagos" />
             )}
-            <Stat label="Tu capital" value={formatCurrency(application.amount)}
-              hint={capitalReturned ? 'Ya se te devolvió' : `Vuelve el ${formatDate(maturity)}`} />
+            <Stat label={audience === 'staff' ? 'Capital del cliente' : 'Tu capital'} value={formatCurrency(application.amount)}
+              hint={capitalReturned ? (audience === 'staff' ? 'Ya devuelto' : 'Ya se te devolvió') : `Vuelve el ${formatDate(maturity)}`} />
           </dl>
         </div>
       </div>

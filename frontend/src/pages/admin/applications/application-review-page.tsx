@@ -96,6 +96,9 @@ export function ApplicationReviewPage() {
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <ApplicationStatusBadge status={application.status} settled={isSettled(application) ? application.productType : null} />
+          {actions.canRegisterPayment && (
+            <Button asChild variant="outline" size="sm"><a href="#payments-title">Ir a pagos</a></Button>
+          )}
           {actions.canTake && (
             <Button variant="brand" disabled={take.isPending} onClick={() => take.mutate()}>
               {take.isPending ? 'Tomando…' : 'Tomar para revisión'}
@@ -136,7 +139,7 @@ export function ApplicationReviewPage() {
             <DeclarationList application={application} />
           </section>
 
-          {application.status === 'APPROVED' && (credit ? <CreditProgress application={application} /> : <InvestmentProgress application={application} />)}
+          {application.status === 'APPROVED' && (credit ? <CreditProgress application={application} audience="staff" /> : <InvestmentProgress application={application} audience="staff" />)}
           {credit
             ? <CreditVisuals application={application} paidThrough={application.status === 'APPROVED' ? application.paidThroughInstallment : undefined} />
             : <InvestmentVisuals application={application} paidThrough={application.status === 'APPROVED' ? application.paidThroughInstallment : undefined} />}
