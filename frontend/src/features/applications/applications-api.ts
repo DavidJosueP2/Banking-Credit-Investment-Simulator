@@ -146,6 +146,8 @@ export interface ApplicationDetail {
   totalInterest: number
   totalInsurance: number
   totalCharges: number
+  /** Contribución SOLCA (0,5 % única, solo crédito). Va incluida en la primera cuota. */
+  totalSolca: number
   totalWithholding: number
   totalAmount: number
   monthlyIncome: number | null

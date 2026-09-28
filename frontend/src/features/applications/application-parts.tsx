@@ -94,6 +94,10 @@ export function ApplicationFigures({ application }: { application: ApplicationDe
         ['Valor al vencimiento', formatCurrency(application.totalAmount), true],
       ]
   if (credit && application.totalCharges > 0) items.splice(7, 0, ['Cargos', formatCurrency(application.totalCharges)])
+  if (credit && (application.totalSolca ?? 0) > 0) {
+    const at = items.findIndex(([label]) => label === 'Total a pagar')
+    items.splice(at < 0 ? items.length : at, 0, ['Contribución SOLCA (0,5 % única)', formatCurrency(application.totalSolca)])
+  }
 
   return (
     <dl className="grid grid-cols-2 overflow-hidden rounded-xl border bg-card sm:grid-cols-4">

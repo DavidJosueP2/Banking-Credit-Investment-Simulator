@@ -46,7 +46,7 @@ public class ScenarioCalculator {
                         BigDecimal annualRate, BigDecimal periodicPayment, BigDecimal totalInterest,
                         BigDecimal totalInsurance, BigDecimal totalCharges, BigDecimal totalWithholding,
                         BigDecimal totalAmount, LocalDate baseDate, List<Installment> schedule,
-                        List<Long> optionalCharges) {
+                        List<Long> optionalCharges, BigDecimal totalSolca) {
 
         /** Cobros opcionales elegidos, guardados como "3,7" (null si no hay). */
         public String optionalChargesCsv() {
@@ -144,7 +144,8 @@ public class ScenarioCalculator {
         return new Quote("CREDIT", result.productoId(), result.nombreProducto(), result.monto(), scenario.term(),
                 yearly ? "YEARS" : "MONTHS", system.name(), null, result.costoTotal(), result.tasaInteresAnual(),
                 result.cuotaPeriodica(), result.totalIntereses(), zero(result.totalDesgravamen()),
-                zero(result.totalCargosIndirectos()), BigDecimal.ZERO, result.totalPagar(), base, schedule, optional);
+                zero(result.totalCargosIndirectos()), BigDecimal.ZERO, result.totalPagar(), base, schedule, optional,
+                zero(result.totalSolca()));
     }
 
     /** Unidad del plazo de inversión; sin unidad, el plazo se interpreta en días. */
@@ -175,7 +176,7 @@ public class ScenarioCalculator {
                 periodic, result.netInterest(), BigDecimal.ZERO, result.charges(), result.withholding(),
                 result.maturityValue(), result.simulationDate(), schedule,
                 result.chargeDetails().stream().filter(charge -> !charge.mandatory())
-                        .map(InvestmentService.ChargeDetail::id).toList());
+                        .map(InvestmentService.ChargeDetail::id).toList(), BigDecimal.ZERO);
     }
 
     private Installment installment(InvestmentCalculator.Payment payment) {

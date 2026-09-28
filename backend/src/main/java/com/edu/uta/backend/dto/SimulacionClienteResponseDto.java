@@ -26,7 +26,8 @@ public record SimulacionClienteResponseDto(
         String usuario,
         BigDecimal costoTotal,
         String unidadPlazo,
-        BigDecimal totalCargosIndirectos
+        BigDecimal totalCargosIndirectos,
+        BigDecimal totalSolca
 ) {
     public SimulacionClienteResponseDto(
             Long productoId,
@@ -50,7 +51,7 @@ public record SimulacionClienteResponseDto(
     ) {
         this(productoId, nombreProducto, entidad, segmentoBce, monto, frecuencia, plazoMeses, totalCuotas,
                 tasaInteresAnual, tasaDesgravamenMensual, sistema, cuotaPeriodica, totalCapital, totalIntereses,
-                totalDesgravamen, totalPagar, tablaCuotas, usuario, null, "MESES", BigDecimal.ZERO);
+                totalDesgravamen, totalPagar, tablaCuotas, usuario, null, "MESES", BigDecimal.ZERO, BigDecimal.ZERO);
     }
 
     public SimulacionClienteResponseDto(
@@ -74,7 +75,7 @@ public record SimulacionClienteResponseDto(
     ) {
         this(productoId, nombreProducto, entidad, segmentoBce, monto, frecuencia, plazoMeses, totalCuotas,
                 tasaInteresAnual, tasaDesgravamenMensual, sistema, cuotaPeriodica, totalCapital, totalIntereses,
-                totalDesgravamen, totalPagar, tablaCuotas, null, null, "MESES", BigDecimal.ZERO);
+                totalDesgravamen, totalPagar, tablaCuotas, null, null, "MESES", BigDecimal.ZERO, BigDecimal.ZERO);
     }
 
     public record CuotaClienteDto(

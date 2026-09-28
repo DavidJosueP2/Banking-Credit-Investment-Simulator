@@ -33,20 +33,27 @@ Tasas activas efectivas publicadas por el Banco Central del Ecuador para **septi
 - **Seguro de desgravamen**: la prima la fija la aseguradora (supervisada por la Superintendencia de Compañías) según edad y riesgo. Se aplica un rango prudencial según el tipo de entidad: banco 0,0100 %–0,0650 % mensual, cooperativa 0,0400 %–0,1200 % mensual.
 - **Cobros indirectos**: hasta 5 por producto; porcentaje mensual ≤ 0,50 %, fijo mensual ≤ 50 USD, cobro único ≤ 3 % del monto o ≤ 500 USD. Las donaciones nunca pueden ser obligatorias. El desgravamen no se puede duplicar como cobro indirecto.
 
+## Contribución SOLCA (regulación, solo crédito)
+
+- **0,5 % del monto de la operación, por una sola vez**: base legal COMYF, Disposición General Décima Cuarta; Resolución JPRMF 003-2014-F; SRI, Resolución NAC-DGERCGC20-00000019 y Formulario 118. Financia la atención integral del cáncer (50 % Estado, 50 % núcleos SOLCA vía BCE).
+- **Alcance**: operaciones de crédito (financiamiento, compra de cartera, descuentos, reporto, vencidos/refinanciados/reestructurados), consumos diferidos con tarjeta y sobregiros. Excepciones: consumos corrientes con tarjeta; instituciones del Estado no sujetas; sobregiros al liquidarse; si el plazo supera un año, por una única vez. Brunexa solo simula créditos amortizables: se liquida una sola vez en la primera cuota.
+- **Implementación**: `SimuladorService.calcularSolca` = `monto × 0,005` (HALF_UP, 2 decimales). Se suma a los cargos de la cuota 1, entra al total a pagar y a la cuota máxima de capacidad de pago, y se expone como `totalSolca` en simulación, solicitud (`applications.total_solca`, migración `V36`) y reportes. No es interés ni seguro y **no aplica a inversiones**.
+- Pruebas: `CreditoBoundaryAndEntityTest.solcaUnicaEnPrimeraCuota` (francés y alemán, cuota 1, cuadre de totales).
+
 ## Tipo de entidad
 
 Se define una vez en Configuración → Institución (`institution.entityType`: Banco o Cooperativa). Todos los productos lo heredan; el asesor ya no lo elige por producto.
 
 ## Cálculo de la tabla
 
-- Todos los cobros indirectos (seguros adicionales, gastos, donaciones elegidas) se suman en **una sola columna**; el desgravamen tiene la suya.
+- Todos los cobros indirectos (seguros adicionales, gastos, donaciones elegidas) se suman en **una sola columna**; el desgravamen tiene la suya. La contribución SOLCA viaja dentro de esa columna en la cuota 1, pero se informa por separado como `totalSolca`.
 - Los obligatorios siempre se cobran; los opcionales solo si el cliente los marca en el simulador (viajan en `cargosOpcionales` y se guardan con la simulación y la solicitud).
 - En productos con cuota anual, un cobro mensual se multiplica por 12 en cada cuota.
 - Pruebas: `CreditoBoundaryAndEntityTest` (tasas máximas por segmento, banco y cooperativa, desgravamen, cobros estrictos, dos seguros + gasto en una columna, cobro opcional, cuota anual).
 
 ## Herramientas del simulador
 
-- **¿Cuánto me prestan?** (`POST /api/simulador/capacidad`, `CapacidadPagoService`): busca el mayor monto cuya cuota más alta no supera la cuota disponible, probando montos con el mismo simulador (incluye desgravamen y cobros). Si la cuota no alcanza el monto mínimo del producto lo dice; si alcanza para más que el máximo, devuelve el máximo.
+- **¿Cuánto me prestan?** (`POST /api/simulador/capacidad`, `CapacidadPagoService`): busca el mayor monto cuya cuota más alta no supera la cuota disponible, probando montos con el mismo simulador (incluye desgravamen, cobros y SOLCA en la primera cuota). Si la cuota no alcanza el monto mínimo del producto lo dice; si alcanza para más que el máximo, devuelve el máximo.
 - **Meta de ahorro** (`POST /api/public/investments/goals`, `InvestmentGoalService`): busca, al centavo, el menor capital que llega al valor objetivo en el plazo y forma de pago elegidos, con el simulador de inversiones (tasas por tramo y retenciones incluidas).
 - **Costo del crédito**: el resultado muestra en grande la tasa efectiva anual, el costo total y la carga financiera (total menos lo recibido), además de la composición del total y capital e interés por cuota.
 - Pruebas: `CapacidadYMetaTests`.

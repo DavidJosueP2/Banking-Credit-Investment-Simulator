@@ -55,7 +55,7 @@ export function CreditCostHighlight({ totals }: { totals: CreditTotals }) {
       <div>
         <p className="text-xs font-medium text-muted-foreground">Costo total del crédito</p>
         <p className="mt-1 text-4xl font-semibold tracking-tight tabular-nums text-foreground">{formatCurrency(totals.totalPagar)}</p>
-        <p className="mt-1 text-xs text-muted-foreground">Todo lo que pagarás, con seguros y cobros.</p>
+        <p className="mt-1 text-xs text-muted-foreground">Todo lo que pagarás, con seguros, cobros y contribución SOLCA.</p>
       </div>
       <div>
         <p className="text-xs font-medium text-muted-foreground">Carga financiera</p>
