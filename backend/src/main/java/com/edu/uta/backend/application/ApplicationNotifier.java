@@ -74,7 +74,7 @@ public class ApplicationNotifier {
     }
 
     public void notifySettled(String email, String fullName, String code, String productName, boolean credit,
-                              long applicationId) {
+                               long applicationId) {
         send(email, credit ? "Terminaste de pagar tu crédito " + code : "Tu inversión " + code + " se liquidó",
                 credit ? "¡Crédito pagado!" : "Inversión liquidada",
                 credit ? fullName + ", registramos la última cuota de tu " + productName + " (" + code
@@ -82,6 +82,16 @@ public class ApplicationNotifier {
                         : fullName + ", se completaron todos los pagos de tu " + productName + " (" + code
                         + "), incluida la devolución de tu capital.",
                 "Ver el detalle", applicationUrl(applicationId));
+    }
+
+    public void notifyPaymentRemoved(String email, String fullName, String code, int installment,
+                                     java.math.BigDecimal amount, long applicationId) {
+        send(email, "Corrección de pago · " + code, "Registro de pago corregido",
+                fullName + ", se anuló el registro del pago N.º " + installment + " de " + code + " por $"
+                        + amount.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString()
+                        + ". Si entregaste ese dinero y no reconoces esta corrección, comunícate con Brunexa."
+                        + " Un abono parcial no se considera cuota pagada en este sistema.",
+                "Ver mis pagos", applicationUrl(applicationId));
     }
 
     private String applicationUrl(Long applicationId) {

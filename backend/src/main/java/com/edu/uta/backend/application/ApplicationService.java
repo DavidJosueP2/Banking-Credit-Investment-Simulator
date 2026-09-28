@@ -43,7 +43,7 @@ public class ApplicationService {
     public static final String INVESTMENT_REVIEW = "investment.requests.review";
     /** Administración: consulta sin decidir. */
     public static final String AUDIT = "requests.audit";
-    /** Bookkeeping de pagos y desembolsos; no es una decisión de crédito. */
+    /** Bookkeeping de cuotas completas; no es una decisión de crédito. */
     public static final String PAYMENTS_REGISTER = "payments.register";
 
     private static final int MAX_BIOMETRIC_ATTEMPTS = 5;
@@ -134,6 +134,7 @@ public class ApplicationService {
     public record PaymentRecord(long id, int installmentNumber, BigDecimal amount, LocalDate paidAt, String note,
                                 String recordedByName, OffsetDateTime recordedAt) {}
 
+    /** El monto es opcional para clientes antiguos de la API; si se envía debe igualar la cuota pactada. */
     public record RegisterPayment(BigDecimal amount, LocalDate paidAt, String note) {}
 
     public record Event(String fromStatus, String toStatus, String comment, String actorName,
@@ -577,7 +578,7 @@ public class ApplicationService {
     /**
      * Se registran en orden (cuota N solo si la N-1 ya está registrada): así el saldo tras el último
      * pago siempre coincide con el `closing_balance` de esa fila del cronograma. No recalcula la
-     * tabla ni admite abonos extraordinarios; solo confirma qué cuota del cronograma ya se cobró.
+     * tabla ni admite abonos parciales o extraordinarios; solo confirma una cuota completa.
      */
     @Transactional
     public ReviewDetail registerPayment(String username, Set<String> authorities, long id, RegisterPayment input) {
@@ -590,16 +591,26 @@ public class ApplicationService {
 
         Integer totalInstallments = jdbc.queryForObject(
                 "SELECT count(*) FROM application_schedule WHERE application_id = ?", Integer.class, id);
-        Integer paidThrough = jdbc.queryForObject(
+        Integer lastRecorded = jdbc.queryForObject(
                 "SELECT COALESCE(max(installment_number), 0) FROM application_payments WHERE application_id = ?",
                 Integer.class, id);
-        int next = (paidThrough == null ? 0 : paidThrough) + 1;
+        int paidThrough = paidThrough(id);
+        if (lastRecorded != null && lastRecorded > paidThrough) {
+            throw new IllegalStateException("Hay cuotas registradas por un monto distinto al pactado. Corrige los "
+                    + "pagos desde el último hacia atrás antes de registrar otra cuota.");
+        }
+        int next = paidThrough + 1;
         if (totalInstallments != null && next > totalInstallments) {
             throw new IllegalStateException("Ya se registraron todas las cuotas del cronograma.");
         }
 
-        BigDecimal amount = input.amount();
-        if (amount == null || amount.signum() <= 0) throw new IllegalArgumentException("Ingresa el monto pagado.");
+        BigDecimal amount = jdbc.query("SELECT payment FROM application_schedule WHERE application_id = ? AND number = ?",
+                rs -> rs.next() ? rs.getBigDecimal(1) : null, id, next);
+        if (amount == null || amount.signum() <= 0) throw new IllegalStateException("No encontramos la cuota del cronograma.");
+        if (input.amount() != null && input.amount().compareTo(amount) != 0) {
+            throw new IllegalArgumentException("Solo puedes registrar la cuota completa de " + amount
+                    + ". No se admiten pagos parciales: el saldo del cronograma no se recalcula.");
+        }
         LocalDate paidAt = input.paidAt() != null ? input.paidAt() : LocalDate.now();
         if (paidAt.isAfter(LocalDate.now())) throw new IllegalArgumentException("La fecha de pago no puede ser futura.");
         String note = input.note() == null || input.note().isBlank() ? null : input.note().trim();
@@ -633,7 +644,7 @@ public class ApplicationService {
     /** Solo se puede quitar el último pago registrado, para no dejar huecos en la secuencia. */
     @Transactional
     public ReviewDetail deletePayment(String username, Set<String> authorities, long id, long paymentId) {
-        reviewable(authorities, id);
+        Owned application = reviewable(authorities, id);
         if (settled(id)) {
             throw new IllegalStateException("Este producto ya se pagó por completo y quedó cerrado; no admite cambios.");
         }
@@ -647,8 +658,16 @@ public class ApplicationService {
         if (paidThrough == null || !targetNumber.equals(paidThrough)) {
             throw new IllegalStateException("Solo puedes quitar el último pago registrado (cuota N.º " + paidThrough + ").");
         }
+        BigDecimal removedAmount = jdbc.queryForObject("SELECT amount FROM application_payments WHERE id = ?",
+                BigDecimal.class, paymentId);
         jdbc.update("DELETE FROM application_payments WHERE id = ?", paymentId);
         jdbc.update("UPDATE applications SET updated_at = now() WHERE id = ?", id);
+        long actor = identity.accountByUsername(username).id();
+        event(id, "APPROVED", "APPROVED", "Se anuló el registro del pago N.º " + targetNumber
+                + " por $" + removedAmount + ". Si se recibió este dinero, debe conciliarse por separado.", actor);
+        IdentityService.Account customer = identity.accountById(application.userId());
+        notifier.notifyPaymentRemoved(customer.email(), customer.fullName(), application.code(),
+                targetNumber, removedAmount, id);
         return reviewDetail(username, authorities, id);
     }
 
@@ -722,8 +741,12 @@ public class ApplicationService {
                 JOIN app_users customer ON customer.id = a.user_id
                 LEFT JOIN app_users reviewer ON reviewer.id = a.reviewer_id
                 LEFT JOIN LATERAL (
-                    SELECT COALESCE(max(p.installment_number), 0) AS through
-                    FROM application_payments p WHERE p.application_id = a.id
+                     SELECT COALESCE(MIN(s.number) FILTER (WHERE p.id IS NULL OR p.amount <> s.payment) - 1,
+                                     count(*)) AS through
+                     FROM application_schedule s
+                     LEFT JOIN application_payments p ON p.application_id = s.application_id
+                         AND p.installment_number = s.number
+                     WHERE s.application_id = a.id
                 ) paid ON TRUE
                 LEFT JOIN LATERAL (
                     -- "Próxima" se calcula sobre pagos reales, no sobre la fecha: si no se ha registrado
@@ -756,12 +779,19 @@ public class ApplicationService {
         List<Detail> found = jdbc.query("""
                 SELECT a.*, reviewer.full_name AS reviewer_name, recommender.full_name AS recommender_name,
                        decider.full_name AS decider_name,
-                       COALESCE((SELECT max(p.installment_number) FROM application_payments p
-                                 WHERE p.application_id = a.id), 0) AS paid_through
+                        paid.through AS paid_through
                 FROM applications a
                 LEFT JOIN app_users reviewer ON reviewer.id = a.reviewer_id
                 LEFT JOIN app_users recommender ON recommender.id = a.recommended_by
                 LEFT JOIN app_users decider ON decider.id = a.decided_by
+                LEFT JOIN LATERAL (
+                    SELECT COALESCE(MIN(s.number) FILTER (WHERE p.id IS NULL OR p.amount <> s.payment) - 1,
+                                    count(*)) AS through
+                    FROM application_schedule s
+                    LEFT JOIN application_payments p ON p.application_id = s.application_id
+                        AND p.installment_number = s.number
+                    WHERE s.application_id = a.id
+                ) paid ON TRUE
                 WHERE a.id = ?
                 """, (rs, row) -> new Detail(rs.getLong("id"), rs.getString("code"), rs.getString("product_type"),
                 rs.getLong("product_id"), rs.getString("product_name"), rs.getBigDecimal("amount"), rs.getInt("term"),
@@ -916,14 +946,23 @@ public class ApplicationService {
         event(id, from, to, comment, actor);
     }
 
-    /** Todas las cuotas del cronograma están registradas: el producto se cierra. */
+    /** Cuotas completas consecutivas desde la primera; un registro insuficiente no se cuenta como pagado. */
+    private int paidThrough(long id) {
+        Integer value = jdbc.queryForObject("""
+                SELECT COALESCE(MIN(s.number) FILTER (WHERE p.id IS NULL OR p.amount <> s.payment) - 1, count(*))
+                FROM application_schedule s
+                LEFT JOIN application_payments p ON p.application_id = s.application_id
+                    AND p.installment_number = s.number
+                WHERE s.application_id = ?
+                """, Integer.class, id);
+        return value == null ? 0 : value;
+    }
+
+    /** Todas las cuotas completas están registradas: el producto se cierra. */
     private boolean settled(long id) {
-        Boolean done = jdbc.queryForObject("""
-                SELECT (SELECT COALESCE(max(installment_number), 0) FROM application_payments WHERE application_id = ?)
-                     >= (SELECT count(*) FROM application_schedule WHERE application_id = ?)
-                   AND EXISTS (SELECT 1 FROM application_schedule WHERE application_id = ?)
-                """, Boolean.class, id, id, id);
-        return Boolean.TRUE.equals(done);
+        Integer total = jdbc.queryForObject("SELECT count(*) FROM application_schedule WHERE application_id = ?",
+                Integer.class, id);
+        return total != null && total > 0 && paidThrough(id) == total;
     }
 
     private void event(long id, String from, String to, String comment, long actor) {

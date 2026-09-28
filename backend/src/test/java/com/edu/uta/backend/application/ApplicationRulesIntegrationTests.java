@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Set;
 
 import com.edu.uta.backend.dto.ProductoSimuladorDto;
+import com.edu.uta.backend.dashboard.DashboardService;
 import com.edu.uta.backend.investment.InvestmentService;
 import com.edu.uta.backend.mail.BrandedMailer;
 import com.edu.uta.backend.service.SimuladorService;
@@ -37,6 +38,7 @@ class ApplicationRulesIntegrationTests {
     @Autowired private SimuladorService credits;
     @Autowired private InvestmentService investments;
     @Autowired private JdbcTemplate jdbc;
+    @Autowired private DashboardService dashboard;
     @MockitoBean private BrandedMailer mailer;
 
     private String customer;
@@ -108,12 +110,12 @@ class ApplicationRulesIntegrationTests {
         ApplicationService.ReviewDetail last = null;
         for (int number = 1; number <= installments; number++) {
             last = applications.registerPayment(staff, STAFF, created.id(),
-                    new ApplicationService.RegisterPayment(new BigDecimal("10.00"), null, null));
+                    new ApplicationService.RegisterPayment(null, null, null));
         }
         assertEquals(installments, last.application().paidThroughInstallment());
         assertFalse(last.actions().canRegisterPayment(), "cerrado: ya no se registran pagos");
         assertThrows(IllegalStateException.class, () -> applications.registerPayment(staff, STAFF, created.id(),
-                new ApplicationService.RegisterPayment(new BigDecimal("10.00"), null, null)));
+                new ApplicationService.RegisterPayment(null, null, null)));
 
         long lastPayment = last.application().payments().getLast().id();
         IllegalStateException error = assertThrows(IllegalStateException.class,
@@ -130,14 +132,14 @@ class ApplicationRulesIntegrationTests {
         ApplicationService.ReviewDetail last = null;
         for (int number = 1; number <= created.schedule().size(); number++) {
             last = applications.registerPayment(staff, STAFF, created.id(),
-                    new ApplicationService.RegisterPayment(new BigDecimal("10.00"), null, null));
+                    new ApplicationService.RegisterPayment(null, null, null));
         }
         assertFalse(last.actions().canRegisterPayment());
         assertTrue(last.application().events().stream().anyMatch(event -> event.comment().contains("liquidada")));
         long lastPayment = last.application().payments().getLast().id();
         assertThrows(IllegalStateException.class, () -> applications.deletePayment(staff, STAFF, created.id(), lastPayment));
         assertThrows(IllegalStateException.class, () -> applications.registerPayment(staff, STAFF, created.id(),
-                new ApplicationService.RegisterPayment(new BigDecimal("10.00"), null, null)));
+                new ApplicationService.RegisterPayment(null, null, null)));
     }
 
     @Test
@@ -145,9 +147,89 @@ class ApplicationRulesIntegrationTests {
         ApplicationService.Detail created = applications.create(customer, credit(null));
         jdbc.update("UPDATE applications SET status = 'APPROVED' WHERE id = ?", created.id());
         ApplicationService.ReviewDetail paid = applications.registerPayment(staff, STAFF, created.id(),
-                new ApplicationService.RegisterPayment(new BigDecimal("10.00"), null, null));
-        assertDoesNotThrow(() -> applications.deletePayment(staff, STAFF, created.id(),
-                paid.application().payments().getFirst().id()));
+                new ApplicationService.RegisterPayment(null, null, null));
+        assertEquals(0, paid.application().payments().getFirst().amount()
+                .compareTo(created.schedule().getFirst().payment()));
+        ApplicationService.ReviewDetail corrected = assertDoesNotThrow(() -> applications.deletePayment(staff, STAFF,
+                created.id(), paid.application().payments().getFirst().id()));
+        assertTrue(corrected.application().events().stream()
+                .anyMatch(event -> event.comment().contains("anuló el registro del pago")));
+    }
+
+    @Test
+    void aCentCannotSettleAnInstallment() {
+        ApplicationService.Detail created = applications.create(customer, credit(null));
+        jdbc.update("UPDATE applications SET status = 'APPROVED' WHERE id = ?", created.id());
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> applications.registerPayment(staff, STAFF, created.id(),
+                        new ApplicationService.RegisterPayment(new BigDecimal("0.01"), null, null)));
+        assertTrue(error.getMessage().contains("cuota completa"));
+        assertEquals(0, applications.customerApplication(customer, created.id()).paidThroughInstallment());
+        assertTrue(applications.customerApplication(customer, created.id()).payments().isEmpty());
+        assertThrows(IllegalArgumentException.class, () -> applications.registerPayment(staff, STAFF, created.id(),
+                new ApplicationService.RegisterPayment(created.schedule().getFirst().payment().add(BigDecimal.ONE),
+                        null, null)));
+    }
+
+    @Test
+    void existingInsufficientPaymentsDoNotCountAsPaidAndMustBeCorrectedInReverseOrder() {
+        ApplicationService.Detail created = applications.create(customer, credit(null));
+        jdbc.update("UPDATE applications SET status = 'APPROVED' WHERE id = ?", created.id());
+        long staffId = jdbc.queryForObject("SELECT id FROM app_users WHERE username = ?", Long.class, staff);
+        long firstId = jdbc.queryForObject("""
+                INSERT INTO application_payments (application_id, installment_number, amount, paid_at, recorded_by)
+                VALUES (?, 1, 0.01, CURRENT_DATE, ?) RETURNING id
+                """, Long.class, created.id(), staffId);
+        long secondId = jdbc.queryForObject("""
+                INSERT INTO application_payments (application_id, installment_number, amount, paid_at, recorded_by)
+                VALUES (?, 2, ?, CURRENT_DATE, ?) RETURNING id
+                """, Long.class, created.id(), created.schedule().get(1).payment(), staffId);
+
+        assertEquals(0, applications.customerApplication(customer, created.id()).paidThroughInstallment());
+        ApplicationService.Summary summary = applications.customerApplications(customer).stream()
+                .filter(item -> item.id() == created.id()).findFirst().orElseThrow();
+        assertEquals(0, summary.elapsedInstallments());
+        assertEquals(created.schedule().getFirst().dueDate(), summary.nextDueDate());
+        assertThrows(IllegalStateException.class, () -> applications.registerPayment(staff, STAFF, created.id(),
+                new ApplicationService.RegisterPayment(null, null, null)));
+
+        applications.deletePayment(staff, STAFF, created.id(), secondId);
+        applications.deletePayment(staff, STAFF, created.id(), firstId);
+        ApplicationService.ReviewDetail corrected = applications.registerPayment(staff, STAFF, created.id(),
+                new ApplicationService.RegisterPayment(null, null, null));
+        assertEquals(1, corrected.application().paidThroughInstallment());
+        assertEquals(0, corrected.application().payments().getFirst().amount()
+                .compareTo(created.schedule().getFirst().payment()));
+    }
+
+    @Test
+    void oldIncompleteLastPaymentDoesNotCloseTheCredit() {
+        BigDecimal activeBefore = dashboard.summary(STAFF).kpis().stream()
+                .filter(kpi -> kpi.key().equals("portfolio")).findFirst().orElseThrow().value();
+        ApplicationService.Detail created = applications.create(customer, credit(null));
+        jdbc.update("UPDATE applications SET status = 'APPROVED' WHERE id = ?", created.id());
+        long staffId = jdbc.queryForObject("SELECT id FROM app_users WHERE username = ?", Long.class, staff);
+        for (var row : created.schedule()) {
+            jdbc.update("""
+                    INSERT INTO application_payments (application_id, installment_number, amount, paid_at, recorded_by)
+                    VALUES (?, ?, ?, CURRENT_DATE, ?)
+                    """, created.id(), row.number(), row.number() == created.schedule().size()
+                    ? new BigDecimal("0.21") : row.payment(), staffId);
+        }
+
+        assertEquals(created.schedule().size() - 1,
+                applications.customerApplication(customer, created.id()).paidThroughInstallment());
+        BigDecimal activeAfter = dashboard.summary(STAFF).kpis().stream()
+                .filter(kpi -> kpi.key().equals("portfolio")).findFirst().orElseThrow().value();
+        assertEquals(0, activeAfter.compareTo(activeBefore.add(BigDecimal.ONE)));
+        ApplicationService.ReviewDetail review = applications.reviewDetail(staff, STAFF, created.id());
+        assertTrue(review.actions().canRegisterPayment(), "la última cuota no es válida y se puede corregir");
+        long incorrectId = review.application().payments().getLast().id();
+        applications.deletePayment(staff, STAFF, created.id(), incorrectId);
+        ApplicationService.ReviewDetail settled = applications.registerPayment(staff, STAFF, created.id(),
+                new ApplicationService.RegisterPayment(null, null, null));
+        assertFalse(settled.actions().canRegisterPayment());
     }
 
     @Test

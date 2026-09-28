@@ -64,8 +64,14 @@ public class DashboardService {
                            count(*) FILTER (WHERE paid.through >= rows.total AND rows.total > 0) AS settled,
                            count(*) FILTER (WHERE paid.through < rows.total AND next_row.due_date <= current_date) AS overdue
                     FROM applications a
-                    CROSS JOIN LATERAL (SELECT COALESCE(max(p.installment_number), 0) AS through
-                                        FROM application_payments p WHERE p.application_id = a.id) paid
+                     CROSS JOIN LATERAL (
+                         SELECT COALESCE(MIN(s.number) FILTER (WHERE p.id IS NULL OR p.amount <> s.payment) - 1,
+                                         count(*)) AS through
+                         FROM application_schedule s
+                         LEFT JOIN application_payments p ON p.application_id = s.application_id
+                             AND p.installment_number = s.number
+                         WHERE s.application_id = a.id
+                     ) paid
                     CROSS JOIN LATERAL (SELECT count(*) AS total FROM application_schedule s
                                         WHERE s.application_id = a.id) rows
                     LEFT JOIN LATERAL (SELECT s.due_date FROM application_schedule s
