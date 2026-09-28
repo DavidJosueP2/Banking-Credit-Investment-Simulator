@@ -393,8 +393,8 @@ public class ApplicationService {
         if ("INVESTMENT".equals(owned.productType()) && !settings.enabled("investment", "documentUploadEnabled")) {
             throw new IllegalStateException("La institución no recibe documentos en línea para inversiones.");
         }
-        requireStatus(owned, Set.of("DRAFT", "OBSERVED"),
-                "Solo puedes adjuntar documentos antes de enviar la solicitud o cuando el asesor lo pida.");
+        requireStatus(owned, Set.of("DRAFT", "SUBMITTED", "IN_REVIEW", "OBSERVED"),
+                "Solo puedes adjuntar documentos mientras la solicitud está pendiente de decisión.");
         if (content == null || content.length == 0) throw new IllegalArgumentException("El archivo está vacío.");
         if (content.length > MAX_DOCUMENT_BYTES) {
             throw new IllegalArgumentException("Cada archivo puede pesar hasta 5 MB.");
@@ -415,6 +415,9 @@ public class ApplicationService {
                     uploaded_by) VALUES (?, ?, ?, ?, ?, ?) RETURNING id
                 """, Long.class, id, name, type, content.length, content, owned.userId());
         jdbc.update("UPDATE applications SET updated_at = now() WHERE id = ?", id);
+        if (!"DRAFT".equals(owned.status())) {
+            event(id, owned.status(), owned.status(), "El cliente adjuntó un documento: " + name, owned.userId());
+        }
         return documents(id).stream().filter(item -> item.id() == documentId).findFirst().orElseThrow();
     }
 
