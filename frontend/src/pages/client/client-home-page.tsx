@@ -5,7 +5,9 @@ import { Link, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import { useAuth } from '@/app/providers/auth-provider'
+import { useInstitutionSettings } from '@/app/providers/settings-provider'
 import { ConfirmDialog } from '@/components/shared/confirm-dialog'
+import { StatusBadge } from '@/components/shared/status-badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -20,6 +22,7 @@ import {
   getMyApplications,
   getReadiness,
   getSavedSimulations,
+  isSettled,
   OPEN_STATUSES,
   productTypeLabels,
   saveSimulation,
@@ -64,7 +67,9 @@ export function ClientHomePage() {
   }, [canSave, savePending])
 
   const all = applications.data ?? []
-  const products = all.filter((item) => item.status === 'APPROVED')
+  const approved = all.filter((item) => item.status === 'APPROVED')
+  const products = approved.filter((item) => !isSettled(item))
+  const finished = approved.filter((item) => isSettled(item))
   const credits = products.filter((item) => item.productType === 'CREDIT')
   const investments = products.filter((item) => item.productType === 'INVESTMENT')
   const requests = all.filter((item) => item.status !== 'APPROVED')
@@ -96,16 +101,30 @@ export function ClientHomePage() {
       )}
 
       <section aria-labelledby="products-title" className="mt-10">
-        <SectionTitle id="products-title" title="Mis créditos e inversiones" hint="Aprobados" />
+        <SectionTitle id="products-title" title="Mis créditos e inversiones" hint="Vigentes" />
         {applications.isPending ? <CardsSkeleton /> : products.length === 0 ? (
           <EmptyBox>
-            Aún no tienes créditos ni inversiones aprobados. Simula uno y envía tu solicitud en línea.
+            {finished.length > 0
+              ? 'No tienes créditos ni inversiones vigentes. Revisa abajo los que ya terminaste.'
+              : 'Aún no tienes créditos ni inversiones aprobados. Simula uno y envía tu solicitud en línea.'}
           </EmptyBox>
         ) : (
           <div className="grid gap-4 md:grid-cols-2">
             {credits.map((item) => <CreditCard key={item.id} item={item} />)}
             {investments.map((item) => <InvestmentCard key={item.id} item={item} />)}
           </div>
+        )}
+        {finished.length > 0 && (
+          <details className="group mt-6">
+            <summary className="cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground">
+              Finalizados ({finished.length}): créditos pagados e inversiones liquidadas
+            </summary>
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              {finished.map((item) => item.productType === 'CREDIT'
+                ? <CreditCard key={item.id} item={item} />
+                : <InvestmentCard key={item.id} item={item} />)}
+            </div>
+          </details>
         )}
       </section>
 
@@ -177,6 +196,8 @@ function CardsSkeleton() {
 
 function CreditCard({ item }: { item: ApplicationSummary }) {
   const progress = item.totalInstallments ? Math.round((item.elapsedInstallments / item.totalInstallments) * 100) : 0
+  const settled = isSettled(item)
+  const late = !settled && item.nextDueDate != null && item.nextDueDate.slice(0, 10) < new Date().toISOString().slice(0, 10)
   return (
     <Link to={`/cliente/solicitudes/${item.id}`} className="group rounded-xl border bg-card p-5 transition-colors hover:border-brand-teal/50">
       <div className="flex items-start justify-between gap-3">
@@ -184,27 +205,29 @@ function CreditCard({ item }: { item: ApplicationSummary }) {
           <p className="text-xs font-medium uppercase tracking-wider text-brand-teal">Crédito · {item.code}</p>
           <p className="mt-1 font-medium">{item.productName}</p>
         </div>
-        <Landmark className="size-5 text-brand-teal" aria-hidden="true" />
+        {settled ? <StatusBadge tone="success">Pagado</StatusBadge> : <Landmark className="size-5 text-brand-teal" aria-hidden="true" />}
       </div>
       <dl className="mt-5 grid grid-cols-3 gap-3">
         <Figure label="Monto" value={formatCurrency(item.amount)} />
         <Figure label="Próxima cuota" value={item.nextPayment ? formatCurrency(item.nextPayment) : '—'} />
-        <Figure label="Saldo proyectado" value={formatCurrency(item.projectedBalance)} />
+        <Figure label="Saldo de capital" value={formatCurrency(item.projectedBalance)} />
       </dl>
       <div className="mt-5">
         <div className="flex justify-between text-xs text-muted-foreground">
-          <span className="inline-flex items-center gap-1"><CalendarClock className="size-3.5" aria-hidden="true" />
-            {item.nextDueDate ? `Vence el ${formatDate(item.nextDueDate)}` : 'Cronograma concluido'}
+          <span className={`inline-flex items-center gap-1 ${late ? 'font-medium text-destructive' : ''}`}><CalendarClock className="size-3.5" aria-hidden="true" />
+            {settled ? 'Pagado por completo' : item.nextDueDate ? `${late ? 'Venció' : 'Vence'} el ${formatDate(item.nextDueDate)}` : 'Sin cuotas pendientes'}
           </span>
-          <span>{item.elapsedInstallments} de {item.totalInstallments} cuotas</span>
+          <span>{item.elapsedInstallments} de {item.totalInstallments} cuotas pagadas · {progress} %</span>
         </div>
-        <Progress value={progress} className="mt-2 h-1.5" aria-label="Cuotas transcurridas según el cronograma" />
+        <Progress value={progress} className="mt-2 h-1.5 [&_[data-slot=progress-indicator]]:bg-brand-teal" aria-label="Cuotas pagadas del crédito" />
       </div>
     </Link>
   )
 }
 
 function InvestmentCard({ item }: { item: ApplicationSummary }) {
+  const progress = item.totalInstallments ? Math.round((item.elapsedInstallments / item.totalInstallments) * 100) : 0
+  const settled = isSettled(item)
   return (
     <Link to={`/cliente/solicitudes/${item.id}`} className="rounded-xl border bg-card p-5 transition-colors hover:border-brand-teal/50">
       <div className="flex items-start justify-between gap-3">
@@ -212,17 +235,24 @@ function InvestmentCard({ item }: { item: ApplicationSummary }) {
           <p className="text-xs font-medium uppercase tracking-wider text-brand-gold">Inversión · {item.code}</p>
           <p className="mt-1 font-medium">{item.productName}</p>
         </div>
-        <ChartNoAxesCombined className="size-5 text-brand-gold" aria-hidden="true" />
+        {settled ? <StatusBadge tone="success">Liquidada</StatusBadge> : <ChartNoAxesCombined className="size-5 text-brand-gold" aria-hidden="true" />}
       </div>
       <dl className="mt-5 grid grid-cols-3 gap-3">
         <Figure label="Capital" value={formatCurrency(item.amount)} />
         <Figure label="Tasa anual" value={formatRate(item.annualRate)} />
         <Figure label="Al vencimiento" value={formatCurrency(item.totalAmount)} />
       </dl>
-      <p className="mt-5 inline-flex items-center gap-1 text-xs text-muted-foreground">
-        <CalendarClock className="size-3.5" aria-hidden="true" />
-        {item.nextDueDate ? `Próximo pago: ${formatDate(item.nextDueDate)} · ${formatCurrency(item.nextPayment)}` : 'Inversión vencida'}
-      </p>
+      <div className="mt-5">
+        <div className="flex justify-between gap-3 text-xs text-muted-foreground">
+          <span className="inline-flex items-center gap-1">
+            <CalendarClock className="size-3.5" aria-hidden="true" />
+            {settled ? 'Liquidada: recibiste intereses y capital'
+              : item.nextDueDate ? `Próximo pago: ${formatDate(item.nextDueDate)} · ${formatCurrency(item.nextPayment)}` : 'Sin pagos pendientes'}
+          </span>
+          <span className="shrink-0">{item.elapsedInstallments} de {item.totalInstallments} pagos</span>
+        </div>
+        <Progress value={progress} className="mt-2 h-1.5 [&_[data-slot=progress-indicator]]:bg-brand-gold" aria-label="Pagos recibidos de la inversión" />
+      </div>
     </Link>
   )
 }
@@ -236,7 +266,9 @@ function SimulationCard({ item }: { item: SavedSimulation }) {
   const navigate = useNavigate()
   const { hasPermission } = useAuth()
   const credit = item.productType === 'CREDIT'
+  const { settings } = useInstitutionSettings()
   const canApply = hasPermission(credit ? 'credit.request.create' : 'investment.request.create')
+    && (credit || settings.investment.onlineApplicationEnabled === 'true')
   const { account } = useAuth()
   const brandingFor = useExportBranding()
   const file = useMutation({
@@ -342,7 +374,9 @@ function SimulationCard({ item }: { item: SavedSimulation }) {
             Solicitar con estos datos <ArrowRight className="size-3.5" />
           </Button>
         )}
-        <DownloadMenu variant="ghost" onSelect={(format) => file.mutate(format)} pending={file.isPending ? file.variables : null} />
+        {(!credit || settings.credit.pdfReportEnabled === 'true') && (
+          <DownloadMenu variant="ghost" onSelect={(format) => file.mutate(format)} pending={file.isPending ? file.variables : null} />
+        )}
       </div>
     </article>
   )

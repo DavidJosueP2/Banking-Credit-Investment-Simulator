@@ -117,7 +117,8 @@ export function CreditCompositionChart({ totals }: { totals: CreditTotals }) {
  * Capital frente a interés por cuota (barras apiladas). Con más de 60 cuotas se agrupan por año
  * para que cada barra siga siendo legible.
  */
-export function CreditInstallmentsChart({ rows, yearly = false }: { rows: CreditRow[]; yearly?: boolean }) {
+/** {@code paidThrough}: cuotas ya pagadas; las siguientes se muestran atenuadas para ver el avance. */
+export function CreditInstallmentsChart({ rows, yearly = false, paidThrough }: { rows: CreditRow[]; yearly?: boolean; paidThrough?: number }) {
   const { data, porAnio } = useMemo(() => {
     if (yearly || rows.length <= 60) {
       return { data: rows.map((row) => ({ ...row, etiqueta: String(row.numero) })), porAnio: false }
@@ -137,6 +138,7 @@ export function CreditInstallmentsChart({ rows, yearly = false }: { rows: Credit
   const tieneSeguros = rows.some((row) => row.desgravamen > 0)
   const tieneCargos = rows.some((row) => row.cargos > 0)
   const series: SerieKey[] = ['capital', 'interes', ...(tieneSeguros ? ['desgravamen' as const] : []), ...(tieneCargos ? ['cargos' as const] : [])]
+  const pagada = (numero: number) => paidThrough === undefined || (porAnio ? numero * 12 <= paidThrough : numero <= paidThrough)
 
   return (
     <figure className="rounded-xl border bg-card p-5" data-chart="chart-credit-installments">
@@ -151,6 +153,12 @@ export function CreditInstallmentsChart({ rows, yearly = false }: { rows: Credit
               {SERIES[key].label}
             </li>
           ))}
+          {paidThrough !== undefined && (
+            <li className="flex items-center gap-1.5">
+              <span className="size-2.5 rounded-sm bg-muted-foreground/30" aria-hidden="true" />
+              Claras: por pagar
+            </li>
+          )}
         </ul>
       </div>
       <ChartContainer id="credit-installments" config={SERIES} className="mt-4 aspect-auto h-56 w-full" initialDimension={{ width: 600, height: 224 }}>
@@ -160,7 +168,12 @@ export function CreditInstallmentsChart({ rows, yearly = false }: { rows: Credit
           <YAxis tickLine={false} axisLine={false} width={64} fontSize={11}
             tickFormatter={(value: number) => value >= 1000 ? `$${Math.round(value / 1000)}k` : `$${value}`} />
           <ChartTooltip cursor={{ fill: 'var(--muted)', opacity: 0.5 }} content={<ChartTooltipContent
-            labelFormatter={(label) => porAnio ? String(label) : `Cuota ${label}`}
+            labelFormatter={(label) => {
+              const base = porAnio ? String(label) : `Cuota ${label}`
+              if (paidThrough === undefined) return base
+              const fila = data.find((item) => item.etiqueta === String(label))
+              return fila ? `${base} · ${pagada(fila.numero) ? 'pagada' : 'por pagar'}` : base
+            }}
             formatter={(value, name) => (
               <span className="flex w-full justify-between gap-3">
                 <span className="flex items-center gap-1.5">
@@ -173,7 +186,11 @@ export function CreditInstallmentsChart({ rows, yearly = false }: { rows: Credit
           {series.map((key, index) => (
             <Bar key={key} dataKey={key} stackId="cuota" fill={`var(--color-${key})`} isAnimationActive={false}
               stroke="var(--card)" strokeWidth={data.length > 30 ? 0 : 1}
-              radius={index === series.length - 1 ? [4, 4, 0, 0] : 0} />
+              radius={index === series.length - 1 ? [4, 4, 0, 0] : 0}>
+              {paidThrough !== undefined && data.map((item) => (
+                <Cell key={item.etiqueta} fillOpacity={pagada(item.numero) ? 1 : 0.3} />
+              ))}
+            </Bar>
           ))}
         </BarChart>
       </ChartContainer>

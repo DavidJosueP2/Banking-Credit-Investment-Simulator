@@ -1,5 +1,5 @@
-import { CheckCircle2, Circle, CircleAlert, FileText, MailCheck, ScanFace, UserRound, XCircle } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { CheckCircle2, Circle, CircleAlert, FileText, Info, MailCheck, ScanFace, UserRound, XCircle } from 'lucide-react'
+import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 
 import { StatusBadge } from '@/components/shared/status-badge'
@@ -8,7 +8,11 @@ import { formatCurrency, formatDate, formatDateTime } from '@/lib/formatters'
 import { cn } from '@/lib/utils'
 
 import {
+  creditPurposeLabels,
+  employmentLabels,
   formatRate,
+  fundsSourceLabels,
+  settledLabels,
   formatTerm,
   statusLabels,
   statusTones,
@@ -18,12 +22,15 @@ import {
   type ApplicationEvent,
   type ApplicationStatus,
   type Installment,
+  type ProductType,
   type PaymentRecord,
   type Readiness,
 } from './applications-api'
 import { payoutLabels } from '@/features/investments/investment-api'
 
-export function ApplicationStatusBadge({ status }: { status: ApplicationStatus }) {
+/** Con {@code settled}, un producto aprobado y ya pagado se muestra como "Pagado" o "Liquidada". */
+export function ApplicationStatusBadge({ status, settled }: { status: ApplicationStatus; settled?: ProductType | null }) {
+  if (status === 'APPROVED' && settled) return <StatusBadge tone="success">{settledLabels[settled]}</StatusBadge>
   return <StatusBadge tone={statusTones[status]}>{statusLabels[status]}</StatusBadge>
 }
 
@@ -88,11 +95,11 @@ export function ApplicationFigures({ application }: { application: ApplicationDe
   if (credit && application.totalCharges > 0) items.splice(7, 0, ['Cargos', formatCurrency(application.totalCharges)])
 
   return (
-    <dl className="grid gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-4">
+    <dl className="grid grid-cols-2 overflow-hidden rounded-xl border bg-card sm:grid-cols-4">
       {items.map(([label, value, featured]) => (
-        <div key={label}>
-          <dt className="text-xs text-muted-foreground">{label}</dt>
-          <dd className={cn('mt-1 font-medium tabular-nums', featured ? 'text-lg text-brand-teal' : 'text-foreground')}>{value}</dd>
+        <div key={label} className={cn('flex min-w-0 flex-col justify-between gap-1 border-b border-r p-4', featured && 'bg-brand-teal/5')}>
+          <dt className="text-xs leading-4 text-muted-foreground">{label}</dt>
+          <dd className={cn('font-medium tabular-nums leading-snug', featured ? 'text-lg text-brand-teal' : 'text-foreground')}>{value}</dd>
         </div>
       ))}
     </dl>
@@ -255,25 +262,110 @@ export function ReadinessChecklist({ readiness, returnTo }: { readiness: Readine
 }
 
 /** Historial de cuotas cobradas de verdad (no proyectadas); solo lectura, la registra el personal. */
-export function PaymentsList({ payments, empty = 'Aún no se registran pagos.' }: {
+const RECENT_PAYMENTS = 5
+
+/** Pagos registrados, los más recientes primero; el resto queda a un clic para no alargar la página. */
+export function PaymentsList({ payments, productType = 'CREDIT', empty = 'Aún no se registran pagos.' }: {
   payments: PaymentRecord[]
+  productType?: ProductType
   empty?: string
 }) {
+  const [expanded, setExpanded] = useState(false)
   if (payments.length === 0) return <p className="text-sm text-muted-foreground">{empty}</p>
+  const ordered = [...payments].reverse()
+  const visible = expanded ? ordered : ordered.slice(0, RECENT_PAYMENTS)
+  const total = payments.reduce((sum, payment) => sum + payment.amount, 0)
   return (
-    <ul className="divide-y rounded-lg border">
-      {payments.map((payment) => (
-        <li key={payment.id} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
-          <div className="min-w-0">
-            <p className="font-medium">Cuota N.º {payment.installmentNumber}</p>
-            <p className="mt-0.5 truncate text-xs text-muted-foreground">
-              {formatDate(payment.paidAt)} · registrado por {payment.recordedByName}
-              {payment.note && ` · ${payment.note}`}
-            </p>
-          </div>
-          <span className="shrink-0 font-medium tabular-nums">{formatCurrency(payment.amount)}</span>
-        </li>
+    <div>
+      <ul className="divide-y rounded-lg border">
+        {visible.map((payment) => (
+          <li key={payment.id} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
+            <div className="min-w-0">
+              <p className="font-medium">{productType === 'CREDIT' ? 'Cuota' : 'Pago'} N.º {payment.installmentNumber}</p>
+              <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                {formatDate(payment.paidAt)} · registrado por {payment.recordedByName}
+                {payment.note && ` · ${payment.note}`}
+              </p>
+            </div>
+            <span className="shrink-0 font-medium tabular-nums">{formatCurrency(payment.amount)}</span>
+          </li>
+        ))}
+      </ul>
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+        <span>{payments.length} {payments.length === 1 ? 'pago' : 'pagos'} · total {formatCurrency(total)}</span>
+        {payments.length > RECENT_PAYMENTS && (
+          <button type="button" onClick={() => setExpanded((value) => !value)} className="font-medium text-brand-teal hover:underline">
+            {expanded ? 'Ver solo los recientes' : `Ver los ${payments.length} pagos`}
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/** Datos declarados por el cliente, con sus etiquetas legibles. */
+export function DeclarationList({ application }: { application: ApplicationDetail }) {
+  const credit = application.productType === 'CREDIT'
+  const { declaration } = application
+  const rows: Array<[string, ReactNode]> = []
+  if (credit) {
+    if (declaration.employmentType) rows.push(['Situación laboral', employmentLabels[declaration.employmentType] ?? declaration.employmentType])
+    if (application.monthlyIncome != null) rows.push(['Ingreso mensual neto', formatCurrency(application.monthlyIncome)])
+    if (declaration.monthlyExpenses != null) rows.push(['Gastos mensuales', formatCurrency(declaration.monthlyExpenses)])
+    if (application.monthlyIncome != null && declaration.monthlyExpenses != null) {
+      const free = application.monthlyIncome - declaration.monthlyExpenses
+      // En cuotas anuales se compara la parte mensual de la cuota.
+      const monthly = application.periodicPayment && (application.termUnit === 'YEARS' ? application.periodicPayment / 12 : application.periodicPayment)
+      const share = monthly && free > 0 ? monthly / free : null
+      rows.push(['Disponible para la cuota', `${formatCurrency(free)}${share != null ? ` · la cuota ${application.termUnit === 'YEARS' ? '(mensualizada) ' : ''}usaría el ${Math.round(share * 100)} %` : ''}`])
+    }
+    rows.push(['Destino', declaration.purposeCategory ? creditPurposeLabels[declaration.purposeCategory] ?? declaration.purposeCategory : '—'])
+  } else {
+    rows.push(['Origen de los fondos', declaration.fundsSource ? fundsSourceLabels[declaration.fundsSource] ?? declaration.fundsSource : '—'])
+    rows.push(['Declaración de licitud', declaration.fundsLawfulDeclared ? 'Firmada' : 'No registrada'])
+  }
+  if (application.purpose) rows.push(['Detalle', application.purpose])
+
+  return (
+    <dl className="divide-y rounded-xl border bg-card text-sm">
+      {rows.map(([label, value]) => (
+        <div key={label} className="grid gap-1 px-4 py-3 sm:grid-cols-[minmax(0,14rem)_minmax(0,1fr)] sm:gap-4">
+          <dt className="text-muted-foreground">{label}</dt>
+          <dd className="min-w-0 break-words font-medium">{value}</dd>
+        </div>
       ))}
-    </ul>
+    </dl>
+  )
+}
+
+/**
+ * Qué pasa si el tipo de crédito o plan se desactivó después de solicitar: lo firmado conserva sus
+ * condiciones; lo que aún no se envía ya no puede enviarse.
+ */
+export function DiscontinuedNotice({ application, audience, className }: {
+  application: ApplicationDetail
+  audience: 'customer' | 'staff'
+  className?: string
+}) {
+  if (application.productAvailable || ['REJECTED', 'CANCELLED'].includes(application.status)) return null
+  const credit = application.productType === 'CREDIT'
+  const kind = credit ? 'Este tipo de crédito' : 'Este plan de inversión'
+  let message: string
+  if (application.status === 'DRAFT') {
+    message = audience === 'customer'
+      ? `${kind} dejó de ofrecerse antes de que confirmaras tu solicitud, así que ya no puede enviarse. Cancélala y simula con otra opción.`
+      : `${kind} dejó de ofrecerse; el cliente ya no puede enviar este borrador.`
+  } else if (application.status === 'APPROVED') {
+    message = `${kind} ya no se ofrece a clientes nuevos. ${credit ? 'Este crédito' : 'Esta inversión'} conserva las condiciones y el cronograma con que se aprobó.`
+  } else {
+    message = audience === 'customer'
+      ? `${kind} ya no se ofrece a clientes nuevos, pero tu solicitud se evalúa con las condiciones con que la enviaste.`
+      : `${kind} ya no se ofrece a clientes nuevos. La solicitud se envió antes y puede decidirse con sus condiciones congeladas.`
+  }
+  return (
+    <p className={cn('flex gap-2 rounded-xl border border-brand-gold/40 bg-brand-gold/5 p-4 text-sm leading-6', className)}>
+      <Info className="mt-1 size-4 shrink-0 text-brand-gold" aria-hidden="true" />
+      <span>{message}</span>
+    </p>
   )
 }

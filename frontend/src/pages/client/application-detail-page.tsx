@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, CircleAlert, Paperclip, ShieldAlert } from 'lucide-react'
+import { ArrowLeft, CircleAlert, Info, Paperclip, ShieldAlert } from 'lucide-react'
 import { lazy, Suspense, useRef, useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
+import { useInstitutionSettings } from '@/app/providers/settings-provider'
 import { ConfirmDialog } from '@/components/shared/confirm-dialog'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -11,6 +12,8 @@ import {
   ApplicationFigures,
   ApplicationProgress,
   ApplicationStatusBadge,
+  DeclarationList,
+  DiscontinuedNotice,
   DocumentList,
   PaymentsList,
   ScheduleTable,
@@ -20,7 +23,9 @@ import {
   applicationKeys,
   cancelApplication,
   deleteApplicationDocument,
+  DOCUMENT_RULES,
   getMyApplication,
+  isSettled,
   openClientDocument,
   productTypeLabels,
   respondToObservation,
@@ -29,11 +34,13 @@ import {
 } from '@/features/applications/applications-api'
 import { messageFrom } from '@/features/identity-check/utils'
 import { CreditVisuals } from '@/features/applications/credit-visuals'
-import { formatCurrency, formatDateTime } from '@/lib/formatters'
+import { CreditProgress, InvestmentProgress, InvestmentVisuals } from '@/features/applications/progress-panels'
+import { formatDateTime } from '@/lib/formatters'
 
 const BiometricSignature = lazy(() => import('@/features/applications/biometric-signature'))
 
 export function ApplicationDetailPage() {
+  const { settings } = useInstitutionSettings()
   const id = Number(useParams().applicationId)
   const client = useQueryClient()
   const query = useQuery({ queryKey: applicationKeys.mineDetail(id), queryFn: () => getMyApplication(id), enabled: Number.isFinite(id) })
@@ -57,7 +64,9 @@ export function ApplicationDetailPage() {
   const application = query.data
   const credit = application.productType === 'CREDIT'
   const approved = application.status === 'APPROVED'
-  const editableDocuments = application.status === 'DRAFT' || application.status === 'OBSERVED'
+  const uploadsEnabled = credit || settings.investment.documentUploadEnabled === 'true'
+  const editableDocuments = uploadsEnabled && ((application.status === 'DRAFT' && application.productAvailable) || application.status === 'OBSERVED')
+  const canSign = application.status === 'DRAFT' && application.productAvailable
   const cancellable = ['DRAFT', 'SUBMITTED', 'OBSERVED'].includes(application.status)
 
   return (
@@ -75,12 +84,14 @@ export function ApplicationDetailPage() {
             {application.submittedAt && ` · Enviada el ${formatDateTime(application.submittedAt)}`}
           </p>
         </div>
-        <ApplicationStatusBadge status={application.status} />
+        <ApplicationStatusBadge status={application.status} settled={isSettled(application) ? application.productType : null} />
       </header>
 
       <div className="mt-6"><ApplicationProgress status={application.status} /></div>
 
-      {application.status === 'DRAFT' && (
+      <DiscontinuedNotice application={application} audience="customer" className="mt-8" />
+
+      {canSign && (
         <section className="mt-8 rounded-xl border border-brand-teal/30 bg-brand-teal/5 p-6" aria-labelledby="sign-title">
           <h2 id="sign-title" className="text-lg">Confirma tu identidad para enviar</h2>
           <p className="mt-1 max-w-[70ch] text-sm leading-6 text-muted-foreground">
@@ -108,43 +119,24 @@ export function ApplicationDetailPage() {
         </section>
       )}
 
-      <div className="mt-10 grid gap-10 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
-        <div className="space-y-10">
+      {approved && (
+        <div className="mt-8">{credit ? <CreditProgress application={application} /> : <InvestmentProgress application={application} />}</div>
+      )}
+
+      <div className="mt-10 grid gap-10 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+        <div className="space-y-8">
           <section aria-labelledby="figures-title">
-            <h2 id="figures-title" className="mb-5 text-xl">{approved ? (credit ? 'Tu crédito' : 'Tu inversión') : 'Condiciones solicitadas'}</h2>
+            <h2 id="figures-title" className="mb-4 text-xl">{approved ? (credit ? 'Tu crédito' : 'Tu inversión') : 'Condiciones solicitadas'}</h2>
             <ApplicationFigures application={application} />
-            <dl className="mt-6 grid gap-4 border-t pt-5 text-sm sm:grid-cols-2">
-              {credit && application.monthlyIncome && (
-                <div><dt className="text-muted-foreground">Ingreso mensual declarado</dt><dd className="mt-1 font-medium">{formatCurrency(application.monthlyIncome)}</dd></div>
-              )}
-              <div><dt className="text-muted-foreground">{credit ? 'Destino del crédito' : 'Origen de los fondos'}</dt><dd className="mt-1">{application.purpose}</dd></div>
-            </dl>
           </section>
-
-          {credit && <CreditVisuals application={application} />}
-
-          <section aria-labelledby="schedule-title">
-            <h2 id="schedule-title" className="text-xl">{approved ? 'Cronograma' : 'Cronograma proyectado'}</h2>
-            <p className="mb-4 mt-1 text-sm text-muted-foreground">
-              {approved
-                ? 'Fechas calculadas desde el día de aprobación.'
-                : 'Las fechas se ajustarán al día en que se apruebe la solicitud.'}
-            </p>
-            <ScheduleTable productType={application.productType} schedule={application.schedule} highlightNext={approved}
-              paidThrough={approved ? application.paidThroughInstallment : undefined} />
+          <section aria-labelledby="declaration-title">
+            <h2 id="declaration-title" className="mb-4 text-xl">Lo que declaraste</h2>
+            <DeclarationList application={application} />
           </section>
-
-          {approved && (
-            <section aria-labelledby="payments-title">
-              <h2 id="payments-title" className="mb-1 text-xl">Pagos registrados</h2>
-              <p className="mb-4 text-sm text-muted-foreground">Lo confirma tu asesor al recibir cada cuota; puede tardar en reflejarse aquí.</p>
-              <PaymentsList payments={application.payments} />
-            </section>
-          )}
         </div>
 
         <aside className="space-y-10">
-          <DocumentsPanel application={application} editable={editableDocuments} onChanged={() => void query.refetch()} />
+          <DocumentsPanel application={application} editable={editableDocuments} uploadsEnabled={uploadsEnabled} onChanged={() => void query.refetch()} />
           <section aria-labelledby="history-title">
             <h2 id="history-title" className="mb-4 text-xl">Seguimiento</h2>
             <Timeline events={application.events} />
@@ -152,6 +144,31 @@ export function ApplicationDetailPage() {
           {cancellable && <CancelApplication application={application} onDone={replace} />}
         </aside>
       </div>
+
+      <div className="mt-12">
+        {credit
+          ? <CreditVisuals application={application} paidThrough={approved ? application.paidThroughInstallment : undefined} />
+          : <InvestmentVisuals application={application} paidThrough={approved ? application.paidThroughInstallment : undefined} />}
+      </div>
+
+      <section aria-labelledby="schedule-title" className="mt-12">
+        <h2 id="schedule-title" className="text-xl">{approved ? 'Cronograma' : 'Cronograma proyectado'}</h2>
+        <p className="mb-4 mt-1 text-sm text-muted-foreground">
+          {approved
+            ? 'Fechas calculadas desde el día de aprobación.'
+            : 'Las fechas se ajustarán al día en que se apruebe la solicitud.'}
+        </p>
+        <ScheduleTable productType={application.productType} schedule={application.schedule} highlightNext={approved}
+          paidThrough={approved ? application.paidThroughInstallment : undefined} />
+      </section>
+
+      {approved && (
+        <section aria-labelledby="payments-title" className="mt-12">
+          <h2 id="payments-title" className="mb-1 text-xl">Pagos registrados</h2>
+          <p className="mb-4 text-sm text-muted-foreground">Lo confirma tu asesor al recibir cada cuota; puede tardar en reflejarse aquí.</p>
+          <PaymentsList payments={application.payments} productType={application.productType} />
+        </section>
+      )}
     </main>
   )
 }
@@ -192,7 +209,7 @@ function ObservationResponse({ application, onDone }: { application: Application
   )
 }
 
-function DocumentsPanel({ application, editable, onChanged }: { application: ApplicationDetail; editable: boolean; onChanged: () => void }) {
+function DocumentsPanel({ application, editable, uploadsEnabled, onChanged }: { application: ApplicationDetail; editable: boolean; uploadsEnabled: boolean; onChanged: () => void }) {
   const input = useRef<HTMLInputElement>(null)
   const upload = useMutation({
     mutationFn: (file: File) => uploadApplicationDocument(application.id, file),
@@ -211,11 +228,15 @@ function DocumentsPanel({ application, editable, onChanged }: { application: App
         <h2 id="documents-title" className="text-xl">Documentos</h2>
         {editable && (
           <>
-            <input ref={input} type="file" accept="application/pdf,image/jpeg,image/png" className="sr-only" tabIndex={-1}
+            <input ref={input} type="file" accept={DOCUMENT_RULES.accept} className="sr-only" tabIndex={-1}
               onChange={(event) => {
                 const file = event.target.files?.[0]
-                if (file) upload.mutate(file)
                 event.target.value = ''
+                if (!file) return
+                if (!DOCUMENT_RULES.accept.split(',').includes(file.type)) return void toast.error(`Solo se admiten archivos ${DOCUMENT_RULES.formats}.`)
+                if (file.size > DOCUMENT_RULES.maxMegabytes * 1024 * 1024) return void toast.error(`El archivo supera ${DOCUMENT_RULES.maxMegabytes} MB.`)
+                if (application.documents.length >= DOCUMENT_RULES.maxFiles) return void toast.error(`Puedes adjuntar hasta ${DOCUMENT_RULES.maxFiles} documentos.`)
+                upload.mutate(file)
               }} />
             <Button type="button" variant="outline" size="sm" disabled={upload.isPending} onClick={() => input.current?.click()}>
               <Paperclip className="size-4" />{upload.isPending ? 'Subiendo…' : 'Adjuntar'}
@@ -224,11 +245,23 @@ function DocumentsPanel({ application, editable, onChanged }: { application: App
         )}
       </div>
       {editable && (
-        <p className="mb-3 text-xs leading-5 text-muted-foreground">
-          {application.productType === 'CREDIT'
-            ? 'Por ejemplo: rol de pagos, certificado de ingresos o proforma del bien.'
-            : 'Por ejemplo: estado de cuenta o respaldo del origen de los fondos.'} PDF, JPG o PNG hasta 5 MB.
-        </p>
+        <div className="mb-3 space-y-1 text-xs leading-5 text-muted-foreground">
+          <p>
+            {application.productType === 'CREDIT'
+              ? 'Opcional. Ayudan al asesor: rol de pagos, certificado de ingresos, estado de cuenta o proforma del bien.'
+              : 'Opcional. Por ejemplo: estado de cuenta o respaldo del origen de los fondos.'}
+          </p>
+          <p className="flex gap-1.5">
+            <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+            <span>
+              Hasta {DOCUMENT_RULES.maxFiles} archivos ({application.documents.length} de {DOCUMENT_RULES.maxFiles}) · {DOCUMENT_RULES.formats} ·
+              máximo {DOCUMENT_RULES.maxMegabytes} MB cada uno. Revisamos el contenido real del archivo, no solo su extensión.
+            </span>
+          </p>
+        </div>
+      )}
+      {!uploadsEnabled && application.documents.length === 0 && (
+        <p className="text-xs leading-5 text-muted-foreground">La institución no recibe documentos en línea para inversiones; si hacen falta, tu asesor te dirá cómo entregarlos.</p>
       )}
       <DocumentList
         documents={application.documents}

@@ -8,11 +8,15 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { ReadinessChecklist } from '@/features/applications/application-parts'
 import {
   applicationKeys,
   createApplication,
+  creditPurposeLabels,
+  employmentLabels,
+  fundsSourceLabels,
   formatTerm,
   getReadiness,
   productTypeLabels,
@@ -104,15 +108,23 @@ function Row({ label, value }: { label: string; value: string }) {
   return <div className="flex justify-between gap-4"><dt className="text-muted-foreground">{label}</dt><dd className="text-right font-medium">{value}</dd></div>
 }
 
+/** Desde este monto la normativa de prevención de lavado de activos pide respaldo del origen de fondos. */
+const FUNDS_SUPPORT_THRESHOLD = 10_000
+
 function ApplicationForm({ scenario }: { scenario: Scenario }) {
   const credit = scenario.productType === 'CREDIT'
   const { account } = useAuth()
   const navigate = useNavigate()
   const client = useQueryClient()
   const [income, setIncome] = useState('')
-  const [purpose, setPurpose] = useState('')
+  const [expenses, setExpenses] = useState('')
+  const [employment, setEmployment] = useState('')
+  const [category, setCategory] = useState('')
+  const [detail, setDetail] = useState('')
+  const [lawful, setLawful] = useState(false)
   const [consent, setConsent] = useState(false)
   const [error, setError] = useState('')
+  const needsDetail = category === 'OTRO'
 
   const create = useMutation({
     mutationFn: createApplication,
@@ -127,40 +139,93 @@ function ApplicationForm({ scenario }: { scenario: Scenario }) {
   function submit(event: FormEvent) {
     event.preventDefault()
     setError('')
-    if (!consent) {
-      setError('Necesitamos tu autorización para continuar.')
-      return
-    }
+    if (!category) return setError(credit ? 'Selecciona el destino del crédito.' : 'Selecciona de dónde provienen los fondos.')
+    if (credit && !employment) return setError('Selecciona tu situación laboral.')
+    if (credit && Number(expenses) >= Number(income)) return setError('Tus gastos mensuales no pueden igualar o superar tu ingreso.')
+    if (needsDetail && detail.trim().length < 5) return setError('Cuéntanos un poco más (mínimo 5 caracteres).')
+    if (!credit && !lawful) return setError('Debes declarar el origen lícito de los fondos.')
+    if (!consent) return setError('Necesitamos tu autorización para continuar.')
     create.mutate({
       ...scenario,
-      monthlyIncome: credit ? Number(income) : undefined,
-      purpose: purpose.trim(),
+      purpose: detail.trim(),
+      ...(credit
+        ? { monthlyIncome: Number(income), monthlyExpenses: Number(expenses), employmentType: employment, purposeCategory: category }
+        : { fundsSource: category, fundsLawfulDeclared: lawful }),
     })
   }
 
+  const options = credit ? creditPurposeLabels : fundsSourceLabels
   return (
     <form onSubmit={submit} className="space-y-6 rounded-xl border p-6">
       <div>
         <h2 className="text-lg">Datos de la solicitud</h2>
         <p className="mt-1 text-sm text-muted-foreground">Solicitante: {account?.fullName}</p>
       </div>
+
       {credit && (
-        <div className="space-y-2">
-          <Label htmlFor="application-income">Ingreso mensual neto</Label>
-          <Input id="application-income" type="number" inputMode="decimal" min="1" step="0.01" required
-            value={income} onChange={(event) => setIncome(event.target.value)} aria-describedby="application-income-hint" />
-          <p id="application-income-hint" className="text-xs text-muted-foreground">
-            Con este valor el asesor evalúa cuánto de tu ingreso ocuparía la cuota.
+        <fieldset className="space-y-4">
+          <legend className="text-sm font-medium">Tu situación económica</legend>
+          <div className="space-y-2">
+            <Label htmlFor="application-employment">Situación laboral</Label>
+            <Select value={employment} onValueChange={setEmployment}>
+              <SelectTrigger id="application-employment" className="w-full"><SelectValue placeholder="Selecciona una opción" /></SelectTrigger>
+              <SelectContent>{Object.entries(employmentLabels).map(([code, label]) => <SelectItem key={code} value={code}>{label}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="application-income">Ingreso mensual neto</Label>
+              <Input id="application-income" type="number" inputMode="decimal" min="1" step="0.01" required
+                value={income} onChange={(event) => setIncome(event.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="application-expenses">Gastos mensuales</Label>
+              <Input id="application-expenses" type="number" inputMode="decimal" min="0" step="0.01" required
+                value={expenses} onChange={(event) => setExpenses(event.target.value)} aria-describedby="application-expenses-hint" />
+            </div>
+          </div>
+          <p id="application-expenses-hint" className="text-xs leading-5 text-muted-foreground">
+            Incluye arriendo, servicios y cuotas de otras deudas. Con ingreso y gastos el asesor calcula cuánto te queda
+            libre para la nueva cuota; no hace falta que sean exactos al centavo.
           </p>
-        </div>
+        </fieldset>
       )}
+
       <div className="space-y-2">
-        <Label htmlFor="application-purpose">{credit ? '¿En qué usarás el crédito?' : '¿De dónde provienen los fondos?'}</Label>
-        <Textarea id="application-purpose" required minLength={5} maxLength={300} rows={3} value={purpose}
-          onChange={(event) => setPurpose(event.target.value)}
-          placeholder={credit ? 'Ej. compra de un vehículo para trabajo' : 'Ej. ahorros de mi sueldo, venta de un bien'} />
-        <p className="text-right text-xs text-muted-foreground">{purpose.length}/300</p>
+        <Label htmlFor="application-category">{credit ? '¿En qué usarás el crédito?' : '¿De dónde provienen los fondos?'}</Label>
+        <Select value={category} onValueChange={setCategory}>
+          <SelectTrigger id="application-category" className="w-full"><SelectValue placeholder="Selecciona una opción" /></SelectTrigger>
+          <SelectContent>{Object.entries(options).map(([code, label]) => <SelectItem key={code} value={code}>{label}</SelectItem>)}</SelectContent>
+        </Select>
       </div>
+      <div className="space-y-2">
+        <Label htmlFor="application-detail">
+          {needsDetail ? 'Descríbelo brevemente' : 'Detalle'} {!needsDetail && <span className="font-normal text-muted-foreground">(opcional)</span>}
+        </Label>
+        <Textarea id="application-detail" required={needsDetail} minLength={needsDetail ? 5 : undefined} maxLength={300} rows={2}
+          value={detail} onChange={(event) => setDetail(event.target.value)}
+          placeholder={credit ? 'Ej. laptop para mi trabajo' : 'Ej. ahorros de los últimos dos años'} />
+        <p className="text-right text-xs text-muted-foreground">{detail.length}/300</p>
+      </div>
+
+      {!credit && (
+        <>
+          {scenario.amount >= FUNDS_SUPPORT_THRESHOLD && (
+            <p className="rounded-lg border border-brand-gold/30 bg-brand-gold/5 p-3 text-xs leading-5 text-muted-foreground">
+              Por ser {formatCurrency(FUNDS_SUPPORT_THRESHOLD)} o más, el asesor puede pedirte un respaldo del origen de
+              los fondos (por ejemplo, un estado de cuenta o el contrato de venta). Puedes adjuntarlo en el siguiente paso.
+            </p>
+          )}
+          <label className="flex items-start gap-3 text-sm leading-6">
+            <Checkbox checked={lawful} onCheckedChange={(value) => setLawful(value === true)} className="mt-1" />
+            <span>
+              Declaro que los fondos que invertiré tienen origen lícito y no provienen de actividades relacionadas con
+              el lavado de activos ni otros delitos.
+            </span>
+          </label>
+        </>
+      )}
+
       <label className="flex items-start gap-3 text-sm leading-6">
         <Checkbox checked={consent} onCheckedChange={(value) => setConsent(value === true)} className="mt-1" />
         <span>

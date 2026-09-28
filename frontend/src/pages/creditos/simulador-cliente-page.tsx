@@ -97,12 +97,24 @@ function describirCargo(c: NonNullable<ProductoSimulador['cargosIndirectos']>[nu
 
 // ─── Carga del catálogo: solo productos creados por los asesores ───────────
 export function SimuladorClientePage() {
-  const { assets } = useInstitutionSettings()
+  const { settings, assets } = useInstitutionSettings()
+  const habilitado = settings.credit.moduleEnabled === 'true' && settings.credit.simulatorEnabled === 'true'
   const productosQuery = useQuery({
     queryKey: ['simulador', 'productos'],
     queryFn: () => simuladorService.obtenerProductos(),
     staleTime: 60_000,
+    enabled: habilitado,
   })
+
+  if (!habilitado) {
+    return (
+      <main id="contenido" className="mx-auto min-h-[65svh] max-w-3xl px-5 py-16 text-center sm:px-8">
+        <h1 className="text-3xl">Simulador no disponible</h1>
+        <p className="mt-3 text-muted-foreground">La institución no tiene habilitado por ahora el simulador de créditos.</p>
+        <Button asChild variant="outline" className="mt-6"><Link to="/">Volver al inicio</Link></Button>
+      </main>
+    )
+  }
 
   if (productosQuery.data && productosQuery.data.length > 0) {
     return <SimuladorCredito productosDisponibles={productosQuery.data} />
@@ -137,7 +149,8 @@ export function SimuladorClientePage() {
 // ─── Simulador ──────────────────────────────────────────────────────────────
 function SimuladorCredito({ productosDisponibles }: { productosDisponibles: ProductoSimulador[] }) {
   const { account, hasPermission } = useAuth()
-  const { assets } = useInstitutionSettings()
+  const { settings, assets } = useInstitutionSettings()
+  const descargas = settings.credit.pdfReportEnabled === 'true'
   const isAsesor = hasPermission('credit.products.manage') || (account?.roles?.includes('credit_advisor') ?? false)
   const usuario = account ? { nombre: account.fullName || account.username } : null
 
@@ -731,11 +744,11 @@ function SimuladorCredito({ productosDisponibles }: { productosDisponibles: Prod
                       <TableProperties className="size-4" />
                       <span>Ver Pantalla Completa</span>
                     </Button>
-                    <DownloadMenu
+                    {descargas && <DownloadMenu
                       onSelect={(formato) => void exportar(formato)}
                       pending={exportando}
                       className="gap-1.5 shrink-0 border-brand-teal/30 text-brand-teal hover:bg-brand-teal/10"
-                    />
+                    />}
                   </div>
                 </div>
 
@@ -1017,7 +1030,7 @@ function SimuladorCredito({ productosDisponibles }: { productosDisponibles: Prod
               >
                 Cerrar
               </Button>
-              <DownloadMenu variant="brand" onSelect={(formato) => void exportar(formato)} pending={exportando} className="gap-1.5 font-medium" />
+              {descargas && <DownloadMenu variant="brand" onSelect={(formato) => void exportar(formato)} pending={exportando} className="gap-1.5 font-medium" />}
             </div>
           </DialogFooter>
         </DialogContent>

@@ -3,7 +3,8 @@ import { CreditCompositionChart, CreditCostHighlight, CreditInstallmentsChart } 
 import type { ApplicationDetail } from './applications-api'
 
 /** Costo destacado y gráficos de un crédito guardado en una solicitud (usa la foto aceptada por el cliente). */
-export function CreditVisuals({ application }: { application: ApplicationDetail }) {
+/** {@code paidThrough}: atenúa en el gráfico las cuotas que aún no se pagan. */
+export function CreditVisuals({ application, paidThrough }: { application: ApplicationDetail; paidThrough?: number }) {
   const totals = {
     tea: application.annualRate,
     monto: application.amount,
@@ -19,6 +20,7 @@ export function CreditVisuals({ application }: { application: ApplicationDetail 
         <CreditCompositionChart totals={totals} />
         <CreditInstallmentsChart
           yearly={application.termUnit === 'YEARS'}
+          paidThrough={paidThrough}
           rows={application.schedule.map((row) => ({
             numero: row.number,
             capital: row.principal,
