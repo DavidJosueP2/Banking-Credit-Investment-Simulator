@@ -17,13 +17,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import jakarta.servlet.http.HttpSession;
-/**
- * Verifica una identidad: el documento (número, código dactilar o vencimiento y fotos de ambas caras)
- * y una prueba de vida contra la foto del documento. Sirve para registrarse (sin titular) y para que
- * un cliente actualice su documento (titular = su cuenta, y su rostro debe coincidir con el registrado).
- * El avance vive en la sesión HTTP para que el navegador no pueda saltarse un paso ni reutilizar la
- * prueba de vida de otra persona.
- */
+/** Verifica documento y rostro para registro o actualización; conserva el avance en la sesión HTTP. */
 @Service
 public class IdentityCheckService {
 

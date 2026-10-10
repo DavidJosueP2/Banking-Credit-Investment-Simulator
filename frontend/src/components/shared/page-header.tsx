@@ -18,21 +18,21 @@ export function PageHeader({
   return (
     <header
       className={cn(
-        'flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between',
+        'flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between',
         className,
       )}
     >
-      <div className="space-y-1.5">
+      <div className="min-w-0 space-y-2">
         <h1 className="text-2xl tracking-tight text-balance text-foreground sm:text-3xl">
           {title}
         </h1>
         {description && (
-          <p className="max-w-[70ch] text-sm text-muted-foreground sm:text-base">
+          <p className="max-w-[60ch] text-sm leading-relaxed text-muted-foreground">
             {description}
           </p>
         )}
       </div>
-      {actions && <div className="shrink-0">{actions}</div>}
+      {actions && <div className="flex flex-wrap gap-2 lg:shrink-0">{actions}</div>}
     </header>
   )
 }

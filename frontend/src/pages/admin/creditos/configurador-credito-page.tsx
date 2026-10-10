@@ -60,9 +60,8 @@ function nombreSegmento(marco: MarcoNormativo | undefined, codigo: string) {
   return marco?.segmentos.find((s) => s.codigo === codigo)?.nombre ?? codigo.replaceAll('_', ' ').toLowerCase()
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
 // Listado de productos
-// ═════════════════════════════════════════════════════════════════════════════
+
 
 export function CreditosAdminPage() {
   const navigate = useNavigate()
@@ -86,7 +85,7 @@ export function CreditosAdminPage() {
     <div className="space-y-8">
       <PageHeader
         title="Tipos de crédito"
-        description="Crea los tipos de crédito que verán los clientes en el simulador. Las tasas se validan contra la tasa máxima vigente del BCE."
+        description="Administra condiciones y tasas de los créditos."
         actions={<Button onClick={() => navigate('/admin/creditos/nuevo')}><CirclePlus />Nuevo tipo de crédito</Button>}
       />
 
@@ -194,9 +193,8 @@ function MarcoResumen({ marco }: { marco: MarcoNormativo }) {
   )
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
 // Editor
-// ═════════════════════════════════════════════════════════════════════════════
+
 
 type Unidad = 'MESES' | 'ANIOS'
 
@@ -432,7 +430,7 @@ function CreditoEditor({ producto, plantilla, marco, saving, onCancel, onSave }:
     <div className="space-y-8">
       <PageHeader
         title={producto ? 'Editar tipo de crédito' : plantilla ? `Duplicar “${plantilla.nombre}”` : 'Nuevo tipo de crédito'}
-        description="Define cómo verán y simularán los clientes este crédito. Los límites se validan contra la normativa vigente."
+        description="Configura montos, plazos y costos."
         actions={<Button type="button" variant="outline" onClick={onCancel} disabled={saving}>Volver a tipos de crédito</Button>}
       />
 
@@ -701,9 +699,8 @@ function CargoFila({ cargo, error, onChange, onRemove }: {
   )
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
 // Rutas de creación y edición
-// ═════════════════════════════════════════════════════════════════════════════
+
 
 export function CreditoProductEditorPage() {
   const navigate = useNavigate()

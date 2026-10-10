@@ -10,7 +10,7 @@ export function PlaceholderPage({ title, description }: PlaceholderPageProps) {
     <div className="space-y-8">
       <PageHeader title={title} description={description} />
       <div className="rounded-xl border border-dashed px-6 py-12 text-center text-sm text-muted-foreground">
-        Este módulo se implementará en una etapa posterior.
+        Módulo no disponible.
       </div>
     </div>
   )

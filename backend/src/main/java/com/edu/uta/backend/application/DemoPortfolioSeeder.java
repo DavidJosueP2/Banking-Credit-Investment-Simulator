@@ -25,17 +25,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/**
- * Solo desarrollo: crea la cuenta {@code cartera} con productos ya aprobados y pagos registrados, para
- * probar el avance de pagos sin esperar meses:
- * <ul>
- *   <li>un crédito grande con ~70 % de las cuotas pagadas;</li>
- *   <li>un crédito pequeño pagado por completo (cerrado);</li>
- *   <li>una inversión con pagos mensuales y ~70 % de los pagos recibidos.</li>
- * </ul>
- * Las cifras salen de los simuladores reales (como una solicitud normal) y las fechas se corren al pasado.
- * La identidad es ficticia: la cuenta no puede firmar solicitudes nuevas con biometría real.
- */
+/** Crea en desarrollo una cartera ficticia con cronogramas y pagos de ejemplo; no habilita biometría real. */
 @Component
 @Profile("dev")
 @Order(100)

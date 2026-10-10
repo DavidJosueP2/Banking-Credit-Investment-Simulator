@@ -137,7 +137,7 @@ function SidebarPromoCard() {
       </div>
       <p className="text-sm font-medium text-sidebar-foreground">Simulador de inversiones</p>
       <p className="mt-1 text-xs leading-relaxed text-sidebar-foreground/70">
-        Proyecta rendimientos con diferentes plazos y tasas desde tu panel.
+        Calcula el rendimiento de un plan.
       </p>
       <Link
         to="/inversiones/simulador"

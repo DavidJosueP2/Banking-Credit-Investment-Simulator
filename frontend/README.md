@@ -1,200 +1,98 @@
-# Frontend del sistema financiero
+# Frontend
 
-## Descripción
+Interfaz de Brunexa: simuladores de crédito e inversión, cuenta de cliente y panel administrativo.
 
-Interfaz web del simulador financiero. La base incluye navegación, acceso centralizado a la API, gestión de estado remoto y componentes reutilizables para desarrollar posteriormente las áreas pública, de clientes y administrativa.
+## Desarrollo local
 
-## Tecnologías
-
-| Tecnología | Versión declarada |
-| --- | --- |
-| React | 19.2.8 |
-| TypeScript | 6.0.2 |
-| Vite | 8.3.0 |
-| Tailwind CSS | 4.3.3 |
-| shadcn/ui | Componentes locales con estilo `new-york` |
-| React Router DOM | 7.18.4 |
-| TanStack Query | 5.102.8 |
-| TanStack Table | 9.2.4 |
-| Axios | 1.20.0 |
-| React Hook Form | 7.88.0 |
-| Zod | 4.6.5 |
-
-## Requisitos
-
-Vite 8.3.0 declara compatibilidad con:
-
-```text
-Node.js ^20.19.0 o >=22.12.0
-```
-
-También se necesita npm, incluido normalmente con Node.js.
-
-## Configuración inicial
-
-Desde la carpeta `frontend/`, instala las dependencias y crea el archivo local de entorno:
+Requiere Node.js compatible con Vite 8 (`^20.19.0` o `>=22.12.0`) y npm. Desde `frontend/`:
 
 ```powershell
-npm install
+npm ci
 Copy-Item .env.example .env
-```
-
-Estos comandos están documentados para su ejecución posterior; la preparación inicial del repositorio no los ejecuta.
-
-## Variables de entorno
-
-| Variable | Descripción | Valor de desarrollo sugerido |
-| --- | --- | --- |
-| `VITE_API_BASE_URL` | URL base utilizada por la instancia central de Axios. | `http://localhost:8080/api` |
-
-Solo las variables cuyo nombre comienza con `VITE_` se exponen al código del navegador. No almacenes secretos en ellas.
-
-## Ejecutar frontend
-
-```powershell
 npm run dev
 ```
 
-Normalmente estará disponible en `http://localhost:5173`.
+`npm ci` instala las versiones del archivo de bloqueo. Copia el entorno solo si no tienes uno. Vite sirve la interfaz en `http://localhost:5173`.
 
-## Build
-
-```powershell
-npm run build
-```
-
-El resultado de producción se generará en `dist/`.
+`VITE_API_BASE_URL` define la API (local: `http://localhost:8080/api`). Las variables `VITE_*` son públicas; no deben contener contraseñas. La instancia de `src/lib/api.ts` envía la cookie de sesión y el token CSRF.
 
 ## Estructura
 
-```text
-src/
-├── app/
-│   ├── providers/
-│   └── router/
-├── components/
-│   ├── data-table/
-│   ├── layout/
-│   ├── shared/
-│   └── ui/
-├── features/
-├── lib/
-├── pages/
-├── types/
-├── App.tsx
-├── index.css
-└── main.tsx
+- `src/pages/`: vistas públicas, de clientes y administración.
+- `src/features/`: solicitudes, simuladores, biometría y exportación.
+- `src/components/ui/`: controles base.
+- `src/components/shared/`: cabeceras, estados y ayudas informativas.
+- `src/components/layout/`: navegación y distribución de páginas.
+- `src/app/`: rutas, permisos, proveedores y configuración institucional.
+- `src/lib/`: API, formatos y utilidades.
+
+React Router organiza las rutas; TanStack Query consulta y actualiza datos. React Hook Form y Zod validan formularios. El backend comprueba los permisos aunque la interfaz oculte un acceso.
+
+## Criterios de interfaz
+
+Usa los colores del tema y los componentes compartidos. Las cabeceras llevan un título y una frase breve. `InfoHint` muestra ayudas secundarias con clic, teclado o toque; los errores y costos relevantes permanecen visibles. Los simuladores colocan los resultados debajo del formulario y las tablas permiten desplazamiento horizontal en móvil.
+
+Axiforma se usa en títulos y Plus Jakarta Sans en texto. La institución puede personalizar las fuentes, colores, imágenes y textos; los valores guardados prevalecen sobre los predeterminados.
+
+## Verificación
+
+```powershell
+npm run lint
+npm run build
 ```
 
-## Comunicación con backend
+La compilación comprueba TypeScript y genera `dist/`. Revisa los simuladores en móvil y escritorio, la navegación a secciones, los filtros del panel y las rutas al recargar.
 
-La instancia compartida de Axios está en `src/lib/api.ts` y obtiene su `baseURL` de `VITE_API_BASE_URL`. Para desarrollo, el backend está previsto en:
+## Publicación manual
 
-```text
-http://localhost:8080/api
+Run from the repository root:
+
+```powershell
+.\frontend\scripts\deploy-s3.ps1
 ```
 
-Los servicios deben importar esa instancia en lugar de repetir la URL del backend. La instancia envía la cookie de sesión y el token CSRF en operaciones que modifican datos.
-
-## Configuración de interfaz
-
-- Tailwind CSS 4 está integrado mediante el plugin oficial de Vite.
-- El alias `@/` apunta a `src/` tanto en Vite como en TypeScript.
-- shadcn/ui utiliza variables CSS y una paleta sobria para el sistema financiero.
-- `AppProviders` centraliza TanStack Query y las notificaciones de Sonner.
-- El router separa la zona pública (`/`, `/login`) mediante `PublicLayout`, el
-  panel interno (`/admin`) mediante `AdminLayout` y el laboratorio de tablas (`/dev/table`).
-
-## Componentes UI
-
-Los componentes base están disponibles localmente en `src/components/ui/` y
-fueron agregados desde el registro actual de shadcn/ui. Los componentes propios
-de cada módulo deben componerse a partir de esta biblioteca y utilizar
-`lucide-react` como única fuente de iconos.
-
-Sonner se utiliza para notificaciones. `Calendar` y `Popover` permiten componer
-selectores de fecha cuando se necesiten; no se mantiene una copia separada de
-recetas que el registro no publica como componente independiente.
-
-La infraestructura de formularios queda preparada con React Hook Form, Zod,
-`@hookform/resolvers` y el componente `Form` de shadcn/ui. Aún no hay formularios
-de negocio.
-
-## Data Tables
-
-La carpeta `src/components/data-table/` combina la tabla semántica de shadcn/ui
-con TanStack Table `9.2.4`. La implementación usa la API v9 (`useTable`,
-`tableFeatures` y modelos `create*RowModel`) y ofrece:
-
-- columnas tipadas y encabezados ordenables;
-- búsqueda y filtros componibles;
-- paginación y cambio de tamaño de página;
-- visibilidad de columnas y selección de filas;
-- acciones por fila con `DropdownMenu`;
-- estados vacío y de carga con `Skeleton`;
-- contenedor responsive con desplazamiento horizontal;
-- paginación del lado del cliente y del servidor.
-
-`DataTable<TData>` es independiente de las entidades del sistema. Para revisar
-la integración con datos locales identificados como mock, usa `/dev/table`.
-
-### Paginación del cliente
-
-Usa `pagination={{ mode: 'client', initialPageSize: 10 }}` cuando ya se dispone
-del conjunto completo. TanStack Table aplica localmente filtros, ordenamiento y
-paginación.
-
-### Paginación del backend
-
-Usa el modo `server` con el estado controlado de `pagination`, `sorting` y
-`columnFilters`, sus callbacks de cambio y el total `rowCount` o `pageCount`.
-En este modo la tabla activa `manualPagination`, `manualSorting` y
-`manualFiltering`; no realiza peticiones por sí sola ni procesa solamente la
-página cargada como si fuera el conjunto completo.
-
-El contrato esperado para Spring Boot será conceptualmente:
-
-```text
-?page=0&size=10&sort=nombre,asc
+```bash
+bash frontend/scripts/deploy-s3.sh
 ```
 
-Los tipos `PageRequest`, `PageResponse<T>` y `ApiError` están en
-`src/types/api.ts`. La consulta real y el contrato definitivo del backend aún
-no están implementados.
+Prerequisites: Node/npm, installed frontend dependencies, AWS CLI, the
+`josue-admin` profile, the S3 bucket and CloudFront distribution already created.
+Bash requires these tools and credentials to be available in its environment.
+Configure the Cloudflare CNAME `brn` to `dpgg2ij2v1gwt.cloudfront.net` with DNS only.
 
-## Estructura reutilizable
+The scripts build locally, upload files, and request cache invalidation. They do
+not run Terraform or modify DNS. Production API configuration comes from
+`frontend/.env.production`; Vite embeds it during build. `VITE_*` is public
+configuration and must never contain secrets.
 
-- `components/data-table/`: tabla genérica, toolbar, paginación, columnas,
-  selección, acciones y skeleton.
-- `components/layout/`: sidebar, header administrativo y `<Outlet />` para las
-  rutas hijas.
-- `components/shared/`: `PageHeader`, `StatusBadge` y `ConfirmDialog`.
-- `lib/formatters.ts`: moneda USD, porcentajes, fechas y fecha/hora con locale
-  `es-EC` mediante `Intl`.
-- `app/providers/`: instancia única de `QueryClientProvider`, Tooltips y Sonner.
-- `lib/api.ts`: instancia central de Axios basada en `VITE_API_BASE_URL`.
+### Secuencia y opciones
 
-## Landing y acceso
+1. Verify the AWS account (`sts get-caller-identity`), bucket access
+   (`s3api head-bucket`) and selected distribution (`cloudfront get-distribution`).
+   `--expected-bucket-owner` checks ownership. `--query` selects fields;
+   `--output text` produces plain text. These checks precede uploads.
+2. `npm --prefix ... run build`: choose the frontend directory and run its build.
+3. `aws s3 sync`: upload new/changed files. Hashed assets are uploaded first with
+   `--cache-control public,max-age=31536000,immutable` (one year). Other files use
+   60 seconds; `--exclude` skips assets and HTML during that step.
+4. `aws s3 cp`: publish `index.html` last, once its assets exist. `--content-type
+   text/html` declares HTML; `--cache-control no-cache` requires revalidation.
+5. `cloudfront create-invalidation`: refresh edge caches. `--distribution-id`
+   selects the distribution; `--paths "/*"` selects all paths. It returns an ID
+   and status, usually InProgress; successful submission does not mean completed.
 
-La ruta `/` presenta los simuladores de créditos e inversiones sin inventar tasas ni productos. `PublicLayout` conserva la navegación institucional y `/login` permite ingresar con una cuenta persistida. `AdminLayout` usa una navegación interna independiente y solo se muestra cuando Spring Security confirma `admin.dashboard.view`.
+All AWS commands use `--region` and `--profile`. No deletion flag is used: old
+hashed assets remain available for browser tabs using the previous build.
+`sync` compares file metadata; explicit `cp` always republishes the HTML.
 
-El visitante no necesita cuenta para la landing. Cliente, asesor de crédito, asesor de inversiones y administrador son roles persistidos en PostgreSQL. La matriz de autoridades se consulta desde el backend en `/admin/roles`; no existe un selector de perfiles local. En esa pantalla, el administrador puede crear usuarios y asignarles roles. La interfaz oculta accesos sin permiso y el backend vuelve a comprobar los permisos persistidos en cada petición privada.
+PowerShell checks native exit codes; Bash uses `set -euo pipefail` to stop on
+errors. If invalidation fails after upload, files are already published: retry
+invalidation rather than assuming no change occurred.
 
-Consulta `backend/README.md` para configurar la contraseña inicial y las cuentas de ejemplo del perfil `dev`. Las credenciales no se almacenan en `VITE_` ni en el código del navegador.
+Override settings in PowerShell with `-Profile`, `-Region`, `-AccountId`,
+`-Bucket`, `-DistributionId`. In Bash use environment variables `PROFILE`,
+`REGION`, `ACCOUNT_ID`, `BUCKET`, `DISTRIBUTION_ID`. Update the distribution ID
+if you destroy and recreate CloudFront.
 
-## Tipografía
-
-El sistema utiliza dos familias predeterminadas, servidas localmente:
-
-- `font-heading`: Axiforma 400/500/600/700 para títulos y encabezados.
-- `font-sans`: Plus Jakarta Sans variable 200–800 para texto, navegación, formularios y tablas.
-
-Los elementos `h1`, `h2`, `h3` y los títulos base de shadcn/ui reciben automáticamente la tipografía de encabezado. Los importes y demás datos tabulares utilizan cifras de ancho uniforme.
-
-## Problemas comunes
-
-- **Versión incorrecta de Node:** usa una versión compatible con el requisito indicado arriba.
-- **`node_modules` inexistente:** ejecuta `npm install` desde `frontend/`.
-- **`.env` inexistente:** copia `.env.example` a `.env`.
-- **Puerto 5173 ocupado:** Vite propondrá otro puerto o podrás configurarlo al iniciar.
-- **Backend no disponible:** la interfaz podrá abrirse, pero cualquier futura petición a la API fallará hasta que el backend esté activo.
+Verify the home page, a direct route and reload, then login and API requests at
+https://brn.stratiumhub.com after invalidation completes.

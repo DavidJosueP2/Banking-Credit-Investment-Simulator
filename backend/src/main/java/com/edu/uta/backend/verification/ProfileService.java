@@ -47,11 +47,7 @@ public class ProfileService {
         return profile(username);
     }
 
-    /**
-     * Los datos que el nuevo documento no trajo legibles se conservan. Si la cuenta aún no tiene perfil
-     * de cliente (p. ej. una cuenta creada sin pasar por el registro), esta verificación lo crea con lo
-     * que leyó el documento: es el mismo control de identidad que en el registro.
-     */
+    /** Actualiza el perfil con los datos legibles del documento verificado y conserva los restantes. */
     @Transactional
     public ProfileView updateIdentity(String username, IdentityCheckService.Evidence evidence) {
         IdentityCheckService.VerifiedIdentity document = evidence.identity();

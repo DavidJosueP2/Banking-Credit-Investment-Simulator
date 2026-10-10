@@ -15,11 +15,7 @@ import java.math.RoundingMode;
 import java.util.List;
 import java.util.Locale;
 
-/**
- * "¿Cuánto me prestan?": busca el mayor monto cuya cuota más alta no supere lo que la persona puede
- * pagar. No tiene fórmula propia: prueba montos con el simulador de créditos, así el resultado incluye
- * desgravamen y cobros indirectos exactamente como se cobrarían.
- */
+/** Busca el mayor crédito compatible con una cuota, incluidos seguro y cargos, usando el simulador. */
 @Service
 @RequiredArgsConstructor
 public class CapacidadPagoService {

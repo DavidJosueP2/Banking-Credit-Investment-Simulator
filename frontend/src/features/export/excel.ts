@@ -45,11 +45,7 @@ const SURFACE = 'FFF8FAFA'
 const ZEBRA = 'FFF8FBFB'
 const LINE = 'FFE1E6E6'
 
-/**
- * Libro de Excel con la misma estructura que el PDF: franja con logo, condiciones, indicadores, tabla
- * completa y pie. Los números se guardan como números (no como texto) y los totales e indicadores son
- * fórmulas, así el archivo se puede seguir usando para cálculos propios.
- */
+/** Exporta marca, condiciones y tabla a Excel con valores numéricos y fórmulas para totales. */
 export async function excelWorkbook(layout: ExcelLayout, branding: ExportBranding): Promise<Blob> {
   const module = await import('exceljs')
   const ExcelJS = (module as unknown as { default?: typeof module }).default ?? module

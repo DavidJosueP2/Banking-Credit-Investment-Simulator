@@ -15,7 +15,7 @@ import {
 const cleanUrl = (url: string) => url.startsWith('/api') ? url.substring(4) : url
 
 export const creditosService = {
-  // ─── Configuración Asesor (BCE) ──────────────────────────────────────────
+
   configurarCredito: async (dto: ConfigurarCreditoRequest): Promise<ConfigurarCreditoResponse> => {
     const { data } = await api.post<ConfigurarCreditoResponse>(cleanUrl('/api/admin/creditos/configurar'), dto)
     return data
@@ -41,7 +41,6 @@ export const creditosService = {
     return data
   },
 
-  // ─── Segmentos ───────────────────────────────────────────────────────────
   getSegmentos: async (): Promise<SegmentoCredito[]> => {
     const { data } = await api.get<SegmentoCredito[]>(cleanUrl('/api/creditos/segmentos'))
     return data
@@ -58,7 +57,6 @@ export const creditosService = {
     await api.patch(cleanUrl(`/api/creditos/segmentos/${id}/toggle`))
   },
 
-  // ─── Tipos ───────────────────────────────────────────────────────────────
   getTipos: async (segmentoId?: number): Promise<TipoCredito[]> => {
     const { data } = await api.get<TipoCredito[]>(cleanUrl('/api/creditos/tipos'), {
       params: segmentoId ? { segmentoId } : undefined,
@@ -77,7 +75,6 @@ export const creditosService = {
     await api.patch(cleanUrl(`/api/creditos/tipos/${id}/toggle`))
   },
 
-  // ─── Productos ───────────────────────────────────────────────────────────
   getProductos: async (tipoId?: number): Promise<ProductoCredito[]> => {
     const { data } = await api.get<ProductoCredito[]>(cleanUrl('/api/creditos/productos'), {
       params: tipoId ? { tipoId } : undefined,
@@ -96,7 +93,6 @@ export const creditosService = {
     await api.patch(cleanUrl(`/api/creditos/productos/${id}/toggle`))
   },
 
-  // ─── Tasas ───────────────────────────────────────────────────────────────
   getTasas: async (params?: { productoId?: number; tipoTasa?: string; globales?: boolean }): Promise<TasaCredito[]> => {
     const { data } = await api.get<TasaCredito[]>(cleanUrl('/api/creditos/tasas'), { params })
     return data
@@ -113,7 +109,6 @@ export const creditosService = {
     await api.patch(cleanUrl(`/api/creditos/tasas/${id}/toggle`))
   },
 
-  // ─── Rangos ──────────────────────────────────────────────────────────────
   getRangos: async (productoId?: number): Promise<RangoCredito[]> => {
     const { data } = await api.get<RangoCredito[]>(cleanUrl('/api/creditos/rangos'), {
       params: productoId ? { productoId } : undefined,
@@ -132,7 +127,6 @@ export const creditosService = {
     await api.patch(cleanUrl(`/api/creditos/rangos/${id}/toggle`))
   },
 
-  // ─── Cargos ──────────────────────────────────────────────────────────────
   getCargos: async (productoId?: number): Promise<CargoCredito[]> => {
     const { data } = await api.get<CargoCredito[]>(cleanUrl('/api/creditos/cargos'), {
       params: productoId ? { productoId } : undefined,
@@ -151,7 +145,6 @@ export const creditosService = {
     await api.patch(cleanUrl(`/api/creditos/cargos/${id}/toggle`))
   },
 
-  // ─── Seguros ─────────────────────────────────────────────────────────────
   getSeguros: async (productoId?: number): Promise<SeguroCredito[]> => {
     const { data } = await api.get<SeguroCredito[]>(cleanUrl('/api/creditos/seguros'), {
       params: productoId ? { productoId } : undefined,

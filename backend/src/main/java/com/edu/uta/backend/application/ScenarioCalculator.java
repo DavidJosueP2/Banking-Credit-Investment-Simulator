@@ -14,10 +14,7 @@ import com.edu.uta.backend.investment.InvestmentService;
 import com.edu.uta.backend.service.SimuladorService;
 import org.springframework.stereotype.Component;
 
-/**
- * Puente hacia los simuladores de cada módulo. Las solicitudes no calculan nada por su cuenta:
- * piden el resultado al servicio dueño del producto y lo traducen a un formato común.
- */
+/** Convierte los resultados de crédito e inversión al formato común de las solicitudes. */
 @Component
 public class ScenarioCalculator {
 

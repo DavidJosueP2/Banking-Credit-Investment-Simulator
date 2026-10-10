@@ -67,7 +67,6 @@ public class CargoCreditoService {
         repository.save(e);
     }
 
-    // ─── Helpers ─────────────────────────────────────────────────────────────
 
     private CargoCreditoEntity getOrThrow(Long id) {
         return repository.findById(id)

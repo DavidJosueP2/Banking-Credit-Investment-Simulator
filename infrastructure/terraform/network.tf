@@ -56,7 +56,7 @@ resource "aws_route_table_association" "public" {
   route_table_id = aws_route_table.public.id
 }
 
-# Estas subredes no reciben ruta a Internet. Aquí se ubicará RDS.
+# Subredes aisladas para RDS, sin ruta a Internet.
 resource "aws_route_table" "database" {
   vpc_id = aws_vpc.main.id
   tags   = { Name = "${local.name}-database-rt" }

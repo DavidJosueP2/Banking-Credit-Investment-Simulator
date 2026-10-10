@@ -257,7 +257,6 @@ export const applicationKeys = {
   review: (id: number) => ['admin', 'applications', id] as const,
 }
 
-// ─── Cliente ────────────────────────────────────────────────────────────────
 
 export async function getReadiness() {
   return (await api.get<Readiness>('/client/readiness')).data
@@ -319,7 +318,6 @@ export async function openClientDocument(id: number, documentId: number) {
   return openBlob(`/client/applications/${id}/documents/${documentId}`)
 }
 
-// ─── Asesor ─────────────────────────────────────────────────────────────────
 
 export async function getReviewQueue() {
   return (await api.get<ApplicationSummary[]>('/admin/applications')).data
@@ -362,7 +360,6 @@ async function openBlob(url: string) {
   window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000)
 }
 
-// ─── Etiquetas ──────────────────────────────────────────────────────────────
 
 export const productTypeLabels: Record<ProductType, string> = {
   CREDIT: 'Crédito',

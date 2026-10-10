@@ -65,7 +65,6 @@ public class TipoCreditoService {
         repository.save(e);
     }
 
-    // ─── Helpers ─────────────────────────────────────────────────────────────
 
     private TipoCreditoEntity getOrThrow(Long id) {
         return repository.findById(id)

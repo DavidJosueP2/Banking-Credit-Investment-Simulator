@@ -80,7 +80,6 @@ public class ProductoCreditoService {
         repository.save(e);
     }
 
-    // ─── Helpers ─────────────────────────────────────────────────────────────
 
     private ProductoCreditoEntity getOrThrow(Long id) {
         return repository.findById(id)

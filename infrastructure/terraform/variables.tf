@@ -87,7 +87,7 @@ variable "mail_sender" {
 }
 
 variable "db_password" {
-  description = "Database password; also used by the future RDS instance."
+  description = "Database password shared by RDS and the application secret."
   type        = string
   sensitive   = true
 

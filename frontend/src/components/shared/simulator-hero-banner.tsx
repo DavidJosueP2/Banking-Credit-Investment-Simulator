@@ -27,10 +27,8 @@ export function SimulatorHeroBanner({
       className="relative w-full border-b border-brand-teal/25 bg-brand-teal/15 dark:border-brand-teal/20 dark:bg-brand-teal/10 overflow-hidden"
       aria-label={title}
     >
-      <div className="mx-auto flex max-w-7xl flex-col justify-between px-5 pt-7 sm:px-8 sm:pt-9 md:flex-row md:items-end md:gap-8 lg:gap-12">
-        {/* Left Column: Breadcrumbs, Title, Subtitle */}
-        <div className="max-w-2xl pb-6 sm:pb-8 md:pb-10 pt-1">
-          {/* Breadcrumb trail */}
+      <div className="mx-auto flex min-h-56 max-w-7xl items-end justify-between gap-6 px-5 pt-7 sm:px-8">
+        <div className="min-w-0 max-w-2xl pb-8">
           <nav aria-label="Miga de pan" className="mb-4 flex flex-wrap items-center gap-2 text-xs text-muted-foreground/80">
             {breadcrumbs.map((crumb, idx) => {
               const isLast = idx === breadcrumbs.length - 1
@@ -67,13 +65,11 @@ export function SimulatorHeroBanner({
             {description}
           </p>
         </div>
-
-        {/* Right Column: Person Cut-out Image */}
-        <div className="flex shrink-0 justify-center self-end md:justify-end">
+        <div className="hidden shrink-0 self-end sm:flex">
           <img
             src={imageSrc}
             alt={imageAlt}
-            className="h-44 sm:h-52 md:h-60 lg:h-68 w-auto object-contain object-bottom drop-shadow-xs select-none pointer-events-none"
+            className="h-48 md:h-56 w-auto object-contain object-bottom drop-shadow-xs select-none pointer-events-none"
             loading="eager"
           />
         </div>

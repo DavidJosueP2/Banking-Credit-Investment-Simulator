@@ -17,11 +17,7 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 
-/**
- * Límites de crédito vigentes. Todos se leen de {@code regla_normativa}, cada uno con su fuente:
- * las tasas máximas son del BCE (iguales para bancos y cooperativas); montos, plazos, desgravamen
- * y cobros indirectos son política prudencial de la institución y así se informan.
- */
+/** Consulta reglas vigentes y distingue tasas BCE de límites institucionales de montos, plazos y costos. */
 @Service
 public class NormativaRegulatoriaService {
 

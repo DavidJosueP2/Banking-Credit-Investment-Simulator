@@ -281,11 +281,7 @@ function formatSize(bytes: number) {
 }
 
 /** Requisitos del cliente antes de solicitar: los provee el módulo de registro y verificación. */
-/**
- * Requisitos para solicitar. Un cliente que se registró ya los cumple todos; esto lo ve, sobre todo,
- * una cuenta que nunca pasó por el registro (p. ej. las de ejemplo). La identidad se verifica en Mi
- * perfil con el mismo control del registro: documento + prueba de vida.
- */
+/** Muestra los requisitos de correo e identidad pendientes para enviar una solicitud. */
 export function ReadinessChecklist({ readiness, returnTo }: { readiness: Readiness; returnTo?: string }) {
   const identityDone = readiness.hasProfile && readiness.identityVerified
   const profileLink = returnTo ? `/perfil?volver=${encodeURIComponent(returnTo)}` : '/perfil'

@@ -5,8 +5,7 @@ data "aws_rds_engine_version" "postgres" {
   latest  = true
 }
 
-# This group will be attached to the Fargate tasks in the next step.
-# No inbound access is allowed until the ALB rule is configured.
+# Security group for backend tasks; inbound traffic is restricted to the ALB.
 resource "aws_security_group" "backend" {
   name        = "${local.name}-backend-sg"
   description = "Backend tasks; inbound access will be restricted to the ALB."

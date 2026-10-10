@@ -18,14 +18,7 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Component;
 
-/**
- * Correos transaccionales con la plantilla de Brunexa (título, mensaje y un botón). Sigue el patrón de
- * {@link com.edu.uta.backend.registration.VerificationMailer}: sin `JavaMailSender` configurado, el
- * mensaje se registra en el log en vez de fallar.
- *
- * <p>Los dominios de {@code app.mail.suppressed-domains} (por defecto los de las cuentas de ejemplo,
- * que no existen) tampoco se envían: evita rebotes al buzón remitente mientras se prueba.
- */
+/** Envía correos con la marca institucional; sin SMTP registra el mensaje y omite dominios de prueba. */
 @Component
 public class BrandedMailer {
 

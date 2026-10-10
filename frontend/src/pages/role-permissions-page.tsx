@@ -200,7 +200,7 @@ export function RolePermissionsPage() {
     <div className="space-y-10">
       <Dialog open={createOpen} onOpenChange={changeCreateOpen}>
         <PageHeader title="Usuarios, roles y permisos"
-          description="Administra las cuentas y consulta las autoridades definidas para cada rol de Brunexa."
+          description="Administra usuarios, roles y permisos."
           actions={<DialogTrigger asChild><Button variant="gold">Nuevo integrante</Button></DialogTrigger>}
           className="border-b pb-8" />
 

@@ -133,7 +133,7 @@ const landingGroups: Array<{
   },
   {
     id: 'perspective', label: 'Panorama', title: 'Antes de decidir',
-    description: 'Nueva sección editorial entre servicios y productos, enfocada en lo que conviene comparar.',
+    description: 'Información para comparar productos.',
     enabledKey: 'perspectiveEnabled',
     fields: [
       { key: 'perspectiveTitle', label: 'Título de la sección' },
@@ -537,7 +537,7 @@ export function InstitutionSettingsPage() {
   return (
     <div className="space-y-8">
       <PageHeader title="Configuración"
-        description="Administra la identidad, apariencia, contenido público y disponibilidad de los módulos de Brunexa. Los campos restaurados se aplican al guardar."
+        description="Personaliza la marca, el contenido y los productos."
         actions={<Button asChild variant="gold-outline"><Link to="/" target="_blank" rel="noreferrer">Ver sitio público <ExternalLink aria-hidden="true" /></Link></Button>} />
 
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
@@ -766,7 +766,7 @@ export function InstitutionSettingsPage() {
 
         <TabsContent value="investment">
           <form onSubmit={submit('investment')} className="max-w-4xl space-y-8">
-            <div><h2 className="text-xl">Configuración general de inversiones</h2><p className="mt-2 text-sm text-muted-foreground">Controla la disponibilidad y las etapas digitales del futuro proceso de inversión.</p></div>
+            <div><h2 className="text-xl">Configuración general de inversiones</h2><p className="mt-2 text-sm text-muted-foreground">Configura el simulador y las solicitudes de inversión.</p></div>
             <ConfigField label="Nombre visible del módulo" onReset={() => resetField('investment', 'displayName')}><Input value={draft.investment.displayName} onChange={(event) => update('investment', 'displayName', event.target.value)} maxLength={80} required /></ConfigField>
             <div className="rounded-xl border bg-card px-5">
               <ToggleRow label="Mostrar inversiones en el sitio público" description="Controla la navegación, los servicios y la sección pública de inversiones." checked={draft.investment.moduleEnabled === 'true'} onCheckedChange={(value) => update('investment', 'moduleEnabled', String(value))} onReset={() => resetField('investment', 'moduleEnabled')} />

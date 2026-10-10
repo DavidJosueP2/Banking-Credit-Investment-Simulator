@@ -27,19 +27,13 @@ public class SimuladorController {
     private final NormativaRegulatoriaService normativaService;
     private final com.edu.uta.backend.service.CapacidadPagoService capacidadPago;
 
-    /**
-     * Catálogo dinámico de Tipos de Crédito configurados para el usuario final.
-     * GET /api/simulador/productos o GET /api/public/creditos/activos
-     */
+    /** Catálogo dinámico de Tipos de Crédito configurados para el usuario final.. */
     @GetMapping({"/productos", "/activos"})
     public ResponseEntity<List<ProductoSimuladorDto>> obtenerProductos() {
         return ResponseEntity.ok(service.obtenerProductosDisponibles());
     }
 
-    /**
-     * Consulta de límites normativos vigentes (BCE, JPRFM, SB, SEPS)
-     * GET /api/simulador/normativa o GET /api/creditos/normativa/vigente
-     */
+    /** Consulta de límites normativos vigentes (BCE, JPRFM, SB, SEPS). */
     @GetMapping({"/normativa", "/normativa/vigente"})
     public ResponseEntity<List<ReglaNormativaDto>> obtenerNormativaVigente(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fecha
@@ -47,19 +41,13 @@ public class SimuladorController {
         return ResponseEntity.ok(normativaService.listarReglasVigentes(fecha));
     }
 
-    /**
-     * Catálogo legado para retrocompatibilidad
-     * GET /api/simulador/entidades
-     */
+    /** Catálogo legado para retrocompatibilidad. */
     @GetMapping("/entidades")
     public ResponseEntity<List<EntidadCreditoDto>> obtenerEntidades() {
         return ResponseEntity.ok(service.obtenerEntidadesDisponibles());
     }
 
-    /**
-     * Simulación de crédito para el Usuario Final / Cliente.
-     * POST /api/simulador/calcular
-     */
+    /** Simulación de crédito para el Usuario Final / Cliente.. */
     @PostMapping("/calcular")
     public ResponseEntity<SimulacionClienteResponseDto> calcularCliente(
             @Valid @RequestBody SimulacionClienteRequestDto req
@@ -67,10 +55,7 @@ public class SimuladorController {
         return ResponseEntity.ok(service.simularCliente(req));
     }
 
-    /**
-     * ¿Cuánto me prestan? Mayor monto cuya cuota más alta no supera lo que la persona puede pagar.
-     * POST /api/simulador/capacidad
-     */
+    /** ¿Cuánto me prestan? Mayor monto cuya cuota más alta no supera lo que la persona puede pagar.. */
     @PostMapping("/capacidad")
     public ResponseEntity<com.edu.uta.backend.service.CapacidadPagoService.Resultado> capacidad(
             @RequestBody com.edu.uta.backend.service.CapacidadPagoService.Solicitud solicitud
@@ -78,10 +63,7 @@ public class SimuladorController {
         return ResponseEntity.ok(capacidadPago.calcular(solicitud));
     }
 
-    /**
-     * Endpoint avanzado / legacy para simulación directa de parámetros.
-     * POST /api/simulador o POST /api/creditos/simular
-     */
+    /** Endpoint avanzado / legacy para simulación directa de parámetros.. */
     @PostMapping
     public SimulacionResponseDto simular(@Valid @RequestBody SimulacionRequestDto req) {
         return service.simular(req);

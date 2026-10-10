@@ -19,11 +19,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 
-/**
- * Recheck persisted authorities so role revocation does not wait for session expiry. Also closes every
- * other session after a password change: each session keeps a fingerprint of the password hash it was
- * opened with, and a session whose fingerprint no longer matches is invalidated.
- */
+/** Actualiza los permisos e invalida sesiones cuya contraseña ha cambiado. */
 public class AuthorityRefreshFilter extends OncePerRequestFilter {
 
     private static final String CREDENTIAL_STAMP = "brunexa.credential-stamp";
@@ -69,8 +65,7 @@ public class AuthorityRefreshFilter extends OncePerRequestFilter {
         if (session == null || passwordHash == null) return false;
         Object known = session.getAttribute(CREDENTIAL_STAMP);
         if (known == null) {
-            // Sessions opened before this check was deployed still carry their login credential
-            // in the persisted principal. Do not silently adopt a newer password for them.
+            // Compara la credencial original cuando la sesión no tiene huella registrada.
             if (previousHash != null && !previousHash.equals(passwordHash)) return true;
             rememberCredential(session, passwordHash);
             return false;

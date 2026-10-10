@@ -17,11 +17,7 @@ export interface ExportBranding {
 
 const logoCache = new Map<string, Promise<ExportBranding['logo']>>()
 
-/**
- * Devuelve una función que arma la marca en el momento de exportar. Toma el logo configurado en el
- * panel (o el de la app si no hay uno) igual que el PDF de inversiones del backend: sobre una franja
- * oscura usa la versión clara del logo y al revés.
- */
+/** Prepara la marca para exportar con el logo institucional apropiado al fondo. */
 export function useExportBranding() {
   const { settings, assets } = useInstitutionSettings()
 

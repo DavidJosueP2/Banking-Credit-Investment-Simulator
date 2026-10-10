@@ -74,7 +74,6 @@ public class TasaCreditoService {
         repository.save(e);
     }
 
-    // ─── Helpers ─────────────────────────────────────────────────────────────
 
     private TasaCreditoEntity getOrThrow(Long id) {
         return repository.findById(id)

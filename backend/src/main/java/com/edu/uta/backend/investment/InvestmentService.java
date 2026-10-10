@@ -241,8 +241,7 @@ public class InvestmentService {
             throw new IllegalArgumentException("Selecciona una unidad y un plazo válidos.");
         }
         int normalizedTermDays = normalizedTermDays(request.termValue(), request.termUnit());
-        // Un mismo plazo usa los días reales del calendario para todo (tramo de tasa, límites, interés y exención):
-        // 2 meses desde el 27 de septiembre son 61 días y caen en el tramo de 61–90 días.
+        // Los días de calendario determinan tasa, límites, interés y exención.
         LocalDate today = LocalDate.now();
         LocalDate maturityDate = maturityDate(today, request.termValue(), request.termUnit());
         int actualTermDays = Math.toIntExact(ChronoUnit.DAYS.between(today, maturityDate));

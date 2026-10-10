@@ -315,3 +315,12 @@
     transform: translateY(140%);
   }
 }
+
+/* Formularios en filas; el resultado ocupa el ancho completo debajo. */
+.simulator-form { display: grid; gap: 1.5rem; align-items: start; }
+.simulator-form > * { min-width: 0; }
+@media (min-width: 640px) {
+  .simulator-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .simulator-form > button[type="submit"] { grid-column: 1 / -1; }
+}
+html { scroll-padding-top: 8rem; }

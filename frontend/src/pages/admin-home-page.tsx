@@ -1,3 +1,4 @@
+import { InfoHint } from '@/components/shared/info-hint'
 import { ArrowRight, ChartNoAxesCombined, Inbox, Landmark, Settings2, UsersRound, type LucideIcon } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
@@ -8,15 +9,15 @@ import { PageHeader } from '@/components/shared/page-header'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getDashboardSummary, type Kpi } from '@/features/dashboard/dashboard-api'
+import { DashboardCharts } from '@/features/dashboard/dashboard-charts'
 import { formatCurrency } from '@/lib/formatters'
 
 const managementAreas = [
   {
     title: 'Solicitudes en línea',
-    description: 'Revisión, recomendación y aprobación de créditos e inversiones solicitados por clientes.',
+    description: 'Revisa y resuelve solicitudes.',
     icon: Inbox,
     permission: ['credit.requests.review', 'credit.requests.approve', 'investment.requests.review', 'requests.audit'],
-    status: 'Disponible',
     url: '/admin/solicitudes',
   },
   {
@@ -28,18 +29,16 @@ const managementAreas = [
   },
   {
     title: 'Productos de inversión',
-    description: 'Condiciones de inversión y solicitudes de clientes.',
+    description: 'Plazos, rendimientos y costos.',
     icon: ChartNoAxesCombined,
     permission: 'investment.products.manage',
-    status: 'Disponible',
     url: '/admin/inversiones',
   },
   {
     title: 'Configuración institucional',
-    description: 'Identidad, información y parámetros de Brunexa.',
+    description: 'Marca y contenido del sitio.',
     icon: Settings2,
     permission: 'institution.manage',
-    status: 'Disponible',
     url: '/admin/configuracion',
   },
 ] satisfies Array<{
@@ -47,7 +46,6 @@ const managementAreas = [
   description: string
   icon: LucideIcon
   permission: Permission | Permission[]
-  status?: string
   url?: string
 }>
 
@@ -58,10 +56,10 @@ export function AdminHomePage() {
     (Array.isArray(area.permission) ? area.permission : [area.permission]).some(hasPermission))
 
   return (
-    <div className="space-y-10 lg:space-y-12">
+    <div className="space-y-8">
       <PageHeader
         title="Panel administrativo"
-        description="Gestiona los accesos y consulta las áreas de trabajo de Brunexa desde un mismo espacio. La vista se adapta a tus permisos."
+        description="Solicitudes, cartera y productos."
         actions={
           <div className="flex flex-wrap gap-2">
             {canManageAccess && (
@@ -83,7 +81,6 @@ export function AdminHomePage() {
         <section aria-labelledby="access-title" className="space-y-4">
           <div>
             <h2 id="access-title" className="text-xl text-foreground">Gestión de accesos</h2>
-            <p className="mt-2 text-sm text-muted-foreground">Administra las cuentas y revisa las autoridades asignadas a cada rol.</p>
           </div>
           <Link
             to="/admin/roles"
@@ -92,7 +89,7 @@ export function AdminHomePage() {
             <UsersRound className="size-5 shrink-0 text-brand-teal" aria-hidden="true" />
             <span className="min-w-0 flex-1">
               <span className="block font-medium text-foreground">Usuarios, roles y permisos</span>
-              <span className="mt-1 block text-sm text-muted-foreground">Cuentas y permisos administrados desde el sistema.</span>
+              <span className="mt-1 block text-sm text-muted-foreground">Administra el acceso al sistema.</span>
             </span>
             <span className="hidden text-sm font-medium text-brand-teal sm:inline">Abrir</span>
             <ArrowRight className="size-4 shrink-0 text-brand-teal transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
@@ -103,8 +100,7 @@ export function AdminHomePage() {
       {visibleAreas.length > 0 && (
         <section aria-labelledby="areas-title" className="space-y-4">
           <div>
-            <h2 id="areas-title" className="text-xl text-foreground">Áreas de gestión</h2>
-            <p className="mt-2 text-sm text-muted-foreground">Módulos y herramientas disponibles según los permisos de tu perfil.</p>
+            <h2 id="areas-title" className="text-xl text-foreground">Productos y operaciones</h2>
           </div>
           <div className="divide-y rounded-xl bg-muted/50">
             {visibleAreas.map((area) => {
@@ -114,11 +110,6 @@ export function AdminHomePage() {
                   <h3 className="text-base text-foreground">{area.title}</h3>
                   <p className="mt-1 text-sm text-muted-foreground">{area.description}</p>
                 </div>
-                {area.status && (
-                  <span className={`ml-9 shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium sm:ml-0 ${area.url ? 'border-brand-teal/40 text-brand-teal' : 'border-brand-gold/40 text-brand-gold'}`}>
-                    {area.status}
-                  </span>
-                )}
                 {area.url && <ArrowRight className="size-4 shrink-0 text-brand-teal" aria-hidden="true" />}
               </>
               return area.url ? (
@@ -136,18 +127,29 @@ export function AdminHomePage() {
   )
 }
 
-/** Fila de indicadores: número principal, contexto en texto y acceso directo al área. */
+/** Presenta indicadores y gráficos del resumen administrativo. */
 function KpiRow() {
   const summary = useQuery({ queryKey: ['admin', 'dashboard'], queryFn: getDashboardSummary, refetchInterval: 60_000 })
-  if (summary.isError) return null
+  if (summary.isError) return (
+    <div role="alert" className="flex flex-wrap items-center gap-3 rounded-xl border p-5">
+      <p className="text-sm">No se pudieron cargar las métricas.</p>
+      <Button variant="outline" onClick={() => void summary.refetch()}>Reintentar</Button>
+    </div>
+  )
   return (
     <section aria-labelledby="kpi-title" className="space-y-4">
       <h2 id="kpi-title" className="sr-only">Indicadores</h2>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {summary.isPending
           ? Array.from({ length: 4 }, (_, index) => <Skeleton key={index} className="h-28 rounded-xl" />)
-          : summary.data.kpis.map((kpi) => <KpiTile key={kpi.key} kpi={kpi} />)}
+          : summary.data.kpis.slice(0, 3).map((kpi) => <KpiTile key={kpi.key} kpi={kpi} />)}
       </div>
+      {summary.data && <DashboardCharts summary={summary.data} />}
+      {summary.data && summary.data.kpis.length > 3 && (
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {summary.data.kpis.slice(3).map((kpi) => <KpiTile key={kpi.key} kpi={kpi} />)}
+        </div>
+      )}
     </section>
   )
 }
@@ -156,18 +158,17 @@ function KpiTile({ kpi }: { kpi: Kpi }) {
   const value = kpi.format === 'CURRENCY'
     ? formatCurrency(kpi.value)
     : kpi.value.toLocaleString('es-EC')
-  const content = (
-    <>
-      <p className="text-xs font-medium text-muted-foreground">{kpi.label}</p>
-      <p className="mt-2 text-3xl font-semibold tracking-tight tabular-nums text-foreground">{value}</p>
-      {kpi.hint && <p className="mt-1 text-xs text-muted-foreground">{kpi.hint}</p>}
-    </>
-  )
-  return kpi.href ? (
-    <Link to={kpi.href} className="rounded-xl border bg-card p-4 transition-colors hover:border-brand-teal/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-      {content}
-    </Link>
-  ) : (
-    <div className="rounded-xl border bg-card p-4">{content}</div>
+  return (
+    <article className="relative rounded-xl border bg-card p-5 transition-colors hover:border-brand-teal/40">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-sm text-muted-foreground">{kpi.label}</h3>
+        {kpi.hint && <InfoHint label={`Detalle: ${kpi.label}`}>{kpi.hint}</InfoHint>}
+      </div>
+      {kpi.href ? (
+        <Link to={kpi.href} aria-label={`${kpi.label}: ${value}`} className="mt-2 inline-flex items-center gap-3 rounded text-3xl font-semibold tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          {value}<ArrowRight className="size-4 text-brand-teal" aria-hidden="true" />
+        </Link>
+      ) : <p className="mt-2 text-3xl font-semibold tabular-nums">{value}</p>}
+    </article>
   )
 }

@@ -60,7 +60,6 @@ function creditReport(data: SimulacionClienteResponse, cliente?: string | null) 
   }
 }
 
-// ─── PDF ────────────────────────────────────────────────────────────────────
 
 export function exportCreditPdf(data: SimulacionClienteResponse, branding: ExportBranding, cliente?: string | null) {
   const report = creditReport(data, cliente)
@@ -186,7 +185,6 @@ export function exportCreditPdf(data: SimulacionClienteResponse, branding: Expor
   doc.save(`${report.fileBase}.pdf`)
 }
 
-// ─── Excel ──────────────────────────────────────────────────────────────────
 
 export async function exportCreditExcel(data: SimulacionClienteResponse, branding: ExportBranding, cliente?: string | null) {
   const report = creditReport(data, cliente)

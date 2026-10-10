@@ -134,7 +134,6 @@ public class SimuladorService {
                 .toList();
     }
 
-    // ─── 1. Flujo del Usuario Normal (Simulación Cliente) ─────────────────────
 
     @Transactional(readOnly = true)
     public SimulacionClienteResponseDto simularCliente(SimulacionClienteRequestDto req) {
@@ -361,7 +360,6 @@ public class SimuladorService {
         }
     }
 
-    // ─── 1.1 Cálculo Cliente: Sistema Francés ──────────────────────────────────
 
     private SimulacionClienteResponseDto calcularClienteFrances(
             ProductoCreditoEntity producto, BigDecimal monto, BigDecimal costoTotal,
@@ -451,7 +449,6 @@ public class SimuladorService {
         );
     }
 
-    // ─── 1.2 Cálculo Cliente: Sistema Alemán ───────────────────────────────────
 
     private SimulacionClienteResponseDto calcularClienteAleman(
             ProductoCreditoEntity producto, BigDecimal monto, BigDecimal costoTotal,
@@ -531,14 +528,7 @@ public class SimuladorService {
         );
     }
 
-    /**
-     * Calcula los cargos indirectos y seguros adicionales correspondientes al período k.
-     */
-    /**
-     * Suma en una sola columna todos los cobros indirectos del período (seguros adicionales, gastos,
-     * donaciones elegidas). Los cobros mensuales se multiplican por los meses que cubre la cuota, de
-     * modo que en productos con cuota anual un seguro mensual se cobra 12 veces, no una.
-     */
+    /** Suma los cargos indirectos de la cuota; convierte los cargos mensuales al período de pago. */
     private BigDecimal calcularCargosPeriodo(ProductoCreditoEntity producto, BigDecimal saldoInicial, BigDecimal monto,
                                              int k, Set<Long> cargosElegidos, int mesesPorPeriodo) {
         BigDecimal totalPeriodo = BigDecimal.ZERO;
@@ -598,7 +588,6 @@ public class SimuladorService {
         return result.isEmpty() ? List.of(SistemaAmortizacion.FRANCES) : result;
     }
 
-    // ─── Simulación Técnica / Avanzada Legada ──────────────────────────────────
 
     public SimulacionResponseDto simular(SimulacionRequestDto req) {
         if (req.productoId() != null) {

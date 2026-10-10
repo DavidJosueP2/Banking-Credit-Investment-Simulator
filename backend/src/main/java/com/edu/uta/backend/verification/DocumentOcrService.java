@@ -20,13 +20,7 @@ import software.amazon.awssdk.services.textract.TextractClient;
 import software.amazon.awssdk.services.textract.model.BlockType;
 import software.amazon.awssdk.services.textract.model.Document;
 
-/**
- * Lee documentos de identidad con Textract: pasaportes por su MRZ y la cédula ecuatoriana en sus
- * dos modelos en circulación:
- * el antiguo ("APELLIDOS Y NOMBRES" junto, fechas 2004-06-14) y el nuevo
- * ("APELLIDOS" y "NOMBRES" por separado, fechas "10 FEB 2005", cédula en la línea NUI).
- * Las líneas no llegan en orden visual, así que cada campo se ancla a su etiqueta por geometría.
- */
+/** Extrae identidad con Textract desde MRZ o etiquetas y coordenadas de los dos formatos de cédula ecuatoriana. */
 @Service
 public class DocumentOcrService {
 

@@ -67,7 +67,6 @@ public class SeguroCreditoService {
         repository.save(e);
     }
 
-    // ─── Helpers ─────────────────────────────────────────────────────────────
 
     private SeguroCreditoEntity getOrThrow(Long id) {
         return repository.findById(id)

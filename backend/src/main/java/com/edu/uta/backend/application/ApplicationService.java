@@ -88,7 +88,6 @@ public class ApplicationService {
         this.notifier = notifier;
     }
 
-    // ─── Contratos ────────────────────────────────────────────────────────────
 
     public record NewApplication(String productType, Long productId, BigDecimal amount, Integer term,
                                  String amortizationSystem, String payoutFrequency, BigDecimal assetCost,
@@ -166,7 +165,6 @@ public class ApplicationService {
                          BigDecimal amount, Long reviewerId, Long recommendedBy, String recommendation,
                          String code, String productName) {}
 
-    // ─── Cliente ─────────────────────────────────────────────────────────────
 
     public Readiness readiness(String username) {
         IdentityService.Account account = identity.accountByUsername(username);
@@ -429,7 +427,6 @@ public class ApplicationService {
         return document(id, documentId);
     }
 
-    // ─── Asesor ──────────────────────────────────────────────────────────────
 
     public List<Summary> queue(Set<String> authorities) {
         List<String> types = reviewableTypes(authorities);
@@ -571,11 +568,7 @@ public class ApplicationService {
         return reviewDetail(username, authorities, id);
     }
 
-    /**
-     * Se registran en orden (cuota N solo si la N-1 ya está registrada): así el saldo tras el último
-     * pago siempre coincide con el `closing_balance` de esa fila del cronograma. No recalcula la
-     * tabla ni admite abonos parciales o extraordinarios; solo confirma una cuota completa.
-     */
+    /** Registra cuotas completas en orden y conserva el saldo del cronograma; no admite abonos parciales. */
     @Transactional
     public ReviewDetail registerPayment(String username, Set<String> authorities, long id, RegisterPayment input) {
         Owned application = reviewable(authorities, id);
@@ -720,7 +713,6 @@ public class ApplicationService {
         return new AccessDeniedException(actions.notice() != null ? actions.notice() : fallback);
     }
 
-    // ─── Consultas internas ──────────────────────────────────────────────────
 
     private List<Summary> summaries(String where, Object... args) {
         return jdbc.query("""

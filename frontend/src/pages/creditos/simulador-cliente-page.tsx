@@ -1,6 +1,7 @@
+import { InfoHint } from '@/components/shared/info-hint'
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { useForm, Controller } from 'react-hook-form'
+import { useWatch, useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
@@ -58,7 +59,6 @@ import {
 import { useAuth } from '@/app/providers/auth-provider'
 import { useInstitutionSettings } from '@/app/providers/settings-provider'
 
-// ─── Formateador de moneda USD ───────────────────────────────────────────────
 const fmtCurrency = new Intl.NumberFormat('es-EC', {
   style: 'currency',
   currency: 'USD',
@@ -66,7 +66,6 @@ const fmtCurrency = new Intl.NumberFormat('es-EC', {
 })
 const fmt = (n: number | undefined) => fmtCurrency.format(n || 0)
 
-// ─── Validación Zod Dinámica ────────────────────────────────────────────────
 const simuladorSchema = z.object({
   productoId: z.number({ message: 'Seleccione un tipo de crédito' }).min(1, 'Seleccione un tipo de crédito'),
   costoTotal: z
@@ -95,7 +94,6 @@ function describirCargo(c: NonNullable<ProductoSimulador['cargosIndirectos']>[nu
   return `${fmt(c.valor)} ${cada}`
 }
 
-// ─── Carga del catálogo: solo productos creados por los asesores ───────────
 export function SimuladorClientePage() {
   const { settings, assets } = useInstitutionSettings()
   const habilitado = settings.credit.moduleEnabled === 'true' && settings.credit.simulatorEnabled === 'true'
@@ -124,7 +122,7 @@ export function SimuladorClientePage() {
     <main id="contenido">
       <SimulatorHeroBanner
         breadcrumbs={[{ label: 'Inicio', href: '/' }, { label: 'Simulador de crédito' }]}
-        title="Simulador de Crédito"
+        title="Simulador de crédito"
         description="Calcula tu tabla de pagos con los tipos de crédito vigentes de la institución."
         imageSrc={assets.creditSimulatorImage ?? creditPersonImage}
         imageAlt="Persona simulando su crédito"
@@ -146,7 +144,6 @@ export function SimuladorClientePage() {
   )
 }
 
-// ─── Simulador ──────────────────────────────────────────────────────────────
 function SimuladorCredito({ productosDisponibles }: { productosDisponibles: ProductoSimulador[] }) {
   const { account, hasPermission } = useAuth()
   const { settings, assets } = useInstitutionSettings()
@@ -155,6 +152,13 @@ function SimuladorCredito({ productosDisponibles }: { productosDisponibles: Prod
   const usuario = account ? { nombre: account.fullName || account.username } : null
 
   const [resultado, setResultado] = useState<SimulacionClienteResponse | null>(null)
+  const resultsRef = useRef<HTMLElement>(null)
+  useEffect(() => {
+    if (!resultado) return
+    resultsRef.current?.focus({ preventScroll: true })
+    resultsRef.current?.scrollIntoView({ block: 'start', inline: 'nearest' })
+  }, [resultado])
+
   const [modalTablaAbierto, setModalTablaAbierto] = useState(false)
 
   // Abrir una simulación guardada: /creditos/simulador?producto=&monto=&plazo=&sistema=&costo=&opcionales=
@@ -179,7 +183,6 @@ function SimuladorCredito({ productosDisponibles }: { productosDisponibles: Prod
     register,
     handleSubmit,
     control,
-    watch,
     setValue,
     setError,
     clearErrors,
@@ -195,11 +198,11 @@ function SimuladorCredito({ productosDisponibles }: { productosDisponibles: Prod
     },
   })
 
-  const productoIdActual = watch('productoId')
-  const costoTotalActual = watch('costoTotal')
-  const montoActual = watch('monto')
-  const plazoActual = watch('plazo')
-  const sistemaActual = watch('sistema')
+  const productoIdActual = useWatch({ control, name: 'productoId' })
+  const costoTotalActual = useWatch({ control, name: 'costoTotal' })
+  const montoActual = useWatch({ control, name: 'monto' })
+  const plazoActual = useWatch({ control, name: 'plazo' })
+  const sistemaActual = useWatch({ control, name: 'sistema' })
 
   // Producto seleccionado dinámicamente
   const productoSeleccionado = useMemo(() => {
@@ -340,28 +343,27 @@ function SimuladorCredito({ productosDisponibles }: { productosDisponibles: Prod
 
   return (
     <main id="contenido" className="space-y-0">
-      {/* ── Hero Banner de develop con Persona e Información Institucional ── */}
+
       <SimulatorHeroBanner
         breadcrumbs={[
           { label: 'Inicio', href: '/' },
-          { label: 'Servicios', href: '/#servicios' },
+          { label: 'Créditos', href: '/creditos/simulador' },
           { label: 'Simulador de crédito' },
         ]}
-        accentBadge="Tasas dentro del tope BCE"
-        title="Simulador de Crédito"
-        description="Calcula tu tabla de pagos con tasas que respetan el tope vigente del Banco Central del Ecuador, el seguro de desgravamen y todos los cobros indirectos a la vista."
+        title="Simulador de crédito"
+        description="Calcula tus cuotas, intereses y costos del crédito."
         imageSrc={assets.creditSimulatorImage ?? creditPersonImage}
         imageAlt="Persona simulando su crédito"
       />
 
       <div className="mx-auto max-w-7xl px-5 py-8 sm:px-8 lg:py-10 space-y-8">
-        {/* ── Banner condicional para Asesor / Administrador ─────────────── */}
+
         {isAsesor && (
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-xl bg-brand-teal/5 border border-brand-teal/20 text-xs">
             <div className="flex items-center gap-2.5 text-foreground">
               <span className="flex size-2 rounded-full bg-brand-teal animate-pulse" />
               <span>
-                Sesión activa como <strong className="font-semibold text-foreground">Asesor Financiero</strong> ({usuario?.nombre}). La configuración y cargos de cada crédito provienen de la parametrización interna.
+                Asesor: <strong className="font-semibold text-foreground">{usuario?.nombre}</strong>
               </span>
             </div>
             <Button asChild size="sm" variant="outline" className="border-brand-teal/30 text-brand-teal hover:bg-brand-teal/10 gap-1.5 shrink-0">
@@ -373,10 +375,9 @@ function SimuladorCredito({ productosDisponibles }: { productosDisponibles: Prod
           </div>
         )}
 
-        {/* ── Layout de Dos Columnas (Formulario vs Resumen y Tabla) ─────── */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          {/* ── Columna Izquierda: Formulario de Parámetros (5 Cols) ─────── */}
-          <div className="lg:col-span-5 space-y-6">
+        <div className="flex min-w-0 flex-col gap-8">
+
+          <div className="w-full min-w-0 space-y-6">
             <Card className="rounded-xl border bg-card shadow-xs">
               <CardHeader className="border-b pb-4">
                 <div className="flex items-center gap-3">
@@ -385,26 +386,25 @@ function SimuladorCredito({ productosDisponibles }: { productosDisponibles: Prod
                   </div>
                   <div>
                     <CardTitle className="text-base text-foreground font-sans font-medium">
-                      Parámetros del Crédito
+                      Condiciones del crédito
                     </CardTitle>
                     <CardDescription className="text-xs text-muted-foreground">
-                      Ingresa las condiciones deseadas para tu financiamiento
+                      Elige el monto y el plazo.
                     </CardDescription>
                   </div>
                 </div>
               </CardHeader>
 
               <CardContent className="pt-6">
-                <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-                  
-                  {/* 1. ComboBox Único: Tipo de Crédito (Cargado dinámicamente desde BD) */}
+                <form onSubmit={handleSubmit(onSubmit)} className="simulator-form">
+
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
                       <Label className="text-xs font-medium text-foreground flex items-center gap-1.5">
                         <Receipt className="size-3.5 text-brand-teal" />
                         Tipo de crédito
                       </Label>
-                      <span className="text-[10px] text-brand-teal font-medium">Configuración oficial</span>
+                      <InfoHint label="Acerca del crédito">{productoSeleccionado.descripcion || "Tasas y límites definidos por la institución."}</InfoHint>
                     </div>
                     <Controller
                       name="productoId"
@@ -430,14 +430,9 @@ function SimuladorCredito({ productosDisponibles }: { productosDisponibles: Prod
                     {errors.productoId && (
                       <p className="text-[11px] text-destructive">{errors.productoId.message}</p>
                     )}
-                    {productoSeleccionado.descripcion && (
-                      <p className="text-[11px] text-muted-foreground leading-snug">
-                        {productoSeleccionado.descripcion}
-                      </p>
-                    )}
+
                   </div>
 
-                  {/* Tarjeta de Solo Lectura: Tasa Nominal, Desgravamen y Cargos */}
                   <div className="p-3.5 rounded-xl bg-muted/40 border border-border space-y-2.5 text-xs">
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-0.5">
@@ -465,7 +460,6 @@ function SimuladorCredito({ productosDisponibles }: { productosDisponibles: Prod
                       </div>
                     </div>
 
-                    {/* Cobros indirectos del producto: los obligatorios siempre se suman; los opcionales, si el cliente los elige */}
                     {productoSeleccionado.cargosIndirectos && productoSeleccionado.cargosIndirectos.length > 0 && (
                       <div className="pt-2 border-t border-border/60">
                         <div className="flex items-center gap-1 text-[11px] text-muted-foreground mb-1.5">
@@ -486,7 +480,7 @@ function SimuladorCredito({ productosDisponibles }: { productosDisponibles: Prod
                                   <span>
                                     {c.nombre}
                                     <span className="block text-[10px]">
-                                      {opcional ? 'Opcional: márcalo si deseas agregarlo' : 'Incluido en tu cuota'}
+                                      {opcional ? 'Opcional' : 'Incluido en tu cuota'}
                                     </span>
                                   </span>
                                 </span>
@@ -499,6 +493,7 @@ function SimuladorCredito({ productosDisponibles }: { productosDisponibles: Prod
                     )}
                   </div>
 
+                  <div className="sm:col-span-2">
                   <CapacidadPagoCard
                     key={productoSeleccionado.id}
                     productoId={productoSeleccionado.id}
@@ -512,15 +507,15 @@ function SimuladorCredito({ productosDisponibles }: { productosDisponibles: Prod
                       setResultado(r.simulacion)
                     }}
                   />
+                  </div>
 
-                  {/* 2. Campo: ¿Cuánto cuesta el bien/servicio? */}
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
                       <Label htmlFor="costoTotal" className="text-xs font-medium text-foreground flex items-center gap-1.5">
                         <ShoppingBag className="size-3.5 text-brand-teal" />
                         Valor del bien o servicio
                       </Label>
-                      <span className="font-sans text-muted-foreground text-xs">{fmt(costoTotalActual)}</span>
+                      <InfoHint label="Valor del bien o servicio">Precio total, incluida tu entrada.</InfoHint>
                     </div>
                     <div className="relative">
                       <span className="absolute left-3 top-2 text-muted-foreground text-xs font-medium">$</span>
@@ -535,19 +530,16 @@ function SimuladorCredito({ productosDisponibles }: { productosDisponibles: Prod
                     {errors.costoTotal && (
                       <p className="text-[11px] text-destructive">{errors.costoTotal.message}</p>
                     )}
-                    <p className="text-[10px] text-muted-foreground">
-                      Precio total de lo que vas a comprar: vehículo, vivienda, estudios, equipo, etc.
-                    </p>
+
                   </div>
 
-                  {/* 3. Campo: ¿Cuánto desea prestar? */}
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
                       <Label htmlFor="monto" className="text-xs font-medium text-foreground flex items-center gap-1.5">
                         <Coins className="size-3.5 text-brand-teal" />
                         ¿Cuánto necesitas financiar?
                       </Label>
-                      <span className="font-sans text-brand-teal font-medium text-xs">{fmt(montoActual)}</span>
+                      <InfoHint label="Límites del monto">De {fmt(productoSeleccionado.montoMin)} a {fmt(productoSeleccionado.montoMax)}.</InfoHint>
                     </div>
                     <div className="relative">
                       <span className="absolute left-3 top-2 text-muted-foreground text-xs font-medium">$</span>
@@ -564,10 +556,6 @@ function SimuladorCredito({ productosDisponibles }: { productosDisponibles: Prod
                     {errors.monto && (
                       <p className="text-[11px] text-destructive">{errors.monto.message}</p>
                     )}
-                    <div className="flex justify-between items-center text-[10px] text-muted-foreground pt-0.5">
-                      <span>Mín: {fmt(productoSeleccionado.montoMin)}</span>
-                      <span>Máx: {fmt(productoSeleccionado.montoMax)}</span>
-                    </div>
                     {costoTotalActual > 0 && montoActual > 0 && montoActual <= costoTotalActual && (
                       <p className="text-[11px] text-muted-foreground">
                         Tu entrada: <strong className="text-foreground">{fmt(costoTotalActual - montoActual)}</strong>
@@ -575,7 +563,6 @@ function SimuladorCredito({ productosDisponibles }: { productosDisponibles: Prod
                       </p>
                     )}
 
-                    {/* Chips de montos sugeridos (Estilo de develop) */}
                     <div className="flex flex-wrap gap-1.5 pt-1">
                       {[1000, 3000, 5000, 10000, 20000, 50000]
                         .filter((val) => val >= productoSeleccionado.montoMin && val <= productoSeleccionado.montoMax && (!costoTotalActual || val <= costoTotalActual))
@@ -596,16 +583,13 @@ function SimuladorCredito({ productosDisponibles }: { productosDisponibles: Prod
                     </div>
                   </div>
 
-                  {/* 4. Campo: Plazo (¿En cuánto tiempo desea pagar?) */}
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
                       <Label htmlFor="plazo" className="text-xs font-medium text-foreground flex items-center gap-1.5">
                         <Calendar className="size-3.5 text-brand-teal" />
                         ¿En cuánto tiempo quieres pagar?
                       </Label>
-                      <span className="text-muted-foreground text-xs">
-                        {plazoActual} {etiquetaPlazo}
-                      </span>
+                      <InfoHint label="Límites del plazo">De {productoSeleccionado.plazoMin} a {productoSeleccionado.plazoMax} {etiquetaPlazo}.</InfoHint>
                     </div>
                     <div className="relative">
                       <Input
@@ -623,19 +607,14 @@ function SimuladorCredito({ productosDisponibles }: { productosDisponibles: Prod
                     {errors.plazo && (
                       <p className="text-[11px] text-destructive">{errors.plazo.message}</p>
                     )}
-                    <div className="flex justify-between text-[10px] text-muted-foreground pt-0.5">
-                      <span>Mín: {productoSeleccionado.plazoMin} {etiquetaPlazo}</span>
-                      <span>Máx: {productoSeleccionado.plazoMax} {etiquetaPlazo}</span>
-                    </div>
                   </div>
 
-                  {/* 5. Campo: Sistema de Amortización (Filtrado según producto) */}
                   <div className="space-y-2">
                     <Label className="text-xs font-medium text-foreground">
                       Sistema de Amortización
                     </Label>
                     <div className="space-y-2 pt-0.5">
-                      {/* Opción Francés */}
+
                       {productoSeleccionado.sistemasPermitidos.includes('FRANCES') && (
                         <div
                           onClick={() => setValue('sistema', 'FRANCES')}
@@ -659,7 +638,6 @@ function SimuladorCredito({ productosDisponibles }: { productosDisponibles: Prod
                         </div>
                       )}
 
-                      {/* Opción Alemán */}
                       {productoSeleccionado.sistemasPermitidos.includes('ALEMAN') && (
                         <div
                           onClick={() => setValue('sistema', 'ALEMAN')}
@@ -683,18 +661,16 @@ function SimuladorCredito({ productosDisponibles }: { productosDisponibles: Prod
                         </div>
                       )}
 
-                      {/* Mensaje si el producto permite solo uno */}
                       {productoSeleccionado.sistemasPermitidos.length === 1 && (
                         <p className="text-[10px] text-muted-foreground italic flex items-center gap-1">
                           <Info className="size-3 text-brand-teal" />
-                          Este tipo de crédito está configurado exclusivamente para operar bajo el sistema seleccionado.
+                          Único sistema disponible para este crédito.
                         </p>
                       )}
                     </div>
                   </div>
 
-                  {/* Botón Principal de Simulación */}
-                  <div className="pt-2 relative z-10">
+                  <div className="sm:col-span-2 pt-2">
                     <Button
                       type="submit"
                       variant="brand"
@@ -704,7 +680,7 @@ function SimuladorCredito({ productosDisponibles }: { productosDisponibles: Prod
                       {mutation.isPending ? (
                         <>
                           <RefreshCw className="size-4 animate-spin" />
-                          <span>Calculando amortización oficial…</span>
+                          <span>Calculando…</span>
                         </>
                       ) : (
                         <>
@@ -719,11 +695,10 @@ function SimuladorCredito({ productosDisponibles }: { productosDisponibles: Prod
             </Card>
           </div>
 
-          {/* ── Columna Derecha: Tarjeta de Resumen y Tabla Oficial (7 Cols - Sticky Desktop) ── */}
-          <div className="lg:col-span-7 space-y-6 lg:sticky lg:top-24">
+          <section ref={resultsRef} tabIndex={-1} aria-label="Resultado de crédito" className="w-full min-w-0 space-y-6 scroll-mt-32 outline-none" aria-live="polite">
             {resultado ? (
               <div className="space-y-6">
-                {/* Encabezado de Resultados y Acciones (Línea gráfica develop) */}
+
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
                   <div>
                     <h2 className="text-xl font-heading font-medium text-foreground">
@@ -761,7 +736,6 @@ function SimuladorCredito({ productosDisponibles }: { productosDisponibles: Prod
                   totalPagar: resultado.totalPagar,
                 }} />
 
-                {/* 4 Métricas Clave (Nueva UI de develop) */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div className="rounded-xl border bg-card p-4 space-y-1 shadow-2xs">
                     <span className="text-[11px] font-medium uppercase tracking-wider text-brand-teal">
@@ -852,7 +826,6 @@ function SimuladorCredito({ productosDisponibles }: { productosDisponibles: Prod
                   }))}
                 />
 
-                {/* ── Tabla Oficial de Amortización (Directamente embebida como en develop) ──────────── */}
                 <div className="overflow-hidden rounded-xl border bg-card shadow-2xs">
                   <div className="flex items-center justify-between border-b px-5 py-4">
                     <div>
@@ -925,30 +898,29 @@ function SimuladorCredito({ productosDisponibles }: { productosDisponibles: Prod
               </div>
             ) : (
               /* Estado Inicial / Vacío */
-              <div className="flex flex-col items-center justify-center min-h-[460px] rounded-2xl border border-dashed border-border bg-card/50 p-8 text-center space-y-4">
+              <div className="flex flex-col items-center justify-center min-h-36 rounded-2xl border border-dashed border-border bg-card/50 p-8 text-center space-y-4">
                 <div className="flex size-14 items-center justify-center rounded-2xl bg-brand-teal/10 text-brand-teal">
                   <Calculator className="size-7 opacity-80" />
                 </div>
                 <div className="max-w-md space-y-1.5">
                   <h3 className="font-heading text-xl font-normal text-foreground">
-                    Tu simulación aparecerá aquí
+                    Tabla de pagos
                   </h3>
                   <p className="text-xs text-muted-foreground leading-relaxed">
-                    Selecciona el tipo de crédito, ingresa el monto y plazo deseado, y presiona <strong className="text-foreground font-medium">"Simular crédito"</strong> para ver tu tabla oficial con seguro de desgravamen y descargar el reporte en PDF.
+                    Simula para ver tus cuotas y descargar la tabla de pagos.
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
-                  <Badge variant="outline" className="text-xs">Normativa BCE Vigente</Badge>
+                  <Badge variant="outline" className="text-xs">Tasas BCE</Badge>
                   <Badge variant="outline" className="text-xs">Desgravamen sobre saldo</Badge>
-                  <Badge variant="outline" className="text-xs">Exportación PDF Oficial</Badge>
+                  <Badge variant="outline" className="text-xs">Descarga en PDF</Badge>
                 </div>
               </div>
             )}
-          </div>
+          </section>
         </div>
       </div>
 
-      {/* ── Modal / Dialog: Tabla Completa de Amortización ────────────────── */}
       <Dialog open={modalTablaAbierto} onOpenChange={setModalTablaAbierto}>
         <DialogContent className="max-w-4xl w-[95vw] max-h-[90vh] flex flex-col p-0 overflow-hidden bg-card border-border">
           <DialogHeader className="p-5 border-b border-border pb-4">
@@ -964,7 +936,6 @@ function SimuladorCredito({ productosDisponibles }: { productosDisponibles: Prod
             </div>
           </DialogHeader>
 
-          {/* Contenido del Modal: Tabla completa con todas las cuotas */}
           <div className="overflow-auto flex-1 p-5">
             <div className="overflow-x-auto rounded-lg border border-border">
               <table className="w-full text-xs">

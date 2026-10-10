@@ -53,7 +53,6 @@ public class SegmentoCreditoService {
         repository.save(e);
     }
 
-    // ─── Helpers ─────────────────────────────────────────────────────────────
 
     private SegmentoCreditoEntity getOrThrow(Long id) {
         return repository.findById(id)

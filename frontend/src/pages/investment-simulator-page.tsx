@@ -1,3 +1,4 @@
+import { InfoHint } from '@/components/shared/info-hint'
 import axios from 'axios'
 import { ArrowLeft, Goal, TrendingUp } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
@@ -157,6 +158,13 @@ export function InvestmentSimulatorPage() {
 
   // Abrir una simulación guardada: /inversiones/simulador?producto=&monto=&plazo=&unidad=&pago= la rellena
   // (estado inicial) y la calcula en cuanto cargan los planes.
+  const resultsRef = useRef<HTMLElement>(null)
+  useEffect(() => {
+    if (!result) return
+    resultsRef.current?.focus({ preventScroll: true })
+    resultsRef.current?.scrollIntoView({ block: 'start', inline: 'nearest' })
+  }, [result])
+
   const restored = useRef(false)
   const { mutate: simulate } = simulation
   useEffect(() => {
@@ -222,19 +230,20 @@ export function InvestmentSimulatorPage() {
         breadcrumbs={[
           { label: 'Inicio', href: '/' },
           { label: 'Inversiones', href: '/inversiones/simulador' },
-          { label: 'Simulador de Inversiones' },
+          { label: 'Simulador de inversiones' },
         ]}
-        title="Simulador de Inversiones"
-        description="Proyecta el rendimiento de un plan de inversión con las tasas y condiciones vigentes de la institución."
+        title="Simulador de inversiones"
+        description="Calcula cuánto puedes ganar y cuándo recibirás tus pagos."
         imageSrc={assets.investmentSimulatorImage ?? investmentPersonImage}
         imageAlt="Persona simulando una inversión financiera"
       />
-      <div className="mx-auto max-w-7xl px-5 py-8 sm:px-8 lg:py-12">
-        <div className="grid gap-8 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:items-start">
-          <form onSubmit={submit} className="space-y-6 rounded-xl border bg-card p-6 lg:sticky lg:top-24">
-            {products.data && products.data.length > 1 && <div className="space-y-2"><Label>Plan de inversión</Label><Select value={effectiveProductId} onValueChange={(value) => { setProductId(value); setAmount(''); setTermValue(''); setTermUnit(''); setPayoutFrequency(''); setSelectedCharges([]); setResult(undefined) }} disabled={products.isPending}><SelectTrigger><SelectValue placeholder="Selecciona un plan" /></SelectTrigger><SelectContent>{products.data.map((product) => <SelectItem key={product.id} value={String(product.id)}>{product.name}</SelectItem>)}</SelectContent></Select></div>}
-            {selected && <div className="rounded-lg bg-muted/40 p-4"><p className="font-medium text-foreground">{selected.name}</p><p className="mt-1 text-sm leading-6 text-muted-foreground">{selected.description}</p></div>}
-            <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted/50 p-1" role="radiogroup" aria-label="Qué quieres calcular">
+      <div className="mx-auto max-w-7xl px-5 py-8 sm:px-8 lg:py-10">
+        <div className="flex min-w-0 flex-col gap-8">
+          <form onSubmit={submit} className="simulator-form rounded-xl border bg-card p-5 sm:p-8">
+            <h2 className="sm:col-span-2 border-b pb-4 text-base font-medium">Condiciones de inversión</h2>
+            {products.data && products.data.length > 1 && <div className="space-y-2"><Label>Plan de inversión</Label><Select value={effectiveProductId} onValueChange={(value) => { setProductId(value); setAmount(''); setTermValue(''); setTermUnit(''); setPayoutFrequency(''); setSelectedCharges([]); setResult(undefined) }} disabled={products.isPending}><SelectTrigger className="w-full"><SelectValue placeholder="Selecciona un plan" /></SelectTrigger><SelectContent>{products.data.map((product) => <SelectItem key={product.id} value={String(product.id)}>{product.name}</SelectItem>)}</SelectContent></Select></div>}
+            {selected && <div className="flex items-center justify-between gap-2 rounded-lg bg-muted/40 p-4"><p className="font-medium text-foreground">{selected.name}</p><InfoHint label="Acerca del plan">{selected.description}</InfoHint></div>}
+            <div className="sm:col-span-2 grid grid-cols-2 gap-1 rounded-lg bg-muted/50 p-1" role="radiogroup" aria-label="Qué quieres calcular">
               {([['amount', 'Sé cuánto invertir'], ['goal', 'Tengo una meta']] as const).map(([value, label]) => (
                 <button key={value} type="button" role="radio" aria-checked={mode === value}
                   onClick={() => { setMode(value); setResult(undefined); setGoal(undefined) }}
@@ -244,19 +253,19 @@ export function InvestmentSimulatorPage() {
               ))}
             </div>
             {mode === 'amount' ? (
-            <div className="space-y-2"><div className="flex flex-wrap items-baseline justify-between gap-2"><Label htmlFor="simulation-amount">Monto a invertir</Label>{selected && <span id="amount-conditions" className="text-xs text-muted-foreground">Permitido: {formatCurrency(selected.minimumAmount)} a {formatCurrency(selected.maximumAmount)}</span>}</div><Input id="simulation-amount" aria-describedby="amount-conditions amount-error" aria-invalid={Boolean(amountError)} className={amountError ? 'border-destructive focus-visible:ring-destructive' : undefined} type="number" step="0.01" min={selected?.minimumAmount} max={selected?.maximumAmount} value={effectiveAmount} onChange={(event) => { setAmount(event.target.value); setResult(undefined) }} required />{amountError && <p id="amount-error" className="text-xs text-destructive">{amountError}</p>}</div>
+            <div className="space-y-2"><div className="flex flex-wrap items-baseline justify-between gap-2"><Label htmlFor="simulation-amount">Monto a invertir</Label>{selected && <InfoHint id="amount-conditions" label="Límites del monto">De {formatCurrency(selected.minimumAmount)} a {formatCurrency(selected.maximumAmount)}.</InfoHint>}</div><Input id="simulation-amount" aria-describedby="amount-conditions amount-error" aria-invalid={Boolean(amountError)} className={amountError ? 'border-destructive focus-visible:ring-destructive' : undefined} type="number" step="0.01" min={selected?.minimumAmount} max={selected?.maximumAmount} value={effectiveAmount} onChange={(event) => { setAmount(event.target.value); setResult(undefined) }} required />{amountError && <p id="amount-error" className="text-xs text-destructive">{amountError}</p>}</div>
             ) : (
               <div className="space-y-2">
                 <Label htmlFor="simulation-target">¿Cuánto quieres reunir?</Label>
                 <Input id="simulation-target" type="number" min="1" step="0.01" required value={target}
                   onChange={(event) => { setTarget(event.target.value); setResult(undefined); setGoal(undefined) }} aria-describedby="target-hint" />
-                <p id="target-hint" className="text-xs text-muted-foreground">Te diremos cuánto invertir hoy para llegar a ese valor al vencimiento, con el plazo y la forma de pago que elijas.</p>
+                <p id="target-hint" className="text-xs text-muted-foreground">Calcularemos el capital necesario para alcanzar tu meta.</p>
               </div>
             )}
-            <div className="space-y-3"><div className="flex flex-wrap items-baseline justify-between gap-2"><Label htmlFor="simulation-term">Plazo</Label>{selectedTermUnit && <span id="term-conditions" className="text-xs text-muted-foreground">Entre {selectedTermUnit.minimumValue} y {selectedTermUnit.maximumValue} {termUnitLabels[effectiveTermUnit].toLowerCase()}</span>}</div>{termUnits.length > 1 && <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${termUnits.length}, minmax(0, 1fr))` }}>{termUnits.map((item) => <Button key={item.unit} type="button" variant={effectiveTermUnit === item.unit ? 'default' : 'outline'} onClick={() => { setTermUnit(item.unit); setTermValue(''); setPayoutFrequency(''); setResult(undefined) }}>{termUnitLabels[item.unit]}</Button>)}</div>}<Input id="simulation-term" aria-describedby="term-conditions term-error" aria-invalid={Boolean(termError)} className={termError ? 'border-destructive focus-visible:ring-destructive' : undefined} type="number" min={selectedTermUnit?.minimumValue} max={selectedTermUnit?.maximumValue} step="1" value={effectiveTermValue} onChange={(event) => { setTermValue(event.target.value); setResult(undefined) }} required />{termError
+            <div className="space-y-3"><div className="flex flex-wrap items-baseline justify-between gap-2"><Label htmlFor="simulation-term">Plazo</Label>{selectedTermUnit && <InfoHint id="term-conditions" label="Límites del plazo">De {selectedTermUnit.minimumValue} a {selectedTermUnit.maximumValue} {termUnitLabels[effectiveTermUnit].toLowerCase()}.</InfoHint>}</div>{termUnits.length > 1 && <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${termUnits.length}, minmax(0, 1fr))` }}>{termUnits.map((item) => <Button key={item.unit} type="button" variant={effectiveTermUnit === item.unit ? 'default' : 'outline'} onClick={() => { setTermUnit(item.unit); setTermValue(''); setPayoutFrequency(''); setResult(undefined) }}>{termUnitLabels[item.unit]}</Button>)}</div>}<Input id="simulation-term" aria-describedby="term-conditions term-error" aria-invalid={Boolean(termError)} className={termError ? 'border-destructive focus-visible:ring-destructive' : undefined} type="number" min={selectedTermUnit?.minimumValue} max={selectedTermUnit?.maximumValue} step="1" value={effectiveTermValue} onChange={(event) => { setTermValue(event.target.value); setResult(undefined) }} required />{termError
               ? <p id="term-error" className="text-xs text-destructive">{termError}</p>
               : effectiveTermUnit !== 'DAYS' && realTermDays > 0 && <p className="text-xs text-muted-foreground">Equivale a {realTermDays} días reales; la tasa y el interés se calculan con esos días.</p>}</div>
-            <div className="space-y-2"><div className="flex flex-wrap items-baseline justify-between gap-2"><Label>Pago de intereses</Label>{selected && <span className="text-xs text-muted-foreground">Opciones compatibles con el plazo</span>}</div><Select value={effectivePayoutFrequency} onValueChange={(value) => { setPayoutFrequency(value); setResult(undefined) }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{availableFrequencies.map((frequency) => <SelectItem key={frequency} value={frequency}>{payoutLabels[frequency]}</SelectItem>)}</SelectContent></Select></div>
+            <div className="space-y-2"><div className="flex flex-wrap items-baseline justify-between gap-2"><Label>Pago de intereses</Label>{selected && <InfoHint label="Frecuencia de pago">Se muestran los pagos compatibles con tu plazo.</InfoHint>}</div><Select value={effectivePayoutFrequency} onValueChange={(value) => { setPayoutFrequency(value); setResult(undefined) }}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent>{availableFrequencies.map((frequency) => <SelectItem key={frequency} value={frequency}>{payoutLabels[frequency]}</SelectItem>)}</SelectContent></Select></div>
             {activeCharges.length > 0 && (
               <div className="space-y-2">
                 <Label>Costos del plan</Label>
@@ -282,12 +291,12 @@ export function InvestmentSimulatorPage() {
             {products.isError && <p className="text-sm text-destructive">No se pudieron cargar los planes de inversión.</p>}
             {!products.isPending && products.data?.length === 0 && <p className="text-sm text-muted-foreground">No hay planes de inversión disponibles por ahora.</p>}
             {!effectivePayoutFrequency && selected && <p className="text-xs text-destructive">No existe una frecuencia de pago compatible con este plazo.</p>}
-            <Button type="submit" className="w-full" size="lg" disabled={!canSimulate || simulation.isPending || goalSearch.isPending}>{simulation.isPending || goalSearch.isPending ? 'Calculando…' : mode === 'goal' ? 'Calcular cuánto invertir' : 'Simular inversión'}</Button>
-            <p className="text-xs leading-5 text-muted-foreground">La simulación es referencial y no constituye una oferta ni una contratación.</p>
+            <Button type="submit" variant="brand" className="w-full sm:col-span-2" size="lg" disabled={!canSimulate || simulation.isPending || goalSearch.isPending}>{simulation.isPending || goalSearch.isPending ? 'Calculando…' : mode === 'goal' ? 'Calcular cuánto invertir' : 'Simular inversión'}</Button>
+            <p className="sm:col-span-2 text-xs leading-5 text-muted-foreground">La simulación es referencial y no constituye una oferta ni una contratación.</p>
           </form>
 
-          <section aria-live="polite">
-            {!result && <div className="flex min-h-80 flex-col items-center justify-center rounded-xl border border-dashed px-8 text-center"><TrendingUp className="size-10 text-brand-gold" /><h2 className="mt-5 text-xl">Completa los parámetros</h2><p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">Aquí aparecerán la tasa aplicable, el rendimiento y el cronograma estimado.</p></div>}
+          <section ref={resultsRef} tabIndex={-1} aria-label="Resultado de inversión" className="min-w-0 scroll-mt-32 outline-none" aria-live="polite">
+            {!result && <div className="flex min-h-36 flex-col items-center justify-center rounded-xl border bg-muted/20 p-6 text-center"><TrendingUp className="size-10 text-brand-gold" /><h2 className="mt-5 text-xl">Completa los parámetros</h2><p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">Simula para ver tus rendimientos y pagos.</p></div>}
             {result && <SimulationResults result={result} goal={goal} pending={pdf.isPending ? 'pdf' : excel.isPending ? 'excel' : null} onDownload={(format) => format === 'pdf' ? pdf.mutate(currentRequest()) : excel.mutate(result)} />}
           </section>
         </div>

@@ -87,7 +87,6 @@ public class RangoCreditoService {
         repository.save(e);
     }
 
-    // ─── Helpers ─────────────────────────────────────────────────────────────
 
     private RangoCreditoEntity getOrThrow(Long id) {
         return repository.findById(id)

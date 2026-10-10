@@ -2,6 +2,12 @@
 .DS_Store
 Thumbs.db
 
+# Local credentials; only examples and the public frontend URL are versioned.
+**/.env
+**/.env.*
+!**/.env.example
+!frontend/.env.production
+
 # Workspace-level editor settings
 .idea/
 *.iml

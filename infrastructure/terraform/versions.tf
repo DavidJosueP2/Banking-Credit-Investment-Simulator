@@ -8,7 +8,7 @@ terraform {
     }
   }
 
-  # El bucket se crea una sola vez con los comandos documentados en README.md.
+  # Bucket de estado creado fuera de esta configuración.
   # production.hcl configures production state storage during terraform init.
   backend "s3" {}
 }

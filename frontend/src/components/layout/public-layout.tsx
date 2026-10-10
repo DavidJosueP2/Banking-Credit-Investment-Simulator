@@ -16,8 +16,6 @@ function PublicNavLink({
   children: React.ReactNode
 }) {
   const isHashOrExternal =
-    href.startsWith('#') ||
-    href.startsWith('/#') ||
     href.startsWith('http://') ||
     href.startsWith('https://')
 
@@ -31,8 +29,13 @@ function PublicNavLink({
   return (
     <Link
       to={href}
+      preventScrollReset={href.includes("#")}
       className={className}
       onClick={() => {
+        if (href.includes('#')) {
+          const target = document.getElementById(href.split('#')[1])
+          target?.scrollIntoView({ block: 'start' })
+        }
         if (href === '/') {
           window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
         }
@@ -78,15 +81,15 @@ export function PublicLayout() {
   const visibleNavItems = navItems.filter((item) => item.visible)
 
   return (
-    <div className="min-h-svh">
+    <div className="min-h-svh min-w-0 overflow-x-clip">
       <ScrollRestoration />
       <a href="#contenido" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:bg-background focus:px-4 focus:py-2">
         Ir al contenido
       </a>
       <header className="sticky top-0 z-40 bg-background">
-        <div className="mx-auto flex h-18 max-w-7xl items-center justify-between gap-5 px-5 sm:px-8">
+        <div className="mx-auto flex h-18 max-w-7xl items-center justify-between gap-3 px-5 sm:px-8">
           <Link to="/" aria-label={`${institution.institutionName}, inicio`}>
-            <BrandLogo className="h-12 w-44 sm:w-48" decorative />
+            <BrandLogo className="h-12 w-32 sm:w-48" decorative />
           </Link>
           <nav className="hidden items-center gap-7 text-sm font-medium md:flex" aria-label="Navegación principal">
             {visibleNavItems.map((item) => (
@@ -100,7 +103,7 @@ export function PublicLayout() {
             <ThemeToggle />
           </div>
         </div>
-        <nav className="flex items-center justify-between gap-4 px-5 py-3 text-sm sm:px-8 md:hidden" aria-label="Navegación móvil">
+        <nav className="grid grid-cols-4 items-center gap-2 px-4 py-3 text-center text-xs sm:px-8 sm:text-sm md:hidden" aria-label="Navegación móvil">
           {visibleNavItems.map((item) => (
             <PublicNavLink key={item.key} href={item.href} className="hover:text-brand-teal">
               {item.label}

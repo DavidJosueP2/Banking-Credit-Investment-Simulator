@@ -45,11 +45,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
     refetchOnWindowFocus: 'always',
   })
 
+  const { refetch } = query
   const refreshAccount = useCallback(async (): Promise<Account | null> => {
-    const result = await query.refetch()
+    const result = await refetch()
     if (result.isError) throw result.error
     return result.data ?? null
-  }, [query.refetch])
+  }, [refetch])
 
   async function login(username: string, password: string): Promise<Account> {
     const fields = new URLSearchParams({ username, password })

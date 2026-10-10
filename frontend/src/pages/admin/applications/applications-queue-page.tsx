@@ -82,16 +82,16 @@ export function ApplicationsQueuePage() {
       <PageHeader
         title="Solicitudes"
         description={analystOnly
-          ? 'Decide los créditos que los asesores recomendaron. No puedes decidir una solicitud que hayas revisado como asesor.'
+          ? 'Evalúa los créditos recomendados por otro asesor.'
           : audit && !seesCreditReview(hasPermission)
-            ? 'Consulta las solicitudes y su trazabilidad. La administración no decide operaciones individuales.'
-            : 'Revisa las solicitudes que los clientes enviaron en línea. Solo ves los productos que tu rol puede evaluar.'}
+            ? 'Consulta el historial de las solicitudes.'
+            : 'Revisa las solicitudes pendientes.'}
         className="border-b pb-6"
       />
 
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <Tabs value={filter} onValueChange={(value) => setFilter(value as Filter)}>
-          <TabsList className="flex-wrap">
+      <div className="flex min-w-0 flex-col gap-4">
+        <Tabs className="min-w-0 overflow-x-auto pb-1" value={filter} onValueChange={(value) => setFilter(value as Filter)}>
+          <TabsList className="h-auto w-max justify-start">
             {filters.map((item) => (
               <TabsTrigger key={item.value} value={item.value}>
                 {item.label}
@@ -123,7 +123,7 @@ export function ApplicationsQueuePage() {
         <div className="flex flex-col items-center rounded-xl border border-dashed px-6 py-14 text-center">
           <Inbox className="size-8 text-muted-foreground" aria-hidden="true" />
           <p className="mt-3 font-medium">No hay solicitudes aquí</p>
-          <p className="mt-1 text-sm text-muted-foreground">Las nuevas solicitudes aparecerán automáticamente.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Prueba otro estado o búsqueda.</p>
         </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border">

@@ -225,11 +225,7 @@ const GROWTH_SERIES = {
   interes: { label: 'Interés acumulado', theme: { light: '#1baf7a', dark: '#199e70' } },
 } satisfies ChartConfig
 
-/**
- * Interés compuesto: interés acumulado al final de cada capitalización, con el eje desde cero. Cada barra
- * crece más que la anterior porque el interés también genera interés. El capital no se grafica: al lado del
- * interés las barras quedarían planas, y recortar el eje exageraría el crecimiento.
- */
+/** Grafica el interés acumulado por capitalización con eje desde cero y sin incluir el capital. */
 export function InvestmentGrowthChart({ result }: { result: SimulationResult }) {
   const { frequency, rows } = compoundGrowth(result)
   const [unit] = CAPITALIZATION_LABELS[frequency] ?? CAPITALIZATION_LABELS.ANNUAL

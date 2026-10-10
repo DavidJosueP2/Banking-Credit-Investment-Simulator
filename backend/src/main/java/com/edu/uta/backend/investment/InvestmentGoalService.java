@@ -8,10 +8,7 @@ import java.util.NoSuchElementException;
 
 import org.springframework.stereotype.Service;
 
-/**
- * Meta de ahorro: "quiero reunir X en este plazo, ¿cuánto invierto?". Prueba capitales con el mismo
- * simulador de inversiones (tasas por tramo, retenciones, forma de pago), sin fórmula paralela.
- */
+/** Busca el capital necesario para una meta mediante el simulador de inversiones. */
 @Service
 public class InvestmentGoalService {
 

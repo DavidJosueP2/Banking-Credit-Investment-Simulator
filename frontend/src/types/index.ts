@@ -5,7 +5,6 @@ export type {
   PageResponse,
 } from './api'
 
-// ─── Tipos del Simulador de Créditos ─────────────────────────────────────────
 
 export interface SegmentoCredito {
   id: number

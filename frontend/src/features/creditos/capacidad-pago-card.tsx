@@ -38,7 +38,7 @@ export function CapacidadPagoCard({ productoId, plazo, sistema, cargosOpcionales
       <button type="button" onClick={() => setAbierta(true)}
         className="flex w-full items-center gap-2 rounded-xl border border-dashed border-brand-teal/40 px-3.5 py-2.5 text-left text-xs text-brand-teal hover:bg-brand-teal/5">
         <HandCoins className="size-4 shrink-0" aria-hidden="true" />
-        <span><strong className="font-medium">¿Cuánto me prestan?</strong> Dinos cuánto puedes pagar por {anual ? 'año' : 'mes'} y te decimos el monto máximo.</span>
+        <span>Calcular según mi capacidad de pago</span>
       </button>
     )
   }

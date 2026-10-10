@@ -119,7 +119,6 @@ public class CreditoConfiguracionService {
         return toResponseDto(p, tasaActiva(p), parseSistemas(p.getSistemasPermitidos()), cargosActivos(p));
     }
 
-    // ─── Validaciones ────────────────────────────────────────────────────────
 
     /** Devuelve los cobros indirectos normalizados; cualquier incumplimiento detiene el guardado. */
     private List<CargoConfiguracionDto> validar(ConfigurarCreditoRequestDto dto, String segmentoActual) {
@@ -161,7 +160,6 @@ public class CreditoConfiguracionService {
         return normativaService.validarCargos(dto.cargosIndirectos(), hoy);
     }
 
-    // ─── Persistencia ────────────────────────────────────────────────────────
 
     private void aplicar(ProductoCreditoEntity producto, ConfigurarCreditoRequestDto dto) {
         String segmento = normativaService.normalizarSegmentoKey(dto.segmentoBce());
@@ -250,7 +248,6 @@ public class CreditoConfiguracionService {
         return value;
     }
 
-    // ─── Respuestas ──────────────────────────────────────────────────────────
 
     private static BigDecimal tasaActiva(ProductoCreditoEntity p) {
         return p.getTasas() == null ? null : p.getTasas().stream()
