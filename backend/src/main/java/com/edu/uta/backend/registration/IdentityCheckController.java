@@ -72,7 +72,7 @@ public class IdentityCheckController {
 
     @ExceptionHandler(SdkException.class)
     public ResponseEntity<Map<String, String>> unavailable(SdkException exception) {
-        // GetFederationToken exige que el usuario IAM tenga el permiso sts:GetFederationToken.
+        // El task role debe poder asumir el rol temporal dedicado a Face Liveness.
         log.error("Falló una llamada a AWS durante la verificación de identidad", exception);
         return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of("message",
                 "El servicio de verificación no respondió. Inténtalo en unos minutos."));

@@ -1,0 +1,55 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT:5432}/${DB_NAME}?currentSchema=${DB_SCHEMA:financiero}&sslmode=${DB_SSL_MODE:require}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+  jpa:
+    properties:
+      hibernate:
+        format_sql: false
+  mail:
+    host: ${SMTP_HOST}
+    port: ${SMTP_PORT:587}
+    username: ${SMTP_USERNAME}
+    password: ${SMTP_PASSWORD}
+    properties:
+      mail.smtp:
+        auth: true
+        starttls.enable: true
+        starttls.required: true
+        connectiontimeout: 5000
+        timeout: 5000
+        writetimeout: 5000
+
+server:
+  forward-headers-strategy: native
+  shutdown: graceful
+  servlet:
+    session:
+      cookie:
+        secure: true
+        same-site: strict
+
+app:
+  cors:
+    allowed-origin: ${FRONTEND_URL}
+  mail:
+    sender: ${MAIL_SENDER}
+
+aws:
+  region: ${AWS_REGION}
+  liveness-role-arn: ${AWS_LIVENESS_ROLE_ARN}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,db

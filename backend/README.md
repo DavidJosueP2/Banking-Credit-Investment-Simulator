@@ -41,9 +41,9 @@ No es necesario instalar Gradle globalmente porque el proyecto incluye Gradle Wr
 | `SERVER_PORT` | Puerto HTTP de Spring Boot. | `8080` |
 | `FRONTEND_URL` | Origen autorizado por la política CORS. | `http://localhost:5173` |
 | `APP_TIME_ZONE` | Zona horaria de la aplicación y PostgreSQL local. | `America/Guayaquil` |
-| `APP_BOOTSTRAP_PASSWORD` | Contraseña inicial para crear el primer administrador, si aún no existe. Mínimo 12 caracteres. | Defínela solo en el entorno local. |
+| `APP_INITIAL_ADMIN_PASSWORD` | Contraseña inicial para crear el primer administrador, si aún no existe. Mínimo 12 caracteres. | Defínela solo en el entorno local. |
 | `spring.profiles.active` | Activa el perfil de desarrollo en el archivo `.env` importado como propiedades. | `dev` |
-| `APP_EXAMPLE_PASSWORD` | Contraseña para las cuatro cuentas de ejemplo en `dev`. Admite `password123` solo en ese perfil; otra contraseña debe tener al menos 12 caracteres. | `password123` solo para desarrollo local. |
+| `APP_DEV_DEMO_USERS_PASSWORD` | Contraseña para las cuatro cuentas de ejemplo en `dev`. Admite `password123` solo en ese perfil; otra contraseña debe tener al menos 12 caracteres. | `password123` solo para desarrollo local. |
 
 Los valores incluidos son exclusivamente para desarrollo local. Usa secretos seguros y variables del sistema en otros entornos.
 
@@ -101,9 +101,9 @@ Spring Security exige una sesión para los endpoints privados. Los cambios de es
 
 ## Cuentas y acceso
 
-En `.env`, configura `APP_BOOTSTRAP_PASSWORD` con una contraseña propia de al menos 12 caracteres para crear `admin@brunexa.com` al iniciar fuera de `dev`. La cuenta se crea solo si aún no existe; cambiar la variable después no cambia su contraseña.
+En `.env`, configura `APP_INITIAL_ADMIN_PASSWORD` con una contraseña propia de al menos 12 caracteres para crear `admin@brunexa.com` al iniciar fuera de `dev`. La cuenta se crea solo si aún no existe; cambiar la variable después no cambia su contraseña.
 
-Para trabajar con cuentas de ejemplo, usa `spring.profiles.active=dev` y `APP_EXAMPLE_PASSWORD=password123` en `backend/.env`. Esta contraseña corta se admite únicamente en la creación automática del perfil `dev`, nunca en la creación normal de usuarios. Se crean, si no existen, estas cuentas:
+Para trabajar con cuentas de ejemplo, usa `spring.profiles.active=dev` y `APP_DEV_DEMO_USERS_PASSWORD=password123` en `backend/.env`. Esta contraseña corta se admite únicamente en la creación automática del perfil `dev`, nunca en la creación normal de usuarios. Se crean, si no existen, estas cuentas:
 
 | Usuario | Correo | Rol |
 | --- | --- | --- |
@@ -115,7 +115,7 @@ Para trabajar con cuentas de ejemplo, usa `spring.profiles.active=dev` y `APP_EX
 
 El login usa el **usuario**, no el correo (formulario `username`/`password` en `POST /api/auth/login`).
 
-En desarrollo usa solo `APP_EXAMPLE_PASSWORD` si quieres que las cuatro cuentas compartan esa contraseña inicial; no definas también `APP_BOOTSTRAP_PASSWORD` con otra contraseña. No publiques `password123` ni uses el perfil `dev` fuera del entorno local. La contraseña se almacena como hash BCrypt, no en texto plano en PostgreSQL. Quita el perfil `dev` y la variable de ejemplo fuera del entorno local.
+En desarrollo usa solo `APP_DEV_DEMO_USERS_PASSWORD` si quieres que las cuatro cuentas compartan esa contraseña inicial; no definas también `APP_INITIAL_ADMIN_PASSWORD` con otra contraseña. No publiques `password123` ni uses el perfil `dev` fuera del entorno local. La contraseña se almacena como hash BCrypt, no en texto plano en PostgreSQL. Quita el perfil `dev` y la variable de ejemplo fuera del entorno local.
 
 El frontend usa `GET /api/auth/csrf`, `POST /api/auth/login` (formulario `username`/`password`), `GET /api/auth/me` y `POST /api/auth/logout`. El administrador puede consultar `GET /api/admin/users`, `/roles`, `/permissions`, crear cuentas con `POST /api/admin/users` y asignar roles con `PUT /api/admin/users/{id}/roles`. El backend vuelve a comprobar las autoridades persistidas en cada petición privada; una revocación se aplica sin esperar a que expire la sesión.
 

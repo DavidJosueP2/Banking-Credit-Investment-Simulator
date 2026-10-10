@@ -13,7 +13,7 @@ import java.util.List;
 @Getter
 @Setter
 @Entity
-@Table(name = "producto_credito", schema = "financiero")
+@Table(name = "producto_credito")
 public class ProductoCreditoEntity {
 
     @Id

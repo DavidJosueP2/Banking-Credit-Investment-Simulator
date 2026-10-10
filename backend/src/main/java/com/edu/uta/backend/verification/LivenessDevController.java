@@ -14,8 +14,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import software.amazon.awssdk.services.sts.StsClient;
-
 /**
  * Banco de pruebas del paso biométrico. Solo existe con el perfil dev:
  * en producción el liveness se dispara desde la operación sensible, no desde una pantalla suelta.
@@ -25,23 +23,21 @@ import software.amazon.awssdk.services.sts.StsClient;
 @Profile("dev")
 public class LivenessDevController {
 
-    private static final int CREDENTIALS_SECONDS = 900;
-
     private final LivenessService liveness;
-    private final StsClient sts;
+    private final LivenessCredentialsService livenessCredentials;
     private final AwsProperties properties;
 
-    public LivenessDevController(LivenessService liveness, StsClient sts, AwsProperties properties) {
+    public LivenessDevController(LivenessService liveness, LivenessCredentialsService livenessCredentials,
+                                 AwsProperties properties) {
         this.liveness = liveness;
-        this.sts = sts;
+        this.livenessCredentials = livenessCredentials;
         this.properties = properties;
     }
 
     /** Credenciales efímeras para que el componente del navegador hable con Rekognition. */
     @PostMapping("/credentials")
     public Map<String, String> credentials() {
-        var temporary = sts.getSessionToken(request -> request.durationSeconds(CREDENTIALS_SECONDS))
-                .credentials();
+        var temporary = livenessCredentials.issue();
         return Map.of(
                 "region", properties.region(),
                 "accessKeyId", temporary.accessKeyId(),

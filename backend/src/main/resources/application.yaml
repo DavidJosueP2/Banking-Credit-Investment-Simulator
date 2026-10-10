@@ -43,6 +43,12 @@ server:
         same-site: strict
         secure: ${COOKIE_SECURE:false}
 
+aws:
+  region: ${AWS_REGION:us-east-1}
+  liveness-role-arn: ${AWS_LIVENESS_ROLE_ARN:}
+  rekognition:
+    collection: ${AWS_REKOGNITION_COLLECTION:brn-clients}
+
 app:
   biometrics:
     # Umbral de prueba de vida: 50-60 detecta fotos y pantallas; 80-90, deepfakes y video inyectado.

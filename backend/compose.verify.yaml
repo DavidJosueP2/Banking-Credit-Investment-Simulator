@@ -1,0 +1,39 @@
+# Entorno descartable de verificación. No utiliza .env ni la base de desarrollo.
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: deploy_check
+      POSTGRES_USER: deploy_check
+      POSTGRES_PASSWORD: local-check-only
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U deploy_check -d deploy_check"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  backend:
+    image: brunexa-backend:local
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:18080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_HOST: db
+      DB_NAME: deploy_check
+      DB_USER: deploy_check
+      DB_PASSWORD: local-check-only
+      # Solo para este PostgreSQL local, que no dispone de TLS.
+      DB_SSL_MODE: disable
+      FRONTEND_URL: https://app.example.com
+      AWS_REGION: us-east-1
+      AWS_LIVENESS_ROLE_ARN: arn:aws:iam::123456789012:role/verification-only
+      AWS_EC2_METADATA_DISABLED: "true"
+      SMTP_HOST: localhost
+      SMTP_USERNAME: verification-only
+      SMTP_PASSWORD: verification-only
+      MAIL_SENDER: no-reply@example.com
+      APP_INITIAL_ADMIN_PASSWORD: LocalCheckOnly-12345
+# SMTP y AWS son marcadores sin conexión real: este entorno verifica arranque,
+# migraciones, sesión, CORS y cookies. No prueba envíos ni biometría real.

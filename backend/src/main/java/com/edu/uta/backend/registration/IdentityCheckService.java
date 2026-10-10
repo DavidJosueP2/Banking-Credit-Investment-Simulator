@@ -12,12 +12,11 @@ import com.edu.uta.backend.verification.AwsProperties;
 import com.edu.uta.backend.verification.CustomerBiometricRepository;
 import com.edu.uta.backend.verification.DocumentOcrService;
 import com.edu.uta.backend.verification.FaceService;
+import com.edu.uta.backend.verification.LivenessCredentialsService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import jakarta.servlet.http.HttpSession;
-import software.amazon.awssdk.services.sts.StsClient;
-
 /**
  * Verifica una identidad: el documento (número, código dactilar o vencimiento y fotos de ambas caras)
  * y una prueba de vida contra la foto del documento. Sirve para registrarse (sin titular) y para que
@@ -32,30 +31,25 @@ public class IdentityCheckService {
     /** Cada análisis cuesta una llamada a Textract o Rekognition: se limita por sesión. */
     private static final int MAX_ANALYSES = 12;
     private static final int MAX_LIVENESS = 3;
-    private static final int CREDENTIALS_SECONDS = 900;
-    /** Las credenciales que viajan a un navegador anónimo solo sirven para abrir la prueba de vida. */
-    private static final String LIVENESS_ONLY_POLICY = """
-            {"Version":"2012-10-17","Statement":[{"Effect":"Allow",\
-            "Action":"rekognition:StartFaceLivenessSession","Resource":"*"}]}""";
-
     private final DocumentOcrService ocr;
     private final FaceService faces;
     private final CustomerProfileRepository profiles;
     private final CustomerBiometricRepository biometrics;
-    private final StsClient sts;
+    private final LivenessCredentialsService livenessCredentials;
     private final AwsProperties properties;
     private final double minLiveness;
     private final double documentSimilarity;
 
     public IdentityCheckService(DocumentOcrService ocr, FaceService faces, CustomerProfileRepository profiles,
-                                CustomerBiometricRepository biometrics, StsClient sts, AwsProperties properties,
+                                CustomerBiometricRepository biometrics, LivenessCredentialsService livenessCredentials,
+                                AwsProperties properties,
                                 @Value("${app.biometrics.min-liveness:75}") double minLiveness,
                                 @Value("${app.biometrics.document-similarity:95}") double documentSimilarity) {
         this.ocr = ocr;
         this.faces = faces;
         this.profiles = profiles;
         this.biometrics = biometrics;
-        this.sts = sts;
+        this.livenessCredentials = livenessCredentials;
         this.properties = properties;
         this.minLiveness = minLiveness;
         this.documentSimilarity = documentSimilarity;
@@ -210,10 +204,7 @@ public class IdentityCheckService {
         attempt.verifiedSessionId = null;
         session.setAttribute(ATTEMPT, attempt);
 
-        var credentials = sts.getFederationToken(request -> request
-                .name("brunexa-liveness")
-                .policy(LIVENESS_ONLY_POLICY)
-                .durationSeconds(CREDENTIALS_SECONDS)).credentials();
+        var credentials = livenessCredentials.issue();
         return new LivenessTicket(attempt.livenessSessionId, properties.region(), credentials.accessKeyId(),
                 credentials.secretAccessKey(), credentials.sessionToken(), credentials.expiration().toString());
     }

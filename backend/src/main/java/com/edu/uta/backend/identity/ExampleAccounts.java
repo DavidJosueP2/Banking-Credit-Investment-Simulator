@@ -17,7 +17,7 @@ public class ExampleAccounts {
 
     @Bean
     ApplicationRunner bootstrapAdministrator(IdentityService identity,
-            @Value("${APP_BOOTSTRAP_PASSWORD:}") String password) {
+            @Value("${APP_INITIAL_ADMIN_PASSWORD:}") String password) {
         return arguments -> {
             if (!password.isBlank() && !identity.exists("admin@brunexa.com")) {
                 identity.createAccount("admin", "admin@brunexa.com", "Administración Brunexa",
@@ -30,7 +30,7 @@ public class ExampleAccounts {
     @Profile("dev")
     ApplicationRunner seedDevelopmentAccounts(IdentityService identity,
             JdbcTemplate jdbc, PasswordEncoder encoder, PlatformTransactionManager transactionManager,
-            @Value("${APP_EXAMPLE_PASSWORD:}") String password) {
+            @Value("${APP_DEV_DEMO_USERS_PASSWORD:}") String password) {
         return arguments -> {
             if (password.isBlank()) return;
             if (password.length() < 12 && !password.equals("password123")) {

@@ -9,6 +9,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Component;
@@ -24,20 +26,26 @@ public class VerificationMailer {
     private final String sender;
     private final String senderName;
     private final String frontendUrl;
+    private final boolean production;
 
     public VerificationMailer(ObjectProvider<JavaMailSender> mailSender,
                               @Value("${app.mail.sender:no-reply@brunexa.com}") String sender,
                               @Value("${app.mail.sender-name:Brunexa}") String senderName,
-                              @Value("${app.cors.allowed-origin:http://localhost:5173}") String frontendUrl) {
+                              @Value("${app.cors.allowed-origin:http://localhost:5173}") String frontendUrl,
+                              Environment environment) {
         this.mailSender = mailSender;
         this.sender = sender;
         this.senderName = senderName;
         this.frontendUrl = frontendUrl.replaceAll("/+$", "");
+        this.production = environment.acceptsProfiles(Profiles.of("prod"));
     }
 
     public void sendVerificationCode(String email, String code, Instant expiresAt) {
         JavaMailSender available = mailSender.getIfAvailable();
         if (available == null) {
+            if (production) {
+                throw new IllegalStateException("El servicio de correo no está configurado");
+            }
             log.warn("Correo no configurado. Código de verificación para {}: {}", email, code);
             return;
         }
@@ -54,8 +62,10 @@ public class VerificationMailer {
                     htmlBody(code, lifetimeMinutes, verificationUrl));
             available.send(message);
         } catch (Exception exception) {
-            log.error("No se pudo enviar el código de verificación a {}. Código para pruebas: {}",
-                    email, code, exception);
+            log.error("No se pudo enviar el código de verificación a {}", email);
+            if (production) {
+                throw new IllegalStateException("No se pudo enviar el correo de verificación");
+            }
         }
     }
 

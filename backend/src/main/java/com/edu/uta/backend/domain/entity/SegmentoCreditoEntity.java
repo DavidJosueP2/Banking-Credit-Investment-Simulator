@@ -11,7 +11,7 @@ import java.util.List;
 @Getter
 @Setter
 @Entity
-@Table(name = "segmento_credito", schema = "financiero")
+@Table(name = "segmento_credito")
 public class SegmentoCreditoEntity {
 
     @Id

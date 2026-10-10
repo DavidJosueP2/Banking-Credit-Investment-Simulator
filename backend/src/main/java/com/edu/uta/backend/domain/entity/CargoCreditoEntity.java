@@ -11,7 +11,7 @@ import java.time.OffsetDateTime;
 @Getter
 @Setter
 @Entity
-@Table(name = "cargo_credito", schema = "financiero")
+@Table(name = "cargo_credito")
 public class CargoCreditoEntity {
 
     @Id

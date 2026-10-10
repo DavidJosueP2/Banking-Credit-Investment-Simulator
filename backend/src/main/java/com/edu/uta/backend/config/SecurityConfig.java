@@ -9,6 +9,8 @@ import com.edu.uta.backend.identity.IdentityService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -28,9 +30,11 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 public class SecurityConfig {
 
     private final String frontendUrl;
+    private final boolean production;
 
-    public SecurityConfig(@Value("${app.cors.allowed-origin}") String frontendUrl) {
+    public SecurityConfig(@Value("${app.cors.allowed-origin}") String frontendUrl, Environment environment) {
         this.frontendUrl = frontendUrl;
+        this.production = environment.acceptsProfiles(Profiles.of("prod"));
     }
 
     @Bean
@@ -54,6 +58,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(
                                 "/api/health",
+                                "/actuator/health/liveness",
+                                "/actuator/health/readiness",
                                 "/api/auth/csrf",
                                 "/api/auth/login",
                                 "/api/public/**",
@@ -127,10 +133,15 @@ public class SecurityConfig {
     @Bean
     UrlBasedCorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(List.of(
-                "http://localhost:*",
-                "http://127.0.0.1:*"
-        ));
+        if (production) {
+            configuration.setAllowedOrigins(List.of(frontendUrl));
+        } else {
+            configuration.setAllowedOriginPatterns(List.of(
+                    frontendUrl,
+                    "http://localhost:*",
+                    "http://127.0.0.1:*"
+            ));
+        }
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);

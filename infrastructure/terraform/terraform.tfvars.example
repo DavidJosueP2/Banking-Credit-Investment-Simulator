@@ -1,0 +1,12 @@
+aws_region   = "us-east-1"
+project_name = "brn"
+environment  = "prod"
+vpc_cidr     = "10.20.0.0/16"
+api_domain_name = "api-brn.stratiumhub.com"
+frontend_url = "https://brn.stratiumhub.com"
+backend_image_tag = "deploy-schema-v2"
+smtp_host = "smtp.gmail.com"
+smtp_port = 587
+mail_sender = "YOUR_AUTHORIZED_SENDER_EMAIL"
+frontend_domain_name = "brn.stratiumhub.com"
+enable_frontend_distribution = false

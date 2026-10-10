@@ -21,12 +21,12 @@ import com.edu.uta.backend.settings.InstitutionSettingsService;
 import com.edu.uta.backend.verification.AwsProperties;
 import com.edu.uta.backend.verification.CustomerBiometric;
 import com.edu.uta.backend.verification.CustomerBiometricRepository;
+import com.edu.uta.backend.verification.LivenessCredentialsService;
 import com.edu.uta.backend.verification.LivenessService;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import software.amazon.awssdk.services.sts.StsClient;
 
 /**
  * Flujo de solicitudes en línea: borrador → confirmación biométrica → envío → revisión del asesor.
@@ -60,25 +60,21 @@ public class ApplicationService {
     private static final int MAX_DOCUMENTS = 6;
     private static final int MAX_DOCUMENT_BYTES = 5 * 1024 * 1024;
     private static final Set<String> DOCUMENT_TYPES = Set.of("application/pdf", "image/jpeg", "image/png");
-    private static final int CREDENTIALS_SECONDS = 900;
-    private static final String LIVENESS_ONLY_POLICY = """
-            {"Version":"2012-10-17","Statement":[{"Effect":"Allow",\
-            "Action":"rekognition:StartFaceLivenessSession","Resource":"*"}]}""";
-
     private final JdbcTemplate jdbc;
     private final ScenarioCalculator calculator;
     private final IdentityService identity;
     private final CustomerProfileRepository profiles;
     private final CustomerBiometricRepository biometrics;
     private final LivenessService liveness;
-    private final StsClient sts;
+    private final LivenessCredentialsService livenessCredentials;
     private final AwsProperties aws;
     private final InstitutionSettingsService settings;
     private final ApplicationNotifier notifier;
 
     public ApplicationService(JdbcTemplate jdbc, ScenarioCalculator calculator, IdentityService identity,
                               CustomerProfileRepository profiles, CustomerBiometricRepository biometrics,
-                              LivenessService liveness, StsClient sts, AwsProperties aws,
+                              LivenessService liveness, LivenessCredentialsService livenessCredentials,
+                              AwsProperties aws,
                               InstitutionSettingsService settings, ApplicationNotifier notifier) {
         this.jdbc = jdbc;
         this.calculator = calculator;
@@ -86,7 +82,7 @@ public class ApplicationService {
         this.profiles = profiles;
         this.biometrics = biometrics;
         this.liveness = liveness;
-        this.sts = sts;
+        this.livenessCredentials = livenessCredentials;
         this.aws = aws;
         this.settings = settings;
         this.notifier = notifier;
@@ -330,10 +326,7 @@ public class ApplicationService {
                 UPDATE applications SET biometric_session_id = ?, biometric_attempts = biometric_attempts + 1,
                     updated_at = now() WHERE id = ?
                 """, sessionId, id);
-        var credentials = sts.getFederationToken(request -> request
-                .name("brunexa-application")
-                .policy(LIVENESS_ONLY_POLICY)
-                .durationSeconds(CREDENTIALS_SECONDS)).credentials();
+        var credentials = livenessCredentials.issue();
         return new LivenessTicket(sessionId, aws.region(), credentials.accessKeyId(), credentials.secretAccessKey(),
                 credentials.sessionToken(), credentials.expiration().toString());
     }

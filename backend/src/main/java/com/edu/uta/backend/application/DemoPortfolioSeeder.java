@@ -55,7 +55,7 @@ public class DemoPortfolioSeeder implements ApplicationRunner {
 
     public DemoPortfolioSeeder(JdbcTemplate jdbc, PasswordEncoder encoder, TransactionTemplate transactions,
                                ScenarioCalculator calculator, SimuladorService credits, InvestmentService investments,
-                               @Value("${APP_EXAMPLE_PASSWORD:}") String password) {
+                               @Value("${APP_DEV_DEMO_USERS_PASSWORD:}") String password) {
         this.jdbc = jdbc;
         this.encoder = encoder;
         this.transactions = transactions;
